@@ -149,6 +149,7 @@ src/
     member/[token]/           mobile member portal + member map
     api/uploads/map/          venue / event map upload
     api/setup/                first-run setup for a fresh deployment
+    api/assetlinks/           Android app links (/.well-known/assetlinks.json)
     uploads/[name]/           serves stored map images
   components/
     shell/                    AppShell, sidebar, bottom tab bar

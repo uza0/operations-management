@@ -18,3 +18,9 @@ yarn-error.log*
 next-env.d.ts
 tsconfig.tsbuildinfo
 !/data/.gitkeep
+
+# Android/iOS packages: the Google Play zip carries signing.keystore and its
+# password. Never in the repository.
+*.zip
+signing.keystore
+signing-key-info.txt
