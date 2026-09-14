@@ -1,0 +1,82 @@
+import Link from 'next/link';
+
+import type { Dictionary } from '@/lib/i18n';
+import type { EventStatus, EventType } from '@/lib/constants';
+import { formatDate, formatTime } from '@/lib/time';
+import { Badge, eventStatusTone } from '@/components/ui/status';
+import { IconGate, IconPin, IconUsers, IconClock } from '@/components/ui/icons';
+
+export type EventCardData = {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  date: string;
+  startTime: string;
+  teamArrivalTime: string;
+  venueName: string;
+  teamSize: number;
+  gateCount: number;
+  openIssues?: number;
+};
+
+export function EventCard({
+  event,
+  t,
+  locale,
+  href,
+}: {
+  event: EventCardData;
+  t: Dictionary;
+  locale: 'ar' | 'en';
+  href: string;
+}) {
+  const status = event.status as EventStatus;
+
+  return (
+    <Link
+      href={href}
+      className="panel group block p-4 transition-colors hover:border-brand-500/45 hover:bg-ink-850/70"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[15.5px] font-semibold text-ink-100">{event.name}</p>
+          <p className="mt-0.5 text-[12.5px] text-ink-400">
+            {t.enums.eventType[event.type as EventType]}
+          </p>
+        </div>
+        <Badge tone={eventStatusTone[status]} pulse={status === 'LIVE'}>
+          {t.enums.eventStatus[status]}
+        </Badge>
+      </div>
+
+      <dl className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
+        <div className="col-span-2 flex items-center gap-2 text-ink-300">
+          <IconPin width={15} height={15} className="shrink-0 text-ink-500" />
+          <span className="truncate">{event.venueName}</span>
+        </div>
+        <div className="flex items-center gap-2 text-ink-300">
+          <IconClock width={15} height={15} className="shrink-0 text-ink-500" />
+          <span className="truncate">
+            {formatDate(event.date, locale)} · {formatTime(event.startTime, locale)}
+          </span>
+        </div>
+        <div className="flex items-center gap-4 text-ink-300">
+          <span className="flex items-center gap-1.5">
+            <IconUsers width={15} height={15} className="text-ink-500" />
+            <span className="nums">{event.teamSize}</span>
+          </span>
+          <span className="flex items-center gap-1.5">
+            <IconGate width={15} height={15} className="text-ink-500" />
+            <span className="nums">{event.gateCount}</span>
+          </span>
+          {event.openIssues ? (
+            <Badge tone="crit" className="!py-0.5">
+              <span className="nums">{event.openIssues}</span> {t.issue.openCount}
+            </Badge>
+          ) : null}
+        </div>
+      </dl>
+    </Link>
+  );
+}

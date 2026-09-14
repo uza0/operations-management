@@ -1,0 +1,94 @@
+import { timingSafeEqual } from 'node:crypto';
+import { NextResponse } from 'next/server';
+import { sql } from 'drizzle-orm';
+
+import { db, rawClient } from '@/db';
+import { SCHEMA_STATEMENTS } from '@/db/schema-sql';
+import { seedDemoData } from '@/db/seed-core';
+
+/**
+ * First-run setup for a deployed site: creates the tables and loads the demo
+ * data, so a fresh database can be prepared from a browser without a terminal
+ * or a local checkout.
+ *
+ * It is off unless `SETUP_KEY` is set, and it refuses to touch a database that
+ * already has users unless `reset=1` is passed as well. Delete this file once
+ * the site holds real data — it exists to make the first deploy possible, not
+ * to stay.
+ *
+ *   GET /api/setup?key=<SETUP_KEY>
+ *   GET /api/setup?key=<SETUP_KEY>&reset=1     wipes and re-seeds
+ */
+
+export const dynamic = 'force-dynamic';
+export const maxDuration = 60;
+
+function matches(given: string, expected: string): boolean {
+  const a = Buffer.from(given);
+  const b = Buffer.from(expected);
+  // Compare something of equal length either way, so the answer time says
+  // nothing about how much of the key was right.
+  if (a.length !== b.length) {
+    timingSafeEqual(b, b);
+    return false;
+  }
+  return timingSafeEqual(a, b);
+}
+
+export async function GET(request: Request) {
+  const expected = process.env.SETUP_KEY;
+  // Not configured: the route does not exist as far as anyone can tell.
+  if (!expected) return new NextResponse('Not found', { status: 404 });
+
+  const url = new URL(request.url);
+  const key = url.searchParams.get('key') ?? '';
+  if (!matches(key, expected)) {
+    return new NextResponse('Not found', { status: 404 });
+  }
+
+  const reset = url.searchParams.get('reset') === '1';
+  const client = rawClient();
+  const created: string[] = [];
+
+  try {
+    for (const statement of SCHEMA_STATEMENTS) {
+      await client.execute(statement);
+      const name = /`([a-z_]+)`/.exec(statement)?.[1];
+      if (statement.startsWith('CREATE TABLE') && name) created.push(name);
+    }
+
+    const existing = await db.get<{ count: number }>(
+      sql`select count(*) as count from users`,
+    );
+    if ((existing?.count ?? 0) > 0 && !reset) {
+      return NextResponse.json({
+        status: 'already-set-up',
+        tables: created.length,
+        users: existing?.count ?? 0,
+        message:
+          'The database already has accounts, so nothing was changed. Add &reset=1 to wipe it and load the demo data again.',
+      });
+    }
+
+    const result = await seedDemoData({ db, sql: client });
+
+    return NextResponse.json({
+      status: 'ready',
+      tables: created.length,
+      signIn: `${url.origin}/login`,
+      accounts: {
+        admin: `${result.adminUsername} / ${result.adminPassword}`,
+        teamLeader: `${result.leaderUsername} / ${result.leaderPassword}`,
+        gateLeader: `hussein / ${result.gatePassword}`,
+      },
+      memberLink: `${url.origin}/member/${result.memberToken}`,
+      next: 'Delete this route, or unset SETUP_KEY, once you are done.',
+    });
+  } catch (error) {
+    console.error('[setup]', error);
+    return NextResponse.json(
+      { status: 'failed', error: error instanceof Error ? error.message : String(error) },
+      { status: 500 },
+    );
+  }
+}

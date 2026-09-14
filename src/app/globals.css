@@ -1,0 +1,278 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------------------------------------------------------------------
+   Typography — Arabic-first. IBM Plex Sans Arabic covers Arabic and Latin in
+   one family, so the interface keeps one voice in both directions.
+   --------------------------------------------------------------------------- */
+@font-face {
+  font-family: 'IBM Plex Sans Arabic Fallback';
+  src: local('Segoe UI'), local('Tahoma'), local('Arial');
+  size-adjust: 100%;
+}
+
+:root {
+  --font-ui: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', 'IBM Plex Sans Arabic Fallback',
+    system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+  color-scheme: dark;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-ink-950 text-ink-100 antialiased;
+    font-family: var(--font-ui);
+  }
+
+  /* Visible, high-contrast focus for keyboard users (spec §35). */
+  :focus-visible {
+    outline: 2px solid #34d399;
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: rgba(16, 185, 129, 0.3);
+  }
+
+  /* Numbers stay latin and LTR even inside RTL text. */
+  .nums {
+    font-variant-numeric: tabular-nums;
+    direction: ltr;
+    unicode-bidi: isolate;
+  }
+
+  input,
+  select,
+  textarea,
+  button {
+    font-family: inherit;
+  }
+
+  /* Slim scrollbars that match the operational surface. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #2f3a4c transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: #2f3a4c;
+    border-radius: 99px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply rounded-card border border-ink-700/70 bg-ink-900/70 shadow-panel;
+  }
+
+  .panel-head {
+    @apply flex flex-wrap items-center justify-between gap-3 border-b border-ink-700/70 px-4 py-3 sm:px-5;
+  }
+
+  .field-label {
+    @apply mb-1.5 block text-[13px] font-medium text-ink-300;
+  }
+
+  .field {
+    @apply w-full rounded-lg border border-ink-600 bg-ink-850 px-3 py-2.5 text-[15px] text-ink-100
+      placeholder:text-ink-400 transition-colors
+      hover:border-ink-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30
+      disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  select.field {
+    @apply cursor-pointer appearance-none bg-[length:16px] bg-no-repeat pe-9;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  }
+
+  :dir(rtl) select.field {
+    background-position: left 0.75rem center;
+  }
+  :dir(ltr) select.field {
+    background-position: right 0.75rem center;
+  }
+
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[14px]
+      font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-55;
+    min-height: 42px;
+  }
+
+  .btn-primary {
+    @apply btn bg-brand-600 text-white hover:bg-brand-500;
+  }
+
+  .btn-secondary {
+    @apply btn border border-ink-600 bg-ink-800 text-ink-100 hover:border-ink-500 hover:bg-ink-750;
+  }
+
+  .btn-ghost {
+    @apply btn text-ink-300 hover:bg-ink-800 hover:text-ink-100;
+  }
+
+  .btn-danger {
+    @apply btn border border-crit/60 bg-crit/15 text-crit-text hover:bg-crit/25;
+  }
+
+  .btn-sm {
+    @apply px-3 py-1.5 text-[13px];
+    min-height: 36px;
+  }
+
+  /* Fingers need more than a mouse pointer does (spec §35). */
+  @media (pointer: coarse) {
+    .btn {
+      min-height: 46px;
+    }
+    .btn-sm {
+      min-height: 42px;
+      @apply px-3.5;
+    }
+    .field {
+      @apply py-3 text-[16px];
+    }
+    input[type='checkbox'] {
+      min-width: 20px;
+      min-height: 20px;
+    }
+    /* Standalone navigation links sit in small type. On a touch screen they
+       still need a finger-sized target, so grow the hit area without moving
+       anything: the negative margin gives back exactly what the padding takes. */
+    .op-crumbs a {
+      @apply -my-2.5 inline-flex items-center py-2.5;
+      min-height: 44px;
+    }
+  }
+
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium;
+  }
+
+  .table-wrap {
+    @apply overflow-x-auto;
+  }
+
+  .op-table {
+    @apply w-full min-w-[640px] text-start text-[14px];
+  }
+
+  .op-table thead th {
+    @apply whitespace-nowrap border-b border-ink-700 px-3 py-2.5 text-start text-[12.5px] font-semibold uppercase tracking-wide text-ink-400;
+  }
+
+  .op-table tbody td {
+    @apply border-b border-ink-800 px-3 py-3 align-middle;
+  }
+
+  .op-table tbody tr:hover {
+    @apply bg-ink-850/60;
+  }
+
+  /**
+   * Skip link. Parked off-screen with `top`, not with `sr-only` — a clipped
+   * absolute element still sits at its static position and, in RTL, that drags
+   * the page's scroll width past the viewport.
+   */
+  .skip-link {
+    @apply fixed z-[60] rounded-lg bg-brand-600 px-4 py-2 text-[14px] font-semibold text-white;
+    inset-inline-start: 0.5rem;
+    top: -6rem;
+    transition: top 0.15s ease;
+  }
+
+  .skip-link:focus {
+    top: 0.5rem;
+  }
+
+  /* ------------------------------------------------------------------------
+     Phone tables.
+     A 7-column operations table cannot shrink to 390px and stay readable, so
+     below `sm` each row becomes a card and every cell carries its own label
+     (from data-label). Desktop keeps the real table, unchanged.
+     --------------------------------------------------------------------- */
+  @media (max-width: 639px) {
+    .op-table-stack,
+    .op-table-stack tbody,
+    .op-table-stack tr,
+    .op-table-stack td {
+      display: block;
+      width: 100%;
+      min-width: 0;
+    }
+
+    .op-table-stack thead {
+      display: none;
+    }
+
+    .op-table-stack tr {
+      @apply mb-2.5 rounded-xl border border-ink-700 bg-ink-850/50 p-1;
+    }
+
+    .op-table-stack tr:last-child {
+      @apply mb-0;
+    }
+
+    .op-table-stack tbody tr:hover {
+      background: inherit;
+    }
+
+    .op-table-stack td {
+      @apply flex items-center justify-between gap-3 border-0 px-3 py-2 text-start;
+    }
+
+    .op-table-stack td + td {
+      @apply border-t border-ink-800/70;
+    }
+
+    .op-table-stack td::before {
+      content: attr(data-label);
+      @apply shrink-0 text-[12px] font-medium text-ink-500;
+    }
+
+    /*
+     * Cells that are self-explanatory (the row's title) or hold a row of
+     * actions: no label, and normal block flow so inline badges keep their own
+     * width instead of being stretched by the flex row.
+     */
+    .op-table-stack td[data-label='']::before {
+      content: none;
+    }
+
+    .op-table-stack td[data-label=''] {
+      @apply block space-y-1.5 text-start;
+    }
+  }
+}
+
+/* Printing the event report should produce a clean document. */
+@media print {
+  :root {
+    color-scheme: light;
+  }
+  body {
+    background: #fff !important;
+    color: #0b0f16 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .panel {
+    border-color: #cbd5e1 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    break-inside: avoid;
+  }
+  .print-text {
+    color: #0b0f16 !important;
+  }
+}
