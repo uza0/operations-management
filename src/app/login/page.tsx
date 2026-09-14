@@ -19,10 +19,31 @@ export default async function LoginPage({
   const params = await searchParams;
   const next = params.next && params.next.startsWith('/') ? params.next : '';
 
+  /**
+   * The demo credentials are a convenience while the app runs on a laptop.
+   * On a deployed site the login page is public, so printing passwords on it
+   * would hand the whole system to anyone with the link — the block is off in
+   * production unless SHOW_DEMO_ACCOUNTS=1 says otherwise, and it reads the
+   * seeded values from the environment so it can never show stale ones.
+   */
+  const showDemo =
+    process.env.SHOW_DEMO_ACCOUNTS === '1' || process.env.NODE_ENV !== 'production';
   const demo = [
-    { role: t.enums.role.ADMIN, user: 'admin', pass: 'Admin@12345' },
-    { role: t.enums.role.TEAM_LEADER, user: 'ahmed', pass: 'Leader@12345' },
-    { role: t.enums.role.GATE_LEADER, user: 'hussein', pass: 'Gate@12345' },
+    {
+      role: t.enums.role.ADMIN,
+      user: process.env.SEED_ADMIN_USERNAME ?? 'admin',
+      pass: process.env.SEED_ADMIN_PASSWORD ?? 'Admin@12345',
+    },
+    {
+      role: t.enums.role.TEAM_LEADER,
+      user: process.env.SEED_LEADER_USERNAME ?? 'ahmed',
+      pass: process.env.SEED_LEADER_PASSWORD ?? 'Leader@12345',
+    },
+    {
+      role: t.enums.role.GATE_LEADER,
+      user: 'hussein',
+      pass: process.env.SEED_GATELEADER_PASSWORD ?? 'Gate@12345',
+    },
   ];
 
   return (
@@ -74,6 +95,7 @@ export default async function LoginPage({
           </p>
         </div>
 
+        {showDemo ? (
         <div className="panel mt-4 p-4">
           <p className="mb-2.5 text-[12px] font-semibold uppercase tracking-wide text-ink-500">
             {t.auth.demoAccounts}
@@ -92,6 +114,7 @@ export default async function LoginPage({
             ))}
           </ul>
         </div>
+        ) : null}
       </div>
     </div>
   );
