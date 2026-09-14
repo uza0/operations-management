@@ -37,7 +37,11 @@ Team members have no account at all. They open a secure personal link,
 `/member/<token>` — copy one from **Event → Team**, or use the link the seed
 prints.
 
-> Change the seed passwords in `.env` before putting this anywhere shared.
+> These are the local defaults. Set `SEED_ADMIN_PASSWORD`,
+> `SEED_LEADER_PASSWORD` and `SEED_GATELEADER_PASSWORD` before seeding anything
+> shared, and the seed uses those instead. The login page prints these hints in
+> development only — on a deployed site it hides them, since that page is
+> public (`SHOW_DEMO_ACCOUNTS=1` overrides that).
 
 ---
 
