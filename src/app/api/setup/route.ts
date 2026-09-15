@@ -127,13 +127,14 @@ export async function GET(request: Request) {
       tables: created.length,
       columnsAdded: upgraded,
       teamSize: result.teamSize,
+      event: `${result.eventName} — ${result.locations} locations, ${result.assigned} assigned`,
       signIn: `${url.origin}/login`,
       accounts: {
         admin: `${result.adminUsername} / ${result.adminPassword}`,
         teamLeader: `${result.leaderUsername} / ${result.leaderPassword}`,
         gateLeader: `${result.gateUsername} / ${result.gatePassword}`,
       },
-      next: 'Add a venue, create the first event, then delete this route or unset SETUP_KEY.',
+      next: 'Place the markers on the venue map, then delete this route or unset SETUP_KEY.',
     });
   } catch (error) {
     console.error('[setup]', error);

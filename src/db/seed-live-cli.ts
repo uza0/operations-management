@@ -41,7 +41,9 @@ seedLiveData({ db, sql })
     console.log(`    admin        ${result.adminUsername} / ${result.adminPassword}`);
     console.log(`    team leader  ${result.leaderUsername} / ${result.leaderPassword}`);
     console.log(`    gate leader  ${result.gateUsername} / ${result.gatePassword}`);
-    console.log('\n  Next: add a venue, then create the first event.\n');
+    console.log(
+      `\n  Event: ${result.eventName} — ${result.locations} locations, ${result.assigned} assigned\n`,
+    );
     sql.close();
     process.exit(0);
   })
