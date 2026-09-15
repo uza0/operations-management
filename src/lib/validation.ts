@@ -35,10 +35,29 @@ export const eventSchema = z.object({
   status: z.enum(EVENT_STATUSES).optional(),
 });
 
+/**
+ * A pasted maps link. Anything https is accepted — Google Maps, Apple Maps, OSM,
+ * a short link from a phone's share sheet — but nothing else, so a stray bit of
+ * text never ends up as a link someone taps in the field.
+ */
+const mapsUrl = z
+  .string()
+  .trim()
+  .max(600)
+  .refine((v) => v === '' || /^https:\/\/\S+$/i.test(v), 'invalidUrl')
+  .optional()
+  .nullable();
+
+const latitude = z.coerce.number().min(-90).max(90).optional().nullable();
+const longitude = z.coerce.number().min(-180).max(180).optional().nullable();
+
 export const venueSchema = z.object({
   name: shortText,
   address: z.string().trim().max(300).optional().nullable(),
   description: longText,
+  locationUrl: mapsUrl,
+  latitude,
+  longitude,
 });
 
 export const teamMemberSchema = z.object({

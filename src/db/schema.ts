@@ -116,6 +116,15 @@ export const venues = sqliteTable('venues', {
   address: text('address'),
   description: text('description'),
   mapImageUrl: text('map_image_url'),
+  /**
+   * Where the place actually is, for the briefing a member receives on their
+   * phone. Either a link someone pasted (Google Maps, and anything else that
+   * opens in a maps app) or coordinates captured from a device standing there —
+   * the second is what a venue with no address on any map needs.
+   */
+  locationUrl: text('location_url'),
+  latitude: real('latitude'),
+  longitude: real('longitude'),
   ...timestamps,
 });
 
@@ -174,6 +183,16 @@ export const eventMembers = sqliteTable(
     tokenExpiresAt: integer('token_expires_at', { mode: 'timestamp_ms' }),
     /** Reserve members are on the team but excluded from gate staffing counts. */
     isReserve: integer('is_reserve', { mode: 'boolean' }).notNull().default(false),
+    /**
+     * When this person was last sent their briefing, and by whom. Compared
+     * against the assignment's own updatedAt so a member who was moved after
+     * being told can be flagged — telling someone the wrong gate is worse than
+     * telling them nothing.
+     */
+    notifiedAt: integer('notified_at', { mode: 'timestamp_ms' }),
+    notifiedById: text('notified_by_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
     ...timestamps,
   },
   (t) => [

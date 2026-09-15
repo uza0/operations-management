@@ -284,6 +284,11 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
         address: 'شارع الكندي، حي الجامعة، بغداد',
         description: 'ملعب بسعة 12,000 متفرج، ثمان بوابات جماهيرية ومدخل خدمي ومدخل لاعبين.',
         mapImageUrl: '/maps/al-zawraa-stadium.png',
+        // Real coordinates for Al-Zawraa Stadium, so the briefing a member
+        // receives opens a map that actually goes somewhere.
+        locationUrl: 'https://www.google.com/maps?q=33.313400,44.355600',
+        latitude: 33.3134,
+        longitude: 44.3556,
       },
       {
         id: arenaVenueId,

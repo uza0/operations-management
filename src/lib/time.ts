@@ -73,6 +73,37 @@ export function formatDate(date: string, locale: 'ar' | 'en' = 'ar'): string {
     : `${d} ${months[m - 1]} ${y}`;
 }
 
+const AR_WEEKDAYS = [
+  'الأحد',
+  'الإثنين',
+  'الثلاثاء',
+  'الأربعاء',
+  'الخميس',
+  'الجمعة',
+  'السبت',
+];
+
+const EN_WEEKDAYS = [
+  'Sunday',
+  'Monday',
+  'Tuesday',
+  'Wednesday',
+  'Thursday',
+  'Friday',
+  'Saturday',
+];
+
+/**
+ * "الخميس" for a "YYYY-MM-DD" day. Built from the date parts directly, never
+ * from a parsed local Date, so the day named is the day stored.
+ */
+export function formatWeekday(value: string, locale: 'ar' | 'en' = 'ar'): string {
+  if (!isValidDate(value)) return '';
+  const [y, m, d] = value.split('-').map(Number);
+  const index = new Date(Date.UTC(y, m - 1, d)).getUTCDay();
+  return (locale === 'ar' ? AR_WEEKDAYS : EN_WEEKDAYS)[index];
+}
+
 export function formatDateTime(value: Date | null, locale: 'ar' | 'en' = 'ar'): string {
   if (!value) return '—';
   const pad = (n: number) => String(n).padStart(2, '0');

@@ -19,6 +19,9 @@ export default async function VenuesPage() {
       address: venues.address,
       description: venues.description,
       mapImageUrl: venues.mapImageUrl,
+      locationUrl: venues.locationUrl,
+      latitude: venues.latitude,
+      longitude: venues.longitude,
       eventCount: sql<number>`(select count(*) from ${events} where ${events.venueId} = ${venues.id})`,
     })
     .from(venues)

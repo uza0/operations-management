@@ -242,6 +242,18 @@ check('gate leader does not see other gates’ members',
   `checked ${gate6Members.length} gate-6 members`);
 await gateLeader.goto(`${BASE}/leader/events/${eventId}/activity`, { waitUntil: 'networkidle' });
 const gateNav = await gateLeader.textContent('aside, header');
+/* ---- the briefing screen exposes phone numbers: managers only ---------- */
+await gateLeader.goto(`${BASE}/admin/events/${eventId}/notify`);
+await gateLeader.waitForLoadState('networkidle');
+check('gate leader cannot open the briefing screen',
+  gateLeader.url().includes('/forbidden'),
+  gateLeader.url());
+await gateLeader.goto(`${BASE}/leader/events/${eventId}/notify`);
+await gateLeader.waitForLoadState('networkidle');
+check('gate leader blocked from the leader briefing route too',
+  gateLeader.url().includes('/forbidden'),
+  gateLeader.url());
+
 check('gate leader nav omits management sections', !gateNav.includes('التوزيع'));
 
 // Wrong password is rejected.

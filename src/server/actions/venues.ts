@@ -30,6 +30,9 @@ export async function saveVenueAction(
     name: str(form, 'name') ?? '',
     address: str(form, 'address'),
     description: str(form, 'description'),
+    locationUrl: str(form, 'locationUrl'),
+    latitude: str(form, 'latitude') || null,
+    longitude: str(form, 'longitude') || null,
   });
   if (!parsed.success) {
     const errors = t.errors as unknown as Record<string, string>;

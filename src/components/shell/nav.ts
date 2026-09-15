@@ -56,6 +56,7 @@ export function eventNav(
     { href: `${root}/attendance`, label: t.nav.attendance, icon: 'checkCircle' },
   ];
   const ops: NavItem[] = [
+    { href: `${root}/notify`, label: t.nav.notify, icon: 'megaphone' },
     { href: `${root}/timeline`, label: t.nav.timeline, icon: 'clock' },
     { href: `${root}/announcements`, label: t.nav.announcements, icon: 'megaphone' },
     { href: `${root}/issues`, label: t.nav.issues, icon: 'alert' },
