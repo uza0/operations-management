@@ -1,371 +1,426 @@
-import { asc, desc, eq } from 'drizzle-orm';
-
-import { db } from '@/db';
-import {
-  announcements,
-  assignmentChanges,
-  assignments,
-  attendance,
-  eventMembers,
-  issues,
-  teamMembers,
-  timelineItems,
-} from '@/db/schema';
 import { loadEventPage } from '@/features/event/workspace';
-import { getStaffedLocations } from '@/server/services/staffing';
-import { listAssignments } from '@/server/services/assignments';
-import { PageHeader, Panel, KeyValue, StatTile } from '@/components/ui/panel';
-import { EmptyState } from '@/components/ui/states';
+import { buildFindings, buildReport } from '@/server/services/report';
 import { Badge, eventStatusTone, issueStatusTone } from '@/components/ui/status';
+import { format } from '@/lib/i18n';
 import { formatDate, formatDateTime, formatTime } from '@/lib/time';
-import {
-  type AttendanceStatus,
-  type EventStatus,
-  type EventType,
-  type IssueStatus,
-  type IssueType,
-  type Priority,
-  type Task,
+import type {
+  AttendanceStatus,
+  EventStatus,
+  EventType,
+  IssueStatus,
+  IssueType,
+  Task,
 } from '@/lib/constants';
 
 import { PrintButton, ReportNotes } from './parts/ReportParts';
+import {
+  CoverageBar,
+  Fact,
+  FactGrid,
+  ReportSection,
+  ReportTable,
+  SignatureBlock,
+  Statements,
+} from './parts/ReportDocument';
 
-/** Basic event report (spec §27). Print-friendly; the browser exports the PDF. */
+/**
+ * The closing report (spec §27).
+ *
+ * Written as a document rather than a screen: ten numbered sections, an
+ * executive summary computed from the event's own numbers, recommendations that
+ * name a gate and a count, and a sign-off block. It prints to A4 without the
+ * application around it, so "save as PDF" produces something that can be sent
+ * to a manager as-is.
+ */
 export async function EventReportPage({ eventId }: { eventId: string }) {
   const { scope, event, locale, t } = await loadEventPage(eventId);
+  const data = await buildReport(eventId);
+  const { findings, recommendations } = buildFindings(data, t, format);
 
-  const [
-    locations,
-    assignmentRows,
-    members,
-    attendanceRows,
-    issueRows,
-    announcementRows,
-    changeRows,
-    timeline,
-  ] = await Promise.all([
-    getStaffedLocations(eventId),
-    listAssignments(eventId),
-    db
-      .select({ id: eventMembers.id, isReserve: eventMembers.isReserve })
-      .from(eventMembers)
-      .where(eq(eventMembers.eventId, eventId)),
-    db
-      .select({ status: attendance.status })
-      .from(attendance)
-      .where(eq(attendance.eventId, eventId)),
-    db
-      .select()
-      .from(issues)
-      .where(eq(issues.eventId, eventId))
-      .orderBy(desc(issues.createdAt)),
-    db
-      .select()
-      .from(announcements)
-      .where(eq(announcements.eventId, eventId))
-      .orderBy(desc(announcements.createdAt)),
-    db
-      .select({
-        id: assignmentChanges.id,
-        fromLocation: assignmentChanges.fromLocation,
-        toLocation: assignmentChanges.toLocation,
-        reason: assignmentChanges.reason,
-        changedByName: assignmentChanges.changedByName,
-        createdAt: assignmentChanges.createdAt,
-        memberName: teamMembers.fullName,
-      })
-      .from(assignmentChanges)
-      .innerJoin(assignments, eq(assignmentChanges.assignmentId, assignments.id))
-      .innerJoin(eventMembers, eq(assignments.eventMemberId, eventMembers.id))
-      .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
-      .where(eq(assignments.eventId, eventId))
-      .orderBy(desc(assignmentChanges.createdAt)),
-    db
-      .select()
-      .from(timelineItems)
-      .where(eq(timelineItems.eventId, eventId))
-      .orderBy(asc(timelineItems.scheduledTime)),
-  ]);
+  const generatedAt = new Date();
+  // Short, human, and stable for one event on one day — enough for a filing
+  // reference on a printed page.
+  const reportNo = `OPS-${event.date.replace(/-/g, '')}-${event.id.slice(0, 4).toUpperCase()}`;
+  const finished = event.status === 'COMPLETED' || event.status === 'ARCHIVED';
 
-  const counts: Record<string, number> = {
-    PRESENT: 0,
-    LATE: 0,
-    ABSENT: 0,
-    EXCUSED: 0,
-    PENDING: 0,
-  };
-  for (const row of attendanceRows) counts[row.status] = (counts[row.status] ?? 0) + 1;
-  counts.PENDING += members.length - attendanceRows.length;
-
-  const activeAssignments = assignmentRows.filter((a) => a.status !== 'CANCELLED');
-  const byTask = activeAssignments.reduce<Record<string, number>>((acc, a) => {
-    acc[a.task] = (acc[a.task] ?? 0) + 1;
-    return acc;
-  }, {});
-
-  const attendanceRate =
-    members.length > 0
-      ? Math.round(((counts.PRESENT + counts.LATE) / members.length) * 100)
-      : 0;
+  const attendanceLabel = (status: AttendanceStatus | 'PENDING') =>
+    t.enums.attendanceStatus[status as AttendanceStatus] ?? status;
 
   return (
     <>
-      <PageHeader
-        title={t.report.title}
-        subtitle={`${event.name} · ${formatDate(event.date, locale)}`}
-        action={<PrintButton label={t.report.printReport} />}
-      />
+      <div className="app-chrome mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-[20px] font-bold text-ink-100">{t.report.title}</h1>
+          <p className="mt-0.5 text-[13px] text-ink-400">{t.report.subtitle}</p>
+        </div>
+        <PrintButton label={t.report.printReport} />
+      </div>
 
-      <div className="space-y-4">
-        <Panel title={t.report.eventInfo}>
-          <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2">
-            <dl>
-              <KeyValue label={t.event.name}>{event.name}</KeyValue>
-              <KeyValue label={t.event.type}>
-                {t.enums.eventType[event.type as EventType]}
-              </KeyValue>
-              <KeyValue label={t.event.venue}>{event.venue.name}</KeyValue>
-              <KeyValue label={t.common.status}>
+      <article className="report-doc">
+        {/* Masthead ------------------------------------------------------- */}
+        <header className="report-masthead">
+          <p className="report-kicker">{t.app.name}</p>
+          <h1 className="report-title">{t.report.documentTitle}</h1>
+          <p className="report-subtitle">
+            {event.name} · {event.venue.name} ·{' '}
+            <span className="nums">{formatDate(event.date, locale)}</span>
+          </p>
+          <div className="mt-4 grid grid-cols-1 gap-x-8 gap-y-1 text-[12.5px] text-ink-400 sm:grid-cols-3">
+            <p>
+              {t.report.reportNo}: <span className="nums text-ink-200">{reportNo}</span>
+            </p>
+            <p>
+              {t.report.generatedAt}:{' '}
+              <span className="nums text-ink-200">
+                {formatDateTime(generatedAt, locale)}
+              </span>
+            </p>
+            <p>
+              {t.report.preparedBy}: <span className="text-ink-200">{scope.user.name}</span>
+            </p>
+          </div>
+          {!finished ? <p className="report-hint mt-3">{t.report.incomplete}</p> : null}
+        </header>
+
+        {/* 1 — Executive summary ------------------------------------------ */}
+        <ReportSection index={1} title={t.report.section1}>
+          <Statements items={findings} />
+        </ReportSection>
+
+        {/* 2 — Event details ---------------------------------------------- */}
+        <ReportSection index={2} title={t.report.section2}>
+          <FactGrid>
+            <div>
+              <Fact label={t.event.name}>{event.name}</Fact>
+              <Fact label={t.event.type}>{t.enums.eventType[event.type as EventType]}</Fact>
+              <Fact label={t.event.venue}>{event.venue.name}</Fact>
+              <Fact label={t.common.status}>
                 <Badge tone={eventStatusTone[event.status as EventStatus]}>
                   {t.enums.eventStatus[event.status as EventStatus]}
                 </Badge>
-              </KeyValue>
-            </dl>
-            <dl>
-              <KeyValue label={t.event.date}>
-                <span className="nums">{formatDate(event.date, locale)}</span>
-              </KeyValue>
-              <KeyValue label={t.event.arrival}>
-                <span className="nums">{formatTime(event.teamArrivalTime, locale)}</span>
-              </KeyValue>
-              <KeyValue label={t.event.kickoff}>
-                <span className="nums">{formatTime(event.startTime, locale)}</span>
-              </KeyValue>
-              <KeyValue label={t.report.generatedAt}>
-                <span className="nums">{formatDateTime(new Date(), locale)}</span>
-              </KeyValue>
-            </dl>
-          </div>
-        </Panel>
-
-        <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-6">
-          <StatTile label={t.event.teamSize} value={members.length} />
-          <StatTile
-            label={t.attendance.present}
-            value={counts.PRESENT}
-            tone={counts.PRESENT ? 'ok' : 'neutral'}
-            hint={`${t.attendance.rate}: ${attendanceRate}%`}
-          />
-          <StatTile
-            label={t.attendance.late}
-            value={counts.LATE}
-            tone={counts.LATE ? 'warn' : 'neutral'}
-          />
-          <StatTile
-            label={t.attendance.absent}
-            value={counts.ABSENT}
-            tone={counts.ABSENT ? 'crit' : 'neutral'}
-          />
-          <StatTile label={t.event.gatesCount} value={locations.length} />
-          <StatTile
-            label={t.issue.title}
-            value={issueRows.length}
-            tone={issueRows.some((i) => i.status === 'OPEN') ? 'crit' : 'neutral'}
-          />
-        </div>
-
-        <Panel title={t.report.gateDistribution} bodyClassName="p-0">
-          {locations.length === 0 ? (
-            <EmptyState title={t.gate.emptyGates} />
-          ) : (
-            <div className="table-wrap">
-              <table className="op-table op-table-stack">
-                <thead>
-                  <tr>
-                    <th>{t.assignment.location}</th>
-                    <th>{t.gate.requiredStaff}</th>
-                    <th>{t.gate.assignedStaff}</th>
-                    <th>{t.gate.difference}</th>
-                    <th>{t.common.status}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {locations.map((l) => (
-                    <tr key={l.id}>
-                      <td data-label="" className="font-medium text-ink-100">
-                        {l.name}
-                      </td>
-                      <td data-label={t.gate.requiredStaff} className="nums text-ink-300">
-                        {l.requiredStaff}
-                      </td>
-                      <td data-label={t.gate.assignedStaff} className="nums text-ink-300">
-                        {l.assignedStaff}
-                      </td>
-                      <td data-label={t.gate.difference} className="nums text-ink-300">
-                        {l.difference > 0 ? `-${l.difference}` : l.difference < 0 ? `+${-l.difference}` : '0'}
-                      </td>
-                      <td data-label={t.common.status}>
-                        <Badge
-                          tone={
-                            l.level === 'UNDERSTAFFED'
-                              ? 'crit'
-                              : l.level === 'OVERSTAFFED'
-                                ? 'warn'
-                                : 'ok'
-                          }
-                        >
-                          {t.enums.staffing[l.level]}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              </Fact>
             </div>
-          )}
-        </Panel>
+            <div>
+              <Fact label={t.event.date}>
+                <span className="nums">{formatDate(event.date, locale)}</span>
+              </Fact>
+              <Fact label={t.event.arrival}>
+                <span className="nums">{formatTime(event.teamArrivalTime, locale)}</span>
+              </Fact>
+              <Fact label={t.event.kickoff}>
+                <span className="nums">{formatTime(event.startTime, locale)}</span>
+              </Fact>
+              <Fact label={t.event.teamSize}>
+                <span className="nums">{data.team.total}</span>
+              </Fact>
+            </div>
+          </FactGrid>
+        </ReportSection>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Panel title={t.report.assignmentSummary}>
-            {Object.keys(byTask).length === 0 ? (
-              <EmptyState title={t.assignment.empty} />
-            ) : (
-              <dl>
-                {Object.entries(byTask)
-                  .sort((a, b) => b[1] - a[1])
-                  .map(([task, count]) => (
-                    <KeyValue key={task} label={t.enums.task[task as Task]}>
-                      <span className="nums">{count}</span>
-                    </KeyValue>
-                  ))}
-                <KeyValue label={t.common.total}>
-                  <span className="nums">{activeAssignments.length}</span>
-                </KeyValue>
-              </dl>
-            )}
-          </Panel>
-
-          <Panel title={t.report.attendanceSummary}>
-            <dl>
-              {(['PRESENT', 'LATE', 'ABSENT', 'EXCUSED', 'PENDING'] as AttendanceStatus[]).map(
-                (status) => (
-                  <KeyValue key={status} label={t.enums.attendanceStatus[status]}>
-                    <span className="nums">{counts[status] ?? 0}</span>
-                  </KeyValue>
-                ),
-              )}
-            </dl>
-          </Panel>
-        </div>
-
-        <Panel title={t.report.changesSummary} bodyClassName="p-0">
-          {changeRows.length === 0 ? (
-            <EmptyState title={t.assignment.noChanges} />
+        {/* 3 — Staffing and coverage --------------------------------------- */}
+        <ReportSection index={3} title={t.report.section3}>
+          {data.locations.length === 0 ? (
+            <p className="report-hint">{t.report.none}</p>
           ) : (
-            <ul className="divide-y divide-ink-800">
-              {changeRows.map((row) => (
-                <li key={row.id} className="px-4 py-3">
-                  <p className="text-[13.5px] text-ink-100">
-                    {row.memberName}
-                    {row.fromLocation && row.toLocation
-                      ? `: ${row.fromLocation} → ${row.toLocation}`
-                      : ''}
-                  </p>
-                  <p className="mt-0.5 text-[12px] text-ink-500">
-                    {t.common.by} {row.changedByName} ·{' '}
-                    <span className="nums">{formatDateTime(row.createdAt, locale)}</span>
-                    {row.reason ? ` · ${t.common.reason}: ${row.reason}` : ''}
-                  </p>
-                </li>
+            <ReportTable
+              head={[
+                t.assignment.location,
+                t.gate.requiredStaff,
+                t.gate.assignedStaff,
+                t.gate.difference,
+                t.report.coverage,
+              ]}
+            >
+              {data.locations.map((l) => (
+                <tr key={l.id}>
+                  <td className="font-medium text-ink-100">{l.name}</td>
+                  <td className="nums">{l.required}</td>
+                  <td className="nums">{l.assigned}</td>
+                  {/*
+                    `difference` is required minus assigned, so a positive value
+                    means the location is SHORT. The column reads as a balance —
+                    what the location has over or under its requirement — so the
+                    sign is flipped here and a shortfall shows in red.
+                  */}
+                  <td
+                    className={`nums ${
+                      l.difference > 0
+                        ? 'text-crit-text'
+                        : l.difference < 0
+                          ? 'text-ok-text'
+                          : ''
+                    }`}
+                  >
+                    {l.difference > 0 ? `-${l.difference}` : l.difference < 0 ? `+${-l.difference}` : '0'}
+                  </td>
+                  <td>
+                    <span className="flex items-center gap-2">
+                      <CoverageBar value={l.coverage} />
+                      <span className="nums text-[12.5px]">{l.coverage}%</span>
+                    </span>
+                  </td>
+                </tr>
               ))}
-            </ul>
+            </ReportTable>
           )}
-        </Panel>
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <Panel title={t.report.issuesSummary} bodyClassName="p-0">
-            {issueRows.length === 0 ? (
-              <EmptyState title={t.issue.empty} />
-            ) : (
-              <ul className="divide-y divide-ink-800">
-                {issueRows.map((row) => (
-                  <li key={row.id} className="px-4 py-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-[13.5px] font-medium text-ink-100">
-                        {t.enums.issueType[row.type as IssueType]}
-                      </p>
-                      <Badge tone={issueStatusTone[row.status as IssueStatus]}>
-                        {t.enums.issueStatus[row.status as IssueStatus]}
-                      </Badge>
-                    </div>
-                    <p className="mt-1 text-[12.5px] leading-5 text-ink-400">
-                      {row.description}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
-
-          <Panel title={t.report.announcementsSummary} bodyClassName="p-0">
-            {announcementRows.length === 0 ? (
-              <EmptyState title={t.announcement.empty} />
-            ) : (
-              <ul className="divide-y divide-ink-800">
-                {announcementRows.map((row) => (
-                  <li key={row.id} className="px-4 py-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <p className="text-[13.5px] font-medium text-ink-100">{row.title}</p>
-                      <Badge
-                        tone={
-                          row.priority === 'URGENT'
-                            ? 'crit'
-                            : row.priority === 'IMPORTANT'
-                              ? 'warn'
-                              : 'neutral'
-                        }
-                      >
-                        {t.enums.priority[row.priority as Priority]}
-                      </Badge>
-                    </div>
-                    <p className="mt-0.5 text-[12px] text-ink-500">
-                      {row.createdByName} ·{' '}
-                      <span className="nums">{formatDateTime(row.createdAt, locale)}</span>
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Panel>
-        </div>
-
-        {timeline.length > 0 ? (
-          <Panel title={t.report.timelineSummary} bodyClassName="p-4">
-            <ol className="space-y-2">
-              {timeline.map((item) => (
-                <li key={item.id} className="flex items-center gap-3 text-[13px]">
-                  <span className="nums w-[72px] shrink-0 text-ink-400">
-                    {formatTime(item.scheduledTime, locale)}
-                  </span>
-                  <span className="flex-1 text-ink-200">{item.title}</span>
-                  <span className="text-[12px] text-ink-500">
-                    {t.enums.timelineStatus[item.status as keyof typeof t.enums.timelineStatus]}
-                  </span>
-                </li>
+          {data.tasks.length > 0 ? (
+            <>
+            <h3 className="mt-4 text-[13.5px] font-semibold text-ink-200">
+              {t.report.taskSpread}
+            </h3>
+            <FactGrid>
+              {data.tasks.map((row) => (
+                <Fact key={row.task} label={t.enums.task[row.task as Task] ?? row.task}>
+                  <span className="nums">{row.count}</span>
+                </Fact>
               ))}
-            </ol>
-          </Panel>
-        ) : null}
+            </FactGrid>
+            </>
+          ) : null}
+        </ReportSection>
 
-        <Panel title={t.report.operationalNotes}>
+        {/* 4 — Attendance --------------------------------------------------- */}
+        <ReportSection index={4} title={t.report.section4}>
+          <FactGrid>
+            <div>
+              {(['PRESENT', 'LATE', 'ABSENT'] as const).map((status) => (
+                <Fact key={status} label={attendanceLabel(status)}>
+                  <span className="nums">{data.attendance[status]}</span>
+                </Fact>
+              ))}
+              <Fact label={attendanceLabel('EXCUSED')}>
+                <span className="nums">{data.attendance.EXCUSED}</span>
+              </Fact>
+            </div>
+            <div>
+              <Fact label={t.attendance.rate}>
+                <span className="nums">{data.attendance.rate}%</span>
+              </Fact>
+              <Fact label={t.report.punctuality}>
+                <span className="nums">{data.attendance.punctualityRate}%</span>
+              </Fact>
+              <Fact label={t.report.briefed}>
+                <span className="nums">
+                  {data.team.briefed} / {data.team.total}
+                </span>
+              </Fact>
+              <Fact label={t.eventTeam.reserve}>
+                <span className="nums">{data.team.reserve}</span>
+              </Fact>
+            </div>
+          </FactGrid>
+
+          {data.locations.some((l) => l.absent > 0 || l.late > 0) ? (
+            <ReportTable
+              head={[
+                t.assignment.location,
+                attendanceLabel('PRESENT'),
+                attendanceLabel('LATE'),
+                attendanceLabel('ABSENT'),
+              ]}
+            >
+              {data.locations
+                .filter((l) => l.present + l.late + l.absent > 0)
+                .map((l) => (
+                  <tr key={l.id}>
+                    <td className="font-medium text-ink-100">{l.name}</td>
+                    <td className="nums">{l.present}</td>
+                    <td className="nums">{l.late}</td>
+                    <td className={`nums ${l.absent > 0 ? 'text-crit-text' : ''}`}>{l.absent}</td>
+                  </tr>
+                ))}
+            </ReportTable>
+          ) : null}
+        </ReportSection>
+
+        {/* 5 — Changes during the event ------------------------------------ */}
+        <ReportSection index={5} title={t.report.section5}>
+          {data.changes.length === 0 ? (
+            <p className="report-hint">{t.report.none}</p>
+          ) : (
+            <ReportTable
+              head={[
+                t.team.fullName,
+                `${t.common.of}`,
+                t.assignment.location,
+                t.common.reason,
+                t.common.by,
+                t.common.time,
+              ]}
+            >
+              {data.changes.map((c) => (
+                <tr key={c.id}>
+                  <td className="font-medium text-ink-100">{c.memberName}</td>
+                  <td>{c.fromLocation ?? '—'}</td>
+                  <td>{c.toLocation ?? '—'}</td>
+                  <td>{c.reason ?? '—'}</td>
+                  <td>{c.changedByName}</td>
+                  <td className="nums report-nowrap">
+                    {formatDateTime(c.createdAt, locale)}
+                  </td>
+                </tr>
+              ))}
+            </ReportTable>
+          )}
+        </ReportSection>
+
+        {/* 6 — Issues ------------------------------------------------------- */}
+        <ReportSection index={6} title={t.report.section6}>
+          <FactGrid>
+            <div>
+              <Fact label={t.common.total}>
+                <span className="nums">{data.issues.total}</span>
+              </Fact>
+              <Fact label={t.report.resolvedCount}>
+                <span className="nums">{data.issues.resolved}</span>
+              </Fact>
+            </div>
+            <div>
+              <Fact label={t.report.openCount}>
+                <span className={`nums ${data.issues.open > 0 ? 'text-crit-text' : ''}`}>
+                  {data.issues.open}
+                </span>
+              </Fact>
+              <Fact label={t.report.avgResolve}>
+                {data.issues.averageMinutesToResolve === null ? (
+                  '—'
+                ) : (
+                  <span className="nums">
+                    {data.issues.averageMinutesToResolve} {t.report.minutes}
+                  </span>
+                )}
+              </Fact>
+            </div>
+          </FactGrid>
+
+          {data.issues.rows.length === 0 ? (
+            <p className="report-hint">{t.report.none}</p>
+          ) : (
+            <ReportTable
+              head={[
+                t.report.issueType,
+                t.assignment.location,
+                t.common.description,
+                t.report.reportedBy,
+                t.common.status,
+                t.report.duration,
+              ]}
+            >
+              {data.issues.rows.map((issue) => (
+                <tr key={issue.id}>
+                  <td className="report-nowrap font-medium text-ink-100">
+                    {t.enums.issueType[issue.type as IssueType]}
+                  </td>
+                  <td>{issue.locationName ?? '—'}</td>
+                  <td>
+                    {issue.description}
+                    {issue.resolutionNote ? (
+                      <span className="mt-1 block text-[12px] text-ink-400">
+                        {t.report.resolution}: {issue.resolutionNote}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td>{issue.reporterName}</td>
+                  <td>
+                    <Badge tone={issueStatusTone[issue.status as IssueStatus]}>
+                      {t.enums.issueStatus[issue.status as IssueStatus]}
+                    </Badge>
+                  </td>
+                  <td className="nums report-nowrap">
+                    {issue.minutesToResolve === null
+                      ? '—'
+                      : `${issue.minutesToResolve} ${t.report.minutes}`}
+                  </td>
+                </tr>
+              ))}
+            </ReportTable>
+          )}
+        </ReportSection>
+
+        {/* 7 — Timeline ----------------------------------------------------- */}
+        <ReportSection index={7} title={t.report.section7}>
+          {data.timeline.length === 0 ? (
+            <p className="report-hint">{t.report.none}</p>
+          ) : (
+            <ReportTable head={[t.report.planned, t.common.name, t.common.status]}>
+              {data.timeline.map((item) => (
+                <tr key={item.id}>
+                  <td className="nums report-nowrap">
+                    {formatTime(item.scheduledTime, locale)}
+                  </td>
+                  <td>
+                    <span className="font-medium text-ink-100">{item.title}</span>
+                    {item.description ? (
+                      <span className="mt-0.5 block text-[12px] text-ink-400">
+                        {item.description}
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="report-nowrap">
+                    {t.enums.timelineStatus[
+                      item.status as keyof typeof t.enums.timelineStatus
+                    ] ?? item.status}
+                  </td>
+                </tr>
+              ))}
+            </ReportTable>
+          )}
+        </ReportSection>
+
+        {/* 8 — Communication ------------------------------------------------ */}
+        <ReportSection index={8} title={t.report.section8}>
+          <FactGrid>
+            <div>
+              <Fact label={t.announcement.title}>
+                <span className="nums">{data.announcements.total}</span>
+              </Fact>
+              <Fact label={t.report.urgentCount}>
+                <span className="nums">{data.announcements.urgent}</span>
+              </Fact>
+            </div>
+            <div>
+              <Fact label={t.report.briefed}>
+                <span className="nums">
+                  {data.team.briefed} / {data.team.total}
+                </span>
+              </Fact>
+            </div>
+          </FactGrid>
+        </ReportSection>
+
+        {/* 9 — Notes and recommendations ------------------------------------ */}
+        <ReportSection index={9} title={t.report.section9}>
+          <h3 className="text-[13.5px] font-semibold text-ink-200">
+            {t.report.recommendations}
+          </h3>
+          <Statements items={recommendations} />
+
+          <h3 className="mt-4 text-[13.5px] font-semibold text-ink-200">
+            {t.report.operationalNotes}
+          </h3>
           <ReportNotes
             t={t}
             eventId={eventId}
             value={event.reportNotes}
             canManage={scope.canManage}
           />
-        </Panel>
-      </div>
+        </ReportSection>
+
+        {/* 10 — Sign-off ---------------------------------------------------- */}
+        <ReportSection index={10} title={t.report.section10}>
+          <SignatureBlock
+            preparedBy={scope.user.name}
+            labels={{
+              prepared: t.report.preparedSignature,
+              reviewed: t.report.reviewedSignature,
+              approved: t.report.approvedSignature,
+              name: t.report.nameAndTitle,
+              signature: t.report.signature,
+            }}
+          />
+        </ReportSection>
+      </article>
     </>
   );
 }

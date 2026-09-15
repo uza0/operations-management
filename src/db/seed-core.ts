@@ -12,6 +12,7 @@
  *     terminal (src/app/api/setup/route.ts)
  */
 import type { Client } from '@libsql/client';
+import { eq } from 'drizzle-orm';
 import type { LibSQLDatabase } from 'drizzle-orm/libsql';
 import bcrypt from 'bcryptjs';
 
@@ -1190,6 +1191,15 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
       })),
     )
     .run();
+
+  // The exhibition is the finished event the report is read from, so its team
+  // carries a full history: everyone was briefed the day before.
+  for (const name of teamC) {
+    await db
+      .update(eventMembers)
+      .set({ notifiedAt: at('18:00', -60 * 24 * 15), notifiedById: leaderId })
+      .where(eq(eventMembers.id, cEmIds[name]));
+  }
 
   await db.insert(attendance)
     .values(

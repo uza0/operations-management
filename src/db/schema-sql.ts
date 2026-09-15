@@ -1,6 +1,6 @@
 /**
  * GENERATED FILE — do not edit.
- * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql.
+ * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql.
  * Regenerate after changing src/db/schema.ts:
  *   npx drizzle-kit generate && node scripts/embed-schema.mjs
  */
@@ -56,4 +56,9 @@ export const SCHEMA_STATEMENTS: string[] = [
   "CREATE TABLE IF NOT EXISTS `working_points` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`event_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`type` text DEFAULT 'OTHER' NOT NULL,\n\t`description` text,\n\t`required_staff` integer DEFAULT 1 NOT NULL,\n\t`status` text DEFAULT 'INACTIVE' NOT NULL,\n\t`sort_order` integer DEFAULT 0 NOT NULL,\n\t`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\t`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\tFOREIGN KEY (`event_id`) REFERENCES `events`(`id`) ON UPDATE no action ON DELETE cascade\n)",
   "CREATE UNIQUE INDEX IF NOT EXISTS `working_points_event_name_unique` ON `working_points` (`event_id`,`name`)",
   "CREATE INDEX IF NOT EXISTS `working_points_event_idx` ON `working_points` (`event_id`)",
+  "ALTER TABLE `event_members` ADD `notified_at` integer",
+  "ALTER TABLE `event_members` ADD `notified_by_id` text REFERENCES users(id)",
+  "ALTER TABLE `venues` ADD `location_url` text",
+  "ALTER TABLE `venues` ADD `latitude` real",
+  "ALTER TABLE `venues` ADD `longitude` real",
 ];

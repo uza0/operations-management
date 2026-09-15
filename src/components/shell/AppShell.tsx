@@ -41,7 +41,7 @@ export async function AppShell({
   return (
     <div className="flex min-h-screen bg-ink-950">
       {/* Rail ------------------------------------------------------------- */}
-      <aside className="sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-e border-ink-800 bg-ink-900/60 lg:flex">
+      <aside className="app-chrome sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-e border-ink-800 bg-ink-900/60 lg:flex">
         <div className="border-b border-ink-800 px-4 py-4">
           <Link href={homeHref} className="flex items-center gap-2.5">
             <span
@@ -85,7 +85,7 @@ export async function AppShell({
       <div className="flex min-w-0 flex-1 flex-col">
         <OfflineBanner t={t} />
 
-        <header className="sticky top-0 z-40 flex items-center justify-between gap-2 border-b border-ink-800 bg-ink-950/90 px-3 py-2.5 backdrop-blur pt-[max(0.625rem,env(safe-area-inset-top))] sm:px-6">
+        <header className="app-chrome sticky top-0 z-40 flex items-center justify-between gap-2 border-b border-ink-800 bg-ink-950/90 px-3 py-2.5 backdrop-blur pt-[max(0.625rem,env(safe-area-inset-top))] sm:px-6">
           <div className="flex min-w-0 flex-1 items-center gap-2.5">
             <MobileNav
               sections={sections}

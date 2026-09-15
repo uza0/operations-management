@@ -276,3 +276,253 @@
     color: #0b0f16 !important;
   }
 }
+
+/* ==========================================================================
+   The closing report — a document, on screen and on paper.
+
+   Everything below is shared by both: the same markup that reads as a report in
+   the browser must come out of a printer as one, without an app frame around it
+   or a card border in the middle of a table.
+   ========================================================================== */
+
+@layer components {
+  .report-doc {
+    @apply mx-auto max-w-[900px] rounded-card border border-ink-800 bg-ink-900 p-5 sm:p-8;
+  }
+
+  .report-masthead {
+    @apply mb-6 border-b-2 border-ink-700 pb-5;
+  }
+  .report-kicker {
+    @apply text-[11.5px] font-semibold uppercase tracking-[0.14em] text-brand-400;
+  }
+  .report-title {
+    @apply mt-1.5 text-[24px] font-bold leading-tight text-ink-100 sm:text-[28px];
+  }
+  .report-subtitle {
+    @apply mt-1 text-[14px] text-ink-300;
+  }
+
+  .report-section {
+    @apply mt-7 first:mt-0;
+    break-inside: auto;
+  }
+  .report-h2 {
+    @apply mb-3 flex items-center gap-2.5 border-b border-ink-800 pb-2 text-[16px] font-bold text-ink-100;
+    break-after: avoid;
+  }
+  .report-h2-num {
+    @apply grid h-6 w-6 shrink-0 place-items-center rounded-md bg-brand-600/15 text-[12.5px] font-bold text-brand-400;
+  }
+  .report-hint {
+    @apply -mt-1 mb-3 text-[12.5px] text-ink-500;
+  }
+
+  .report-fact-grid {
+    @apply grid grid-cols-1 gap-x-8 sm:grid-cols-2;
+  }
+  .report-fact {
+    @apply flex items-baseline justify-between gap-4 border-b border-dashed border-ink-800 py-1.5 text-[13.5px];
+  }
+  .report-fact-label {
+    @apply shrink-0 text-ink-400;
+  }
+  .report-fact-value {
+    @apply text-end font-medium text-ink-100;
+  }
+
+  .report-ol,
+  .report-ul {
+    @apply space-y-2 text-[13.5px] leading-relaxed text-ink-200;
+    /*
+     * Wide enough for a two-digit marker. The executive summary regularly runs
+     * past ten statements, and at 1.35rem the "10." and "11." markers hung off
+     * the edge of the printed page.
+     */
+    padding-inline-start: 2.25rem;
+  }
+  .report-ol {
+    list-style: decimal;
+  }
+  .report-ul {
+    list-style: disc;
+  }
+  .report-ol li::marker,
+  .report-ul li::marker {
+    @apply text-ink-500;
+  }
+
+  .report-table-wrap {
+    @apply overflow-x-auto;
+  }
+  .report-table {
+    @apply w-full border-collapse text-[13px];
+  }
+  .report-table th {
+    @apply border-b border-ink-700 px-1.5 py-2 text-start text-[11.5px] font-semibold uppercase tracking-wide text-ink-400 sm:px-2.5;
+  }
+  .report-table td {
+    @apply border-b border-ink-850 px-1.5 py-2 align-top text-ink-200 sm:px-2.5;
+  }
+  .report-table tbody tr:last-child td {
+    @apply border-b-0;
+  }
+  /*
+   * A timestamp or an enum label should stay on one line — on paper and on a
+   * desktop. On a phone the same rule turns a six-column table into something
+   * you have to drag sideways to read, so below `sm` the cell is allowed to
+   * wrap; the print block below puts the rule back for the page.
+   */
+  .report-nowrap {
+    @apply whitespace-normal sm:whitespace-nowrap;
+  }
+
+  .report-bar {
+    @apply inline-block h-2 w-[46px] overflow-hidden rounded-full border border-ink-700 align-middle sm:w-[70px];
+  }
+  .report-bar-fill {
+    @apply block h-full bg-brand-500;
+  }
+
+  .report-signatures {
+    @apply grid grid-cols-1 gap-6 pt-2 sm:grid-cols-3;
+    break-inside: avoid;
+  }
+  .report-signature-role {
+    @apply text-[12.5px] font-semibold text-ink-200;
+  }
+  .report-signature-line {
+    @apply mt-6 border-b border-ink-600;
+  }
+  .report-signature-meta {
+    @apply mt-1 text-[11.5px] text-ink-500;
+  }
+}
+
+@media print {
+  /* One page size for the whole document, with room for a stapled edge. */
+  @page {
+    size: A4;
+    margin: 14mm 12mm;
+  }
+
+  /*
+   * Strip the application down to the document.
+   *
+   * The interface is dark; paper is not. Rather than fight every surface one by
+   * one, every background is cleared first and only the few that carry meaning
+   * (the section number, the coverage bar) are painted back below.
+   */
+  *,
+  *::before,
+  *::after {
+    background: transparent !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    color: #0b0f16 !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    width: auto !important;
+  }
+
+  /* The shell becomes a plain block so nothing is trapped in a flex column. */
+  body > div,
+  main {
+    display: block !important;
+    max-width: none !important;
+    width: auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    min-height: 0 !important;
+  }
+
+  /* Nothing of the application survives into the paper. */
+  .app-chrome,
+  .no-print,
+  .skip-link {
+    display: none !important;
+  }
+
+  .report-doc {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+  }
+
+  .report-masthead {
+    border-bottom: 2px solid #0b0f16 !important;
+  }
+  .report-h2 {
+    border-bottom-color: #94a3b8 !important;
+  }
+  .report-h2-num {
+    background: #e2e8f0 !important;
+    border: 1px solid #94a3b8 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .report-fact,
+  .report-table td {
+    border-color: #cbd5e1 !important;
+  }
+  .report-table th {
+    border-bottom-color: #64748b !important;
+  }
+  .report-hint,
+  .report-fact-label,
+  .report-signature-meta {
+    color: #475569 !important;
+  }
+
+  .report-bar {
+    border-color: #475569 !important;
+  }
+  .report-bar-fill {
+    background: #334155 !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+  .report-signature-line {
+    border-bottom-color: #0b0f16 !important;
+  }
+
+  /* The notes box is a form control on screen and plain prose on paper. */
+  .report-doc textarea {
+    border: 1px solid #cbd5e1 !important;
+    resize: none !important;
+    height: auto !important;
+    min-height: 22mm;
+  }
+
+  /* Status pills lose their fill but must stay legible. */
+  .chip {
+    border-color: #64748b !important;
+  }
+
+  /* On paper there is room again, so timestamps and labels stay on one line. */
+  .report-nowrap {
+    white-space: nowrap !important;
+  }
+
+  /* A long table that spans pages repeats its header on each one. */
+  .report-table thead {
+    display: table-header-group;
+  }
+  .report-table tr {
+    break-inside: avoid;
+  }
+  .report-h2 {
+    break-after: avoid;
+  }
+  .report-signatures {
+    break-inside: avoid;
+  }
+  .report-page-break {
+    break-before: page;
+  }
+}

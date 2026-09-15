@@ -35,7 +35,7 @@ export async function EventWorkspaceLayout({
       contextTitle={event.name}
       contextSubtitle={`${formatDate(event.date, locale)} · ${formatTime(event.startTime, locale)}`}
     >
-      <nav className="op-crumbs mb-3 flex items-center gap-1.5 text-[12.5px] text-ink-500">
+      <nav className="app-chrome op-crumbs mb-3 flex items-center gap-1.5 text-[12.5px] text-ink-500">
         <Link href={`${base}/events`} className="hover:text-ink-300">
           {base === '/admin' ? t.event.title : t.nav.myEvents}
         </Link>

@@ -99,7 +99,7 @@ export function MobileTabBar({ items }: { items: NavItem[] }) {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-800 bg-ink-900/95 backdrop-blur pb-[env(safe-area-inset-bottom)] lg:hidden"
+      className="app-chrome fixed inset-x-0 bottom-0 z-40 border-t border-ink-800 bg-ink-900/95 backdrop-blur pb-[env(safe-area-inset-bottom)] lg:hidden"
       aria-label="primary"
     >
       <ul className="flex items-stretch">

@@ -49,12 +49,30 @@ export async function GET(request: Request) {
   const reset = url.searchParams.get('reset') === '1';
   const client = rawClient();
   const created: string[] = [];
+  const upgraded: string[] = [];
 
   try {
     for (const statement of SCHEMA_STATEMENTS) {
-      await client.execute(statement);
       const name = /`([a-z_]+)`/.exec(statement)?.[1];
-      if (statement.startsWith('CREATE TABLE') && name) created.push(name);
+      try {
+        await client.execute(statement);
+        if (statement.startsWith('CREATE TABLE') && name) created.push(name);
+        if (statement.startsWith('ALTER TABLE')) {
+          upgraded.push(/ADD `([a-z_]+)`/.exec(statement)?.[1] ?? statement);
+        }
+      } catch (error) {
+        /*
+         * A later release adds columns to tables that already exist, and those
+         * ALTER statements have no "IF NOT EXISTS" form. Running setup a second
+         * time therefore hits "duplicate column name", which means the upgrade
+         * is already in place — not a failure. Anything else is real and
+         * stops the run.
+         */
+        const message = error instanceof Error ? error.message : String(error);
+        const alreadyApplied =
+          /duplicate column name/i.test(message) || /already exists/i.test(message);
+        if (!alreadyApplied) throw error;
+      }
     }
 
     const existing = await db.get<{ count: number }>(
@@ -64,9 +82,14 @@ export async function GET(request: Request) {
       return NextResponse.json({
         status: 'already-set-up',
         tables: created.length,
+        // The schema upgrade above still ran, so say what it changed: this is
+        // the path a live site takes when it is updated, not wiped.
+        columnsAdded: upgraded,
         users: existing?.count ?? 0,
         message:
-          'The database already has accounts, so nothing was changed. Add &reset=1 to wipe it and load the demo data again.',
+          upgraded.length > 0
+            ? 'The database already has accounts, so the data was kept. New columns were added so the site matches this release.'
+            : 'The database already has accounts and is up to date, so nothing was changed. Add &reset=1 to wipe it and load the demo data again.',
       });
     }
 
@@ -75,6 +98,7 @@ export async function GET(request: Request) {
     return NextResponse.json({
       status: 'ready',
       tables: created.length,
+      columnsAdded: upgraded,
       signIn: `${url.origin}/login`,
       accounts: {
         admin: `${result.adminUsername} / ${result.adminPassword}`,

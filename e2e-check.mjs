@@ -193,9 +193,24 @@ check('event moved to COMPLETED', status === 'COMPLETED', status);
 await admin.goto(`${BASE}/admin/events/${eventId}/reports`);
 await admin.waitForLoadState('networkidle');
 const report = await admin.textContent('main');
-check('report includes gate distribution', report.includes('توزيع البوابات'));
-check('report includes assignment changes', report.includes('البوابة 4') && report.includes('البوابة 6'));
-check('report includes attendance summary', report.includes('ملخّص الحضور'));
+// The report is a document, not a screen: it has to carry a masthead, all ten
+// numbered sections, findings that were computed rather than typed, and the
+// sign-off block — otherwise it is just a printed page again.
+const sections = [
+  'الملخّص التنفيذي', 'بيانات الفعالية', 'الطاقم والتغطية', 'الحضور والانضباط',
+  'التغييرات أثناء التنفيذ', 'المشاكل ومعالجتها', 'الجدول الزمني',
+  'الاتصال بالفريق', 'الملاحظات والتوصيات', 'الاعتماد',
+];
+const missing = sections.filter((s) => !report.includes(s));
+check('report carries all ten sections', missing.length === 0, missing.join(' | ') || 'all present');
+check('report has a masthead with a report number', /OPS-\d{8}-[A-Z0-9]{4}/.test(report),
+  report.match(/OPS-\d{8}-[A-Z0-9]{4}/)?.[0]);
+check('report states computed findings', report.includes('نُفِّذت الفعالية بطاقم عدده')
+  && report.includes('نسبة الحضور'));
+check('report includes coverage per location', report.includes('نسبة التغطية')
+  && report.includes('البوابة 4') && report.includes('البوابة 6'));
+check('report ends with a sign-off block', report.includes('إعداد')
+  && report.includes('مراجعة') && report.includes('اعتماد'));
 
 /* ================= SECURITY TEST CASES (spec §53) ====================== */
 
