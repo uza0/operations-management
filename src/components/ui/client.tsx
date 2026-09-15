@@ -9,6 +9,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { createPortal } from 'react-dom';
 import { useFormStatus } from 'react-dom';
 import { useRouter } from 'next/navigation';
 
@@ -169,10 +170,14 @@ export function Dialog({
 
   if (!open) return null;
 
-  return (
+  // Portalled to <body> for the same reason the navigation drawer is: any
+  // ancestor with a filter, transform or backdrop-filter would become the
+  // containing block for this fixed overlay and collapse it to that element's
+  // box. Out here it can only ever be the viewport.
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-6"
-      onMouseDown={(e) => {
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-black/70 p-0 sm:items-center sm:p-6"
+      onPointerDown={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
@@ -206,7 +211,8 @@ export function Dialog({
         </div>
         <div className="p-4 sm:p-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

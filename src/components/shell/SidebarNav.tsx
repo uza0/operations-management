@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import type { NavItem, NavSection } from './nav';
 import {
@@ -141,6 +142,50 @@ export function MobileNav({
 
   useEffect(() => setOpen(false), [pathname]);
 
+  // Escape closes it, and the page behind must not scroll under the drawer —
+  // on a phone that reads as the menu "sliding away" while you touch it.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpen(false);
+    };
+    document.addEventListener('keydown', onKey);
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = previous;
+    };
+  }, [open]);
+
+  const drawer = (
+    <div
+      className="fixed inset-0 z-[80] flex bg-black/70 lg:hidden"
+      onPointerDown={(e) => {
+        if (e.target === e.currentTarget) setOpen(false);
+      }}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        className="flex h-full w-[290px] max-w-[85vw] flex-col overflow-y-auto overscroll-contain border-e border-ink-700 bg-ink-900 p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))]"
+      >
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <p className="min-w-0 truncate text-[15px] font-semibold text-ink-100">{title}</p>
+          <button
+            type="button"
+            className="btn-ghost btn-sm shrink-0"
+            onClick={() => setOpen(false)}
+            aria-label="close"
+          >
+            <IconClose width={18} height={18} />
+          </button>
+        </div>
+        <NavList sections={sections} onNavigate={() => setOpen(false)} />
+      </div>
+    </div>
+  );
+
   return (
     <>
       <button
@@ -153,29 +198,19 @@ export function MobileNav({
         <IconMenu width={18} height={18} />
       </button>
 
-      {open ? (
-        <div
-          className="fixed inset-0 z-50 bg-black/70 lg:hidden"
-          onMouseDown={(e) => {
-            if (e.target === e.currentTarget) setOpen(false);
-          }}
-        >
-          <div className="ms-0 h-full w-[290px] max-w-[85vw] overflow-y-auto border-e border-ink-700 bg-ink-900 p-4 pt-[max(1rem,env(safe-area-inset-top))]">
-            <div className="mb-4 flex items-center justify-between">
-              <p className="text-[15px] font-semibold text-ink-100">{title}</p>
-              <button
-                type="button"
-                className="btn-ghost btn-sm"
-                onClick={() => setOpen(false)}
-                aria-label="close"
-              >
-                <IconClose width={18} height={18} />
-              </button>
-            </div>
-            <NavList sections={sections} onNavigate={() => setOpen(false)} />
-          </div>
-        </div>
-      ) : null}
+      {/*
+        Rendered into <body>, not where it sits in the tree.
+
+        The header above it carries `backdrop-blur`, and a backdrop-filter makes
+        an element the containing block for every fixed-position descendant. The
+        drawer's `inset-0` was therefore resolving against the 62px-tall header
+        instead of the viewport, so the menu opened as a thin strip across the
+        top — which is exactly what it looked like on Android. A portal takes it
+        out of that ancestor entirely.
+      */}
+      {open && typeof document !== 'undefined'
+        ? createPortal(drawer, document.body)
+        : null}
     </>
   );
 }

@@ -49,4 +49,37 @@ for(const [name,url] of pages){
   await p.screenshot({path:`/tmp/m-${name}.png`});
 }
 console.log(JSON.stringify(report,null,1));
+
+/*
+ * The navigation drawer, explicitly.
+ *
+ * It regressed once in a way no overflow check would catch: the header carries
+ * `backdrop-blur`, which makes it the containing block for fixed children, so
+ * the drawer's inset-0 collapsed to the header's own 62px and the menu opened
+ * as a strip across the top. Assert it covers the viewport.
+ */
+await p.goto(`${BASE}/admin/events/${eventId}`);
+await p.waitForLoadState('networkidle');
+await p.waitForTimeout(800);
+await p.locator('header button[aria-expanded]').first().tap();
+await p.waitForTimeout(600);
+const drawer = await p.evaluate(() => {
+  const panel = document.querySelector('[role="dialog"][aria-modal="true"]');
+  if (!panel) return { found: false };
+  const overlay = panel.parentElement.getBoundingClientRect();
+  return {
+    found: true,
+    coversViewport:
+      Math.round(overlay.height) >= window.innerHeight - 2 &&
+      Math.round(overlay.width) >= window.innerWidth - 2,
+    links: panel.querySelectorAll('a').length,
+    overlayHeight: Math.round(overlay.height),
+    viewportHeight: window.innerHeight,
+  };
+});
+const drawerOk = drawer.found && drawer.coversViewport && drawer.links > 3;
+console.log(`\n${drawerOk ? 'PASS' : 'FAIL'}  navigation drawer covers the screen — ` +
+  `${drawer.overlayHeight ?? 0}/${drawer.viewportHeight ?? 0}px, ${drawer.links ?? 0} links`);
+
 await b.close(); db.close();
+if (!drawerOk) process.exitCode = 1;
