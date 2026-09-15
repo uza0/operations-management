@@ -5,6 +5,7 @@ import { sql } from 'drizzle-orm';
 import { db, rawClient } from '@/db';
 import { SCHEMA_STATEMENTS } from '@/db/schema-sql';
 import { seedDemoData } from '@/db/seed-core';
+import { seedLiveData } from '@/db/seed-live';
 
 /**
  * First-run setup for a deployed site: creates the tables and loads the demo
@@ -16,8 +17,9 @@ import { seedDemoData } from '@/db/seed-core';
  * the site holds real data — it exists to make the first deploy possible, not
  * to stay.
  *
- *   GET /api/setup?key=<SETUP_KEY>
- *   GET /api/setup?key=<SETUP_KEY>&reset=1     wipes and re-seeds
+ *   GET /api/setup?key=<SETUP_KEY>                    create/upgrade only
+ *   GET /api/setup?key=<SETUP_KEY>&reset=1            wipes, loads the real team
+ *   GET /api/setup?key=<SETUP_KEY>&reset=1&demo=1     wipes, loads the demo
  */
 
 export const dynamic = 'force-dynamic';
@@ -47,6 +49,7 @@ export async function GET(request: Request) {
   }
 
   const reset = url.searchParams.get('reset') === '1';
+  const demo = url.searchParams.get('demo') === '1';
   const client = rawClient();
   const created: string[] = [];
   const upgraded: string[] = [];
@@ -89,24 +92,48 @@ export async function GET(request: Request) {
         message:
           upgraded.length > 0
             ? 'The database already has accounts, so the data was kept. New columns were added so the site matches this release.'
-            : 'The database already has accounts and is up to date, so nothing was changed. Add &reset=1 to wipe it and load the demo data again.',
+            : 'The database already has accounts and is up to date, so nothing was changed. Add &reset=1 to load data again: the real roster by default, or the demonstration with &demo=1.',
       });
     }
 
-    const result = await seedDemoData({ db, sql: client });
+    /*
+     * The real roster is the default, because this route now prepares a system
+     * someone is going to use. The demonstration is still one query parameter
+     * away, for showing the app to people before there is anything real in it.
+     */
+    if (demo) {
+      const result = await seedDemoData({ db, sql: client });
+      return NextResponse.json({
+        status: 'ready',
+        data: 'demo',
+        tables: created.length,
+        columnsAdded: upgraded,
+        signIn: `${url.origin}/login`,
+        accounts: {
+          admin: `${result.adminUsername} / ${result.adminPassword}`,
+          teamLeader: `${result.leaderUsername} / ${result.leaderPassword}`,
+          gateLeader: `hussein / ${result.gatePassword}`,
+        },
+        memberLink: `${url.origin}/member/${result.memberToken}`,
+        next: 'Delete this route, or unset SETUP_KEY, once you are done.',
+      });
+    }
+
+    const result = await seedLiveData({ db, sql: client });
 
     return NextResponse.json({
       status: 'ready',
+      data: 'live',
       tables: created.length,
       columnsAdded: upgraded,
+      teamSize: result.teamSize,
       signIn: `${url.origin}/login`,
       accounts: {
         admin: `${result.adminUsername} / ${result.adminPassword}`,
         teamLeader: `${result.leaderUsername} / ${result.leaderPassword}`,
-        gateLeader: `hussein / ${result.gatePassword}`,
+        gateLeader: `${result.gateUsername} / ${result.gatePassword}`,
       },
-      memberLink: `${url.origin}/member/${result.memberToken}`,
-      next: 'Delete this route, or unset SETUP_KEY, once you are done.',
+      next: 'Add a venue, create the first event, then delete this route or unset SETUP_KEY.',
     });
   } catch (error) {
     console.error('[setup]', error);
