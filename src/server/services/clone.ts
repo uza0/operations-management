@@ -6,6 +6,7 @@ import { db } from '@/db';
 import {
   assignments,
   eventMembers,
+  events,
   gates,
   mapMarkers,
   timelineItems,
@@ -38,6 +39,8 @@ export type CloneResult = {
   assignments: number;
   timeline: number;
   markers: number;
+  /** True when the source had a map of its own that came across. */
+  mapImage: boolean;
 };
 
 export async function cloneEventPlan(
@@ -53,10 +56,24 @@ export async function cloneEventPlan(
     createdById: string | null;
   },
 ): Promise<CloneResult> {
-  const [sourceGates, sourcePoints] = await Promise.all([
+  const [sourceEvent, sourceGates, sourcePoints] = await Promise.all([
+    db.query.events.findFirst({ where: eq(events.id, sourceEventId) }),
     db.select().from(gates).where(eq(gates.eventId, sourceEventId)),
     db.select().from(workingPoints).where(eq(workingPoints.eventId, sourceEventId)),
   ]);
+
+  /*
+   * A map uploaded for one event belongs to the plan, not to the day: markers
+   * are placed against it, so carrying them over without it would leave every
+   * position pointing at a different picture. An event with no map of its own
+   * falls back to the venue's, which the new event shares anyway.
+   */
+  if (sourceEvent?.mapImageUrl) {
+    await db
+      .update(events)
+      .set({ mapImageUrl: sourceEvent.mapImageUrl, updatedAt: new Date() })
+      .where(eq(events.id, targetEventId));
+  }
 
   // Old id → new id, so assignments and markers can be re-pointed.
   const gateMap = new Map<string, string>();
@@ -249,5 +266,6 @@ export async function cloneEventPlan(
     assignments: assignmentCount,
     timeline: timelineCount,
     markers: markerRows.length,
+    mapImage: Boolean(sourceEvent?.mapImageUrl),
   };
 }

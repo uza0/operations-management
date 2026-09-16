@@ -443,6 +443,26 @@ const sharedTokens = await db.prepare(`
 check('copied members get new personal links', Number(sharedTokens.n) === 0,
   `${sharedTokens.n} shared tokens`);
 
+/*
+ * Marker positions are the slowest part of setting a venue up by hand, so the
+ * copy is only worth having if they come across pointing at the new event's
+ * own gates.
+ */
+const clonedMarkers = await db.prepare(
+  'select count(*) as n from map_markers where event_id=?').get(cloned.id);
+const sourceMarkers = await db.prepare(
+  'select count(*) as n from map_markers where event_id=?').get(eventId);
+check('the template copies the map markers',
+  Number(clonedMarkers.n) > 0 && Number(clonedMarkers.n) === Number(sourceMarkers.n),
+  `${clonedMarkers.n} of ${sourceMarkers.n}`);
+
+const danglingMarkers = await db.prepare(`
+  select count(*) as n from map_markers m
+  where m.event_id=? and m.gate_id is not null
+  and m.gate_id not in (select id from gates where event_id=?)`).get(cloned.id, cloned.id);
+check('copied markers point at the new event own gates',
+  Number(danglingMarkers.n) === 0, `${danglingMarkers.n} pointing elsewhere`);
+
 // The record of a day that happened must not travel to one that has not.
 const carried = await db.prepare(
   'select count(*) as n from attendance where event_id=?').get(cloned.id);
