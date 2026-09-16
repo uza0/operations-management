@@ -15,12 +15,13 @@ const db = {
   close: () => client.close(),
 };
 const eventId=(await db.prepare("select id from events where name like '%الشرطة%'").get()).id;
+const memberId=(await db.prepare('select team_member_id from event_members where event_id=? limit 1').get(eventId)).team_member_id;
 const b=await chromium.launch({executablePath:'/opt/pw-browsers/chromium'});
 const c=await b.newContext({viewport:{width:390,height:844},deviceScaleFactor:2,isMobile:true,hasTouch:true});
 const p=await c.newPage();
 await p.goto(`${BASE}/login`); await p.fill('#username','admin'); await p.fill('#password','Admin@12345');
 await p.click('button[type=submit]'); await p.waitForLoadState('networkidle');
-const pages=[['01-dash','/admin'],['02-events','/admin/events'],['03-venues','/admin/venues'],['04-team','/admin/team'],['05-overview',`/admin/events/${eventId}`],['06-gates',`/admin/events/${eventId}/gates`],['07-assign',`/admin/events/${eventId}/assignments`],['08-map',`/admin/events/${eventId}/map`],['09-attend',`/admin/events/${eventId}/attendance`],['10-eventteam',`/admin/events/${eventId}/team`],['11-announce',`/admin/events/${eventId}/announcements`],['12-issues',`/admin/events/${eventId}/issues`],['13-report',`/admin/events/${eventId}/reports`],['14-activity',`/admin/events/${eventId}/activity`],['15-settings','/admin/settings'],['16-newevent','/admin/events/new'],['17-notify',`/admin/events/${eventId}/notify`]];
+const pages=[['01-dash','/admin'],['02-events','/admin/events'],['03-venues','/admin/venues'],['04-team','/admin/team'],['05-overview',`/admin/events/${eventId}`],['06-gates',`/admin/events/${eventId}/gates`],['07-assign',`/admin/events/${eventId}/assignments`],['08-map',`/admin/events/${eventId}/map`],['09-attend',`/admin/events/${eventId}/attendance`],['10-eventteam',`/admin/events/${eventId}/team`],['11-announce',`/admin/events/${eventId}/announcements`],['12-issues',`/admin/events/${eventId}/issues`],['13-report',`/admin/events/${eventId}/reports`],['14-activity',`/admin/events/${eventId}/activity`],['15-settings','/admin/settings'],['16-newevent','/admin/events/new'],['17-notify',`/admin/events/${eventId}/notify`],['18-credits','/admin/credits'],['19-ledger',`/admin/team/${memberId}`]];
 const report=[];
 for(const [name,url] of pages){
   await p.goto(BASE+url); await p.waitForLoadState('networkidle'); await p.waitForTimeout(1200);

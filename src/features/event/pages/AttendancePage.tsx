@@ -13,11 +13,13 @@ import {
 import { loadEventPage } from '@/features/event/workspace';
 import { PageHeader, StatTile } from '@/components/ui/panel';
 import type { AttendanceStatus } from '@/lib/constants';
+import { creditFor } from '@/server/services/credit';
 
 import { AttendanceTable, type AttendanceRow } from './parts/AttendanceTable';
+import { EventCreditDefault } from './parts/EventCreditDefault';
 
 export async function EventAttendancePage({ eventId }: { eventId: string }) {
-  const { scope, locale, t } = await loadEventPage(eventId);
+  const { scope, event, locale, t } = await loadEventPage(eventId);
 
   const rows = await db
     .select({
@@ -27,8 +29,10 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
       isReserve: eventMembers.isReserve,
       memberStatus: eventMembers.status,
       status: attendance.status,
-      checkInAt: attendance.checkInAt,
-      checkOutAt: attendance.checkOutAt,
+      checkInTime: attendance.checkInTime,
+      checkOutTime: attendance.checkOutTime,
+      creditDays: eventMembers.creditDays,
+      creditNote: eventMembers.creditNote,
       notes: attendance.notes,
       recordedBy: users.name,
       gateId: assignments.gateId,
@@ -61,10 +65,17 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
       locationName: r.gateName ?? r.workingPointName ?? null,
       isReserve: r.isReserve,
       status: (r.status ?? 'PENDING') as AttendanceStatus,
-      checkInAt: r.checkInAt,
-      checkOutAt: r.checkOutAt,
+      checkInTime: r.checkInTime,
+      checkOutTime: r.checkOutTime,
       recordedBy: r.recordedBy,
       notes: r.notes,
+      creditDays: r.creditDays,
+      creditNote: r.creditNote,
+      effectiveDays: creditFor({
+        status: (r.status ?? 'PENDING') as AttendanceStatus,
+        creditDays: r.creditDays,
+        eventDefault: event.creditDaysDefault,
+      }),
     }))
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -72,6 +83,9 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
     acc[row.status] = (acc[row.status] ?? 0) + 1;
     return acc;
   }, {});
+
+  // What the event currently owes in total, at today's figures.
+  const totalDays = data.reduce((sum, row) => sum + row.effectiveDays, 0);
 
   const rate =
     data.length > 0
@@ -111,12 +125,27 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
         />
       </div>
 
+      {/*
+        The days this event is worth, and what that adds up to across the team.
+        It sits above the table because it is the number every row inherits.
+      */}
+      {scope.canManage ? (
+        <EventCreditDefault
+          t={t}
+          eventId={eventId}
+          value={event.creditDaysDefault}
+          totalDays={totalDays}
+        />
+      ) : null}
+
       <AttendanceTable
         t={t}
         locale={locale}
         eventId={eventId}
         rows={data}
         canRecord
+        canManage={scope.canManage}
+        eventDefault={event.creditDaysDefault}
       />
     </>
   );

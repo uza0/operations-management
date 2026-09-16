@@ -1,0 +1,149 @@
+import Link from 'next/link';
+
+import { getT } from '@/lib/i18n/server';
+import { payrollLedger } from '@/server/services/credit';
+import { PageHeader, StatTile } from '@/components/ui/panel';
+import { formatDate, isValidDate } from '@/lib/time';
+import { format } from '@/lib/i18n';
+
+import { RangeForm } from './RangeForm';
+
+/**
+ * The sheet the company actually pays from.
+ *
+ * Its job is to be checkable: every person's total sits beside the events it
+ * came from, so a question about one number can be settled without opening the
+ * system. Only finished events count — an event still running has attendance
+ * that is still being written, and paying against it would mean paying twice
+ * when it is corrected.
+ */
+export async function PayrollPage({
+  from,
+  to,
+}: {
+  from?: string;
+  to?: string;
+}) {
+  const { locale, t } = await getT();
+
+  // A half-typed date in the URL should narrow nothing rather than everything.
+  const range = {
+    from: from && isValidDate(from) ? from : undefined,
+    to: to && isValidDate(to) ? to : undefined,
+  };
+
+  const ledgers = await payrollLedger(range);
+  const withDays = ledgers.filter((l) => l.totalDays > 0);
+  const grandTotal = withDays.reduce((sum, l) => sum + l.totalDays, 0);
+  const eventsCounted = new Set(
+    ledgers.flatMap((l) => l.lines.filter((line) => line.closed && line.days > 0))
+      .map((line) => line.eventId),
+  ).size;
+
+  const rangeLabel =
+    range.from && range.to
+      ? format(t.credit.rangeBetween, {
+          from: formatDate(range.from, locale),
+          to: formatDate(range.to, locale),
+        })
+      : range.from
+        ? format(t.credit.rangeFrom, { from: formatDate(range.from, locale) })
+        : range.to
+          ? format(t.credit.rangeTo, { to: formatDate(range.to, locale) })
+          : t.credit.rangeAll;
+
+  const query = new URLSearchParams();
+  if (range.from) query.set('from', range.from);
+  if (range.to) query.set('to', range.to);
+  const exportHref = `/api/credits/export${query.size ? `?${query}` : ''}`;
+
+  return (
+    <>
+      <PageHeader title={t.credit.payrollTitle} subtitle={t.credit.payrollSubtitle} />
+
+      <RangeForm t={t} from={range.from} to={range.to} exportHref={exportHref} />
+
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+        <StatTile
+          label={t.credit.grandTotal}
+          value={grandTotal}
+          hint={rangeLabel}
+          tone={grandTotal > 0 ? 'ok' : 'neutral'}
+        />
+        <StatTile label={t.credit.peopleWithDays} value={withDays.length} />
+        <StatTile label={t.credit.eventsCounted} value={eventsCounted} />
+      </div>
+
+      <div className="panel">
+        <div className="table-wrap">
+          <table className="op-table op-table-stack">
+            <thead>
+              <tr>
+                <th>{t.team.fullName}</th>
+                <th>{t.team.employeeCode}</th>
+                <th>{t.credit.totalDays}</th>
+                <th>{t.credit.pendingDays}</th>
+                <th>{t.credit.eventsColumn}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ledgers.map((ledger) => (
+                <tr key={ledger.memberId}>
+                  <td data-label="">
+                    <Link
+                      href={`/admin/team/${ledger.memberId}`}
+                      className="-my-2.5 inline-flex min-h-[44px] items-center py-2.5 font-medium text-ink-100 hover:text-brand-300"
+                    >
+                      {ledger.name}
+                    </Link>
+                  </td>
+                  <td data-label={t.team.employeeCode} className="nums text-ink-300">
+                    {ledger.employeeCode}
+                  </td>
+                  <td data-label={t.credit.totalDays}>
+                    <span
+                      className={`nums font-semibold ${
+                        ledger.totalDays > 0 ? 'text-ink-100' : 'text-ink-500'
+                      }`}
+                    >
+                      {ledger.totalDays}
+                    </span>
+                  </td>
+                  <td data-label={t.credit.pendingDays} className="nums text-ink-400">
+                    {ledger.pendingDays || '—'}
+                  </td>
+                  <td data-label={t.credit.eventsColumn} className="text-ink-300">
+                    {/*
+                      The events behind the number, written out rather than
+                      counted, so the total can be checked line by line.
+                    */}
+                    {ledger.lines.filter((l) => l.closed && l.days > 0).length === 0 ? (
+                      <span className="text-ink-500">{t.credit.noneInRange}</span>
+                    ) : (
+                      <ul className="space-y-0.5 text-[12.5px]">
+                        {ledger.lines
+                          .filter((l) => l.closed && l.days > 0)
+                          .map((line) => (
+                            <li key={line.eventId}>
+                              {line.eventName}
+                              <span className="nums text-ink-500">
+                                {' '}
+                                · {formatDate(line.eventDate, locale)} · {line.days}
+                              </span>
+                              {line.note ? (
+                                <span className="text-ink-500"> · {line.note}</span>
+                              ) : null}
+                            </li>
+                          ))}
+                      </ul>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </>
+  );
+}

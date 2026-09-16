@@ -9,6 +9,7 @@ import {
   assignments,
   attendance,
   eventMembers,
+  events,
   gates,
   issues,
   teamMembers,
@@ -16,6 +17,7 @@ import {
   workingPoints,
 } from '@/db/schema';
 import { getStaffedLocations } from '@/server/services/staffing';
+import { creditFor } from '@/server/services/credit';
 import type { AttendanceStatus, IssueStatus, IssueType } from '@/lib/constants';
 import { toMinutes } from '@/lib/time';
 
@@ -45,9 +47,32 @@ export type LocationLine = {
   late: number;
 };
 
+/** One person on the closing report: named, with what they were owed. */
+export type RosterLine = {
+  eventMemberId: string;
+  name: string;
+  employeeCode: string;
+  locationName: string | null;
+  task: string | null;
+  status: AttendanceStatus;
+  checkInTime: string | null;
+  checkOutTime: string | null;
+  isReserve: boolean;
+  days: number;
+  note: string | null;
+};
+
 export type ReportData = {
   team: { total: number; reserve: number; assigned: number; briefed: number };
   attendance: AttendanceCounts & { rate: number; punctualityRate: number };
+  /**
+   * Everyone on the event, by name. A closing report that says "26 present"
+   * cannot be checked by the person who was there; a list of who they were
+   * can, and it is the same list payroll is paid against.
+   */
+  roster: RosterLine[];
+  creditDaysDefault: number;
+  totalCreditDays: number;
   locations: LocationLine[];
   understaffed: LocationLine[];
   fullyStaffed: number;
@@ -108,6 +133,7 @@ export async function buildReport(eventId: string): Promise<ReportData> {
     timelineRows,
     gateRows,
     pointRows,
+    eventRow,
   ] = await Promise.all([
     getStaffedLocations(eventId),
     db
@@ -126,11 +152,21 @@ export async function buildReport(eventId: string): Promise<ReportData> {
         id: eventMembers.id,
         isReserve: eventMembers.isReserve,
         notifiedAt: eventMembers.notifiedAt,
+        creditDays: eventMembers.creditDays,
+        creditNote: eventMembers.creditNote,
+        name: teamMembers.fullName,
+        employeeCode: teamMembers.employeeCode,
       })
       .from(eventMembers)
+      .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
       .where(eq(eventMembers.eventId, eventId)),
     db
-      .select({ eventMemberId: attendance.eventMemberId, status: attendance.status })
+      .select({
+        eventMemberId: attendance.eventMemberId,
+        status: attendance.status,
+        checkInTime: attendance.checkInTime,
+        checkOutTime: attendance.checkOutTime,
+      })
       .from(attendance)
       .where(eq(attendance.eventId, eventId)),
     db
@@ -168,6 +204,11 @@ export async function buildReport(eventId: string): Promise<ReportData> {
       .select({ id: workingPoints.id, name: workingPoints.name })
       .from(workingPoints)
       .where(eq(workingPoints.eventId, eventId)),
+    db
+      .select({ creditDaysDefault: events.creditDaysDefault })
+      .from(events)
+      .where(eq(events.id, eventId))
+      .get(),
   ]);
 
   /* ---- attendance ------------------------------------------------------- */
@@ -274,7 +315,52 @@ export async function buildReport(eventId: string): Promise<ReportData> {
   const taskMap = new Map<string, number>();
   for (const a of active) taskMap.set(a.task, (taskMap.get(a.task) ?? 0) + 1);
 
+  /* ---- the roster, by name ---------------------------------------------- */
+  const creditDaysDefault = eventRow?.creditDaysDefault ?? 1;
+  const timesByMember = new Map(
+    attendanceRows.map((row) => [row.eventMemberId, row] as const),
+  );
+  const assignmentOf = new Map(active.map((a) => [a.eventMemberId, a] as const));
+
+  const roster: RosterLine[] = memberRows
+    .map((member) => {
+      const status = statusByMember.get(member.id) ?? 'PENDING';
+      const times = timesByMember.get(member.id);
+      const assignment = assignmentOf.get(member.id);
+      const locationId = assignment?.gateId ?? assignment?.workingPointId ?? null;
+      return {
+        eventMemberId: member.id,
+        name: member.name,
+        employeeCode: member.employeeCode,
+        locationName: locationId ? (locationNames.get(locationId) ?? null) : null,
+        task: assignment?.task ?? null,
+        status,
+        checkInTime: times?.checkInTime ?? null,
+        checkOutTime: times?.checkOutTime ?? null,
+        isReserve: member.isReserve,
+        days: creditFor({
+          status,
+          creditDays: member.creditDays,
+          eventDefault: creditDaysDefault,
+        }),
+        note: member.creditNote,
+      };
+    })
+    /*
+     * Ordered the way the report reads: the people who worked first, then the
+     * ones who did not, and alphabetically inside each group — so a supervisor
+     * checking one name knows where to look.
+     */
+    .sort((a, b) => {
+      const rank = (line: RosterLine) =>
+        line.status === 'PRESENT' ? 0 : line.status === 'LATE' ? 1 : 2;
+      return rank(a) - rank(b) || a.name.localeCompare(b.name);
+    });
+
   return {
+    roster,
+    creditDaysDefault,
+    totalCreditDays: roster.reduce((sum, line) => sum + line.days, 0),
     team: {
       total,
       reserve: memberRows.filter((m) => m.isReserve).length,

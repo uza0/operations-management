@@ -1,6 +1,6 @@
 /**
  * GENERATED FILE — do not edit.
- * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql.
+ * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql.
  * Regenerate after changing src/db/schema.ts:
  *   npx drizzle-kit generate && node scripts/embed-schema.mjs
  */
@@ -61,4 +61,9 @@ export const SCHEMA_STATEMENTS: string[] = [
   "ALTER TABLE `venues` ADD `location_url` text",
   "ALTER TABLE `venues` ADD `latitude` real",
   "ALTER TABLE `venues` ADD `longitude` real",
+  "ALTER TABLE `attendance` ADD `check_in_time` text",
+  "ALTER TABLE `attendance` ADD `check_out_time` text",
+  "ALTER TABLE `event_members` ADD `credit_days` real",
+  "ALTER TABLE `event_members` ADD `credit_note` text",
+  "ALTER TABLE `events` ADD `credit_days_default` real DEFAULT 1 NOT NULL",
 ];

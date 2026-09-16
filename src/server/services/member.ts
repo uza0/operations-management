@@ -121,8 +121,8 @@ export async function getMemberPortal(token: string) {
   const attendanceRow = await db
     .select({
       status: attendance.status,
-      checkInAt: attendance.checkInAt,
-      checkOutAt: attendance.checkOutAt,
+      checkInTime: attendance.checkInTime,
+      checkOutTime: attendance.checkOutTime,
     })
     .from(attendance)
     .where(eq(attendance.eventMemberId, membership.id))

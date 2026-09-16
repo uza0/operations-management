@@ -8,6 +8,7 @@ import {
   announcements,
   attendance,
   eventMembers,
+  events,
   gates,
   issues,
   teamMembers,
@@ -16,9 +17,13 @@ import {
 } from '@/db/schema';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
+import { nowHHmm } from '@/lib/time';
 import {
   announcementSchema,
   attendanceSchema,
+  attendanceTimesSchema,
+  creditSchema,
+  eventCreditSchema,
   firstIssueKey,
   issueSchema,
   issueStatusSchema,
@@ -87,16 +92,25 @@ export async function recordAttendanceAction(
     where: eq(attendance.eventMemberId, parsed.data.eventMemberId),
   });
 
+  /*
+   * Marking someone present fills in the current clock as a convenience, and
+   * only when nothing is there yet — it is a suggestion, not a fact the system
+   * insists on. It stays editable and clearable afterwards through
+   * setAttendanceTimesAction, because the supervisor is usually writing down
+   * an arrival that happened twenty minutes ago.
+   */
   const marksArrival =
     parsed.data.status === 'PRESENT' || parsed.data.status === 'LATE';
-  const checkInAt = marksArrival ? (existing?.checkInAt ?? new Date()) : null;
+  const checkInTime = marksArrival ? (existing?.checkInTime ?? nowHHmm()) : null;
 
   if (existing) {
     await db
       .update(attendance)
       .set({
         status: parsed.data.status,
-        checkInAt,
+        checkInTime,
+        // Someone moved to absent has no departure either.
+        checkOutTime: marksArrival ? existing.checkOutTime : null,
         notes: parsed.data.notes ?? null,
         recordedById: user.id,
         updatedAt: new Date(),
@@ -108,8 +122,8 @@ export async function recordAttendanceAction(
       eventId,
       eventMemberId: parsed.data.eventMemberId,
       status: parsed.data.status,
-      checkInAt,
-      checkOutAt: null,
+      checkInTime,
+      checkOutTime: null,
       recordedById: user.id,
       notes: parsed.data.notes ?? null,
     });
@@ -148,10 +162,201 @@ export async function checkOutAction(
 
   await db
     .update(attendance)
-    .set({ checkOutAt: new Date(), recordedById: user.id, updatedAt: new Date() })
+    .set({ checkOutTime: nowHHmm(), recordedById: user.id, updatedAt: new Date() })
     .where(and(eq(attendance.eventMemberId, id), eq(attendance.eventId, eventId)));
 
   revalidateEvent(eventId, 'attendance');
+  return ok();
+}
+
+/**
+ * Correcting the clock after the fact.
+ *
+ * Reserved for whoever manages the event rather than every gate leader: a gate
+ * leader marks who turned up at their own gate, but rewriting the times that
+ * end up on a payroll sheet is the supervisor's to do, and every change is
+ * written to the audit log with the old value beside the new one.
+ */
+export async function setAttendanceTimesAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  const user = await assertEventManager(eventId);
+  if (!user) return fail(t.errors.forbidden);
+
+  const parsed = attendanceTimesSchema.safeParse({
+    eventMemberId: str(form, 'eventMemberId') ?? '',
+    checkInTime: String(form.get('checkInTime') ?? ''),
+    checkOutTime: String(form.get('checkOutTime') ?? ''),
+  });
+  if (!parsed.success) return fail(errorFor(t, firstIssueKey(parsed.error)));
+
+  const member = await db
+    .select({
+      id: eventMembers.id,
+      eventId: eventMembers.eventId,
+      name: teamMembers.fullName,
+    })
+    .from(eventMembers)
+    .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+    .where(eq(eventMembers.id, parsed.data.eventMemberId))
+    .get();
+  if (!member || member.eventId !== eventId) return fail(t.errors.notFound);
+
+  const existing = await db.query.attendance.findFirst({
+    where: eq(attendance.eventMemberId, parsed.data.eventMemberId),
+  });
+
+  if (existing) {
+    await db
+      .update(attendance)
+      .set({
+        checkInTime: parsed.data.checkInTime,
+        checkOutTime: parsed.data.checkOutTime,
+        recordedById: user.id,
+        updatedAt: new Date(),
+      })
+      .where(eq(attendance.id, existing.id));
+  } else {
+    // A time entered before any status still has to land somewhere.
+    await db.insert(attendance).values({
+      id: newId(),
+      eventId,
+      eventMemberId: parsed.data.eventMemberId,
+      status: 'PENDING',
+      checkInTime: parsed.data.checkInTime,
+      checkOutTime: parsed.data.checkOutTime,
+      recordedById: user.id,
+      notes: null,
+    });
+  }
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'ATTENDANCE',
+    entity: 'ATTENDANCE',
+    entityId: parsed.data.eventMemberId,
+    entityLabel: member.name,
+    oldValues: existing
+      ? { checkInTime: existing.checkInTime, checkOutTime: existing.checkOutTime }
+      : null,
+    newValues: {
+      checkInTime: parsed.data.checkInTime,
+      checkOutTime: parsed.data.checkOutTime,
+    },
+    summary: `${member.name}: ${parsed.data.checkInTime ?? '—'} → ${
+      parsed.data.checkOutTime ?? '—'
+    }`,
+  });
+
+  revalidateEvent(eventId, 'attendance', 'reports');
+  return ok();
+}
+
+/**
+ * Days credited to one person for this event.
+ *
+ * An empty box means "the ordinary case" and puts the person back on the
+ * event's own default, so this records a decision rather than a copy of a
+ * number that may later change.
+ */
+export async function setMemberCreditAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  const user = await assertEventManager(eventId);
+  if (!user) return fail(t.errors.forbidden);
+
+  const parsed = creditSchema.safeParse({
+    eventMemberId: str(form, 'eventMemberId') ?? '',
+    creditDays: String(form.get('creditDays') ?? ''),
+    creditNote: str(form, 'creditNote'),
+  });
+  if (!parsed.success) return fail(errorFor(t, firstIssueKey(parsed.error)));
+
+  const member = await db
+    .select({
+      id: eventMembers.id,
+      eventId: eventMembers.eventId,
+      creditDays: eventMembers.creditDays,
+      name: teamMembers.fullName,
+    })
+    .from(eventMembers)
+    .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+    .where(eq(eventMembers.id, parsed.data.eventMemberId))
+    .get();
+  if (!member || member.eventId !== eventId) return fail(t.errors.notFound);
+
+  await db
+    .update(eventMembers)
+    .set({
+      creditDays: parsed.data.creditDays,
+      creditNote: parsed.data.creditNote ?? null,
+      updatedAt: new Date(),
+    })
+    .where(eq(eventMembers.id, parsed.data.eventMemberId));
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'EVENT_MEMBER',
+    entityId: parsed.data.eventMemberId,
+    entityLabel: member.name,
+    oldValues: { creditDays: member.creditDays },
+    newValues: { creditDays: parsed.data.creditDays, creditNote: parsed.data.creditNote },
+    reason: parsed.data.creditNote ?? null,
+    summary: `${member.name}: ${parsed.data.creditDays ?? t.credit.eventDefault}`,
+  });
+
+  revalidateEvent(eventId, 'attendance', 'reports', 'team');
+  revalidatePath('/admin/credits');
+  revalidatePath('/admin/team');
+  return ok();
+}
+
+/** The baseline every member of this event starts from. */
+export async function setEventCreditDefaultAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  const user = await assertEventManager(eventId);
+  if (!user) return fail(t.errors.forbidden);
+
+  const parsed = eventCreditSchema.safeParse({
+    creditDaysDefault: String(form.get('creditDaysDefault') ?? ''),
+  });
+  if (!parsed.success) return fail(errorFor(t, firstIssueKey(parsed.error)));
+
+  await db
+    .update(events)
+    .set({ creditDaysDefault: parsed.data.creditDaysDefault, updatedAt: new Date() })
+    .where(eq(events.id, eventId));
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'EVENT',
+    entityId: eventId,
+    entityLabel: null,
+    oldValues: null,
+    newValues: { creditDaysDefault: parsed.data.creditDaysDefault },
+    summary: `${t.credit.eventDefault}: ${parsed.data.creditDaysDefault}`,
+  });
+
+  revalidateEvent(eventId, 'attendance', 'reports');
+  revalidatePath('/admin/credits');
   return ok();
 }
 

@@ -3,15 +3,20 @@
 import { useActionState, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { checkOutAction, recordAttendanceAction } from '@/server/actions/operations';
+import {
+  checkOutAction,
+  recordAttendanceAction,
+  setAttendanceTimesAction,
+  setMemberCreditAction,
+} from '@/server/actions/operations';
 import { idle } from '@/server/actions/types';
 import { EmptyState, FormError } from '@/components/ui/states';
 import { Badge, attendanceTone } from '@/components/ui/status';
-import { SubmitButton } from '@/components/ui/client';
+import { Dialog, SubmitButton } from '@/components/ui/client';
 import { IconCheckCircle, IconSearch } from '@/components/ui/icons';
 import { ATTENDANCE_STATUSES, type AttendanceStatus } from '@/lib/constants';
-import { formatClock } from '@/lib/time';
-import type { Dictionary } from '@/lib/i18n';
+import { formatTime } from '@/lib/time';
+import { format, type Dictionary } from '@/lib/i18n';
 
 export type AttendanceRow = {
   eventMemberId: string;
@@ -20,10 +25,16 @@ export type AttendanceRow = {
   locationName: string | null;
   isReserve: boolean;
   status: AttendanceStatus;
-  checkInAt: Date | null;
-  checkOutAt: Date | null;
+  /** "HH:mm", or null when nobody has written one down. */
+  checkInTime: string | null;
+  checkOutTime: string | null;
   recordedBy: string | null;
   notes: string | null;
+  /** This person's own figure, or null to follow the event's default. */
+  creditDays: number | null;
+  creditNote: string | null;
+  /** What they will actually be credited, once the rule is applied. */
+  effectiveDays: number;
 };
 
 const QUICK: AttendanceStatus[] = ['PRESENT', 'LATE', 'ABSENT', 'EXCUSED'];
@@ -92,7 +103,7 @@ function CheckOut({
     if (state.status === 'success') router.refresh();
   }, [state, router]);
 
-  if (row.checkOutAt || !row.checkInAt) return null;
+  if (row.checkOutTime || !row.checkInTime) return null;
 
   return (
     <form action={action}>
@@ -103,18 +114,139 @@ function CheckOut({
   );
 }
 
+/**
+ * Correcting the record: the two clock times and what the day is worth.
+ *
+ * All four boxes are optional. An empty time means nobody wrote one down,
+ * which is a truthful state and a common one — the alternative, a time the
+ * system invented and will not let go of, is what makes a record stop matching
+ * what happened. An empty credit box puts the person back on the event's
+ * default rather than freezing today's number onto their row.
+ */
+function EditRecord({
+  t,
+  eventId,
+  row,
+  eventDefault,
+}: {
+  t: Dictionary;
+  eventId: string;
+  row: AttendanceRow;
+  eventDefault: number;
+}) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [times, timesAction] = useActionState(setAttendanceTimesAction, idle);
+  const [credit, creditAction] = useActionState(setMemberCreditAction, idle);
+
+  useEffect(() => {
+    if (times.status === 'success' || credit.status === 'success') router.refresh();
+  }, [times, credit, router]);
+
+  return (
+    <>
+      <button type="button" className="btn-ghost btn-sm" onClick={() => setOpen(true)}>
+        {t.attendance.editRecord}
+      </button>
+
+      <Dialog
+        open={open}
+        onClose={() => setOpen(false)}
+        title={row.name}
+        description={t.attendance.editRecordHint}
+      >
+        <div className="space-y-5">
+          <form action={timesAction} className="space-y-3">
+            <input type="hidden" name="eventId" value={eventId} />
+            <input type="hidden" name="eventMemberId" value={row.eventMemberId} />
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block">
+                <span className="label">{t.attendance.checkIn}</span>
+                <input
+                  type="time"
+                  name="checkInTime"
+                  className="field nums"
+                  defaultValue={row.checkInTime ?? ''}
+                />
+              </label>
+              <label className="block">
+                <span className="label">{t.attendance.checkOut}</span>
+                <input
+                  type="time"
+                  name="checkOutTime"
+                  className="field nums"
+                  defaultValue={row.checkOutTime ?? ''}
+                />
+              </label>
+            </div>
+            <p className="text-[12px] text-ink-500">{t.attendance.timesOptional}</p>
+            <FormError message={times.status === 'error' ? times.message : null} />
+            <SubmitButton className="btn-primary btn-sm w-full">
+              {t.attendance.saveTimes}
+            </SubmitButton>
+          </form>
+
+          <div className="border-t border-ink-800 pt-4">
+            <form action={creditAction} className="space-y-3">
+              <input type="hidden" name="eventId" value={eventId} />
+              <input type="hidden" name="eventMemberId" value={row.eventMemberId} />
+              <label className="block">
+                <span className="label">{t.credit.daysForThisPerson}</span>
+                <input
+                  type="number"
+                  name="creditDays"
+                  step="0.25"
+                  min="0"
+                  max="31"
+                  inputMode="decimal"
+                  className="field nums"
+                  placeholder={String(eventDefault)}
+                  defaultValue={row.creditDays ?? ''}
+                />
+              </label>
+              <label className="block">
+                <span className="label">{t.credit.note}</span>
+                <input
+                  type="text"
+                  name="creditNote"
+                  className="field"
+                  maxLength={160}
+                  placeholder={t.credit.notePlaceholder}
+                  defaultValue={row.creditNote ?? ''}
+                />
+              </label>
+              <p className="text-[12px] text-ink-500">
+                {format(t.credit.emptyFollowsEvent, { n: eventDefault })}
+              </p>
+              <FormError message={credit.status === 'error' ? credit.message : null} />
+              <SubmitButton className="btn-primary btn-sm w-full">
+                {t.credit.saveCredit}
+              </SubmitButton>
+            </form>
+          </div>
+        </div>
+      </Dialog>
+    </>
+  );
+}
+
 export function AttendanceTable({
   t,
   locale,
   eventId,
   rows,
   canRecord,
+  canManage = false,
+  eventDefault = 1,
 }: {
   t: Dictionary;
   locale: 'ar' | 'en';
   eventId: string;
   rows: AttendanceRow[];
   canRecord: boolean;
+  /** Editing times and credit is the supervisor's, not every gate leader's. */
+  canManage?: boolean;
+  eventDefault?: number;
 }) {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -181,6 +313,7 @@ export function AttendanceTable({
                   <th>{t.common.status}</th>
                   <th>{t.attendance.checkIn}</th>
                   <th>{t.attendance.checkOut}</th>
+                  <th>{t.credit.days}</th>
                   {canRecord ? <th className="text-end">{t.common.actions}</th> : null}
                 </tr>
               </thead>
@@ -214,18 +347,43 @@ export function AttendanceTable({
                       ) : null}
                     </td>
                     <td data-label={t.attendance.checkIn} className="nums text-ink-300">
-                      {row.checkInAt
-                        ? formatClock(row.checkInAt, locale)
+                      {row.checkInTime
+                        ? formatTime(row.checkInTime, locale)
                         : t.attendance.notCheckedIn}
                     </td>
                     <td data-label={t.attendance.checkOut} className="nums text-ink-300">
-                      {row.checkOutAt ? formatClock(row.checkOutAt, locale) : '—'}
+                      {row.checkOutTime ? formatTime(row.checkOutTime, locale) : '—'}
+                    </td>
+                    <td data-label={t.credit.days}>
+                      <span
+                        className={`nums font-medium ${
+                          row.effectiveDays > 0 ? 'text-ink-100' : 'text-ink-500'
+                        }`}
+                      >
+                        {row.effectiveDays}
+                      </span>
+                      {/* A figure someone set by hand says so, and why. */}
+                      {row.creditDays !== null ? (
+                        <span className="ms-2 text-[11.5px] text-ink-500">
+                          {row.creditNote || t.credit.manual}
+                        </span>
+                      ) : null}
                     </td>
                     {canRecord ? (
                       <td data-label="">
                         <div className="flex flex-col gap-1 sm:items-end">
                           <StatusButtons t={t} eventId={eventId} row={row} />
-                          <CheckOut t={t} eventId={eventId} row={row} />
+                          <div className="flex flex-wrap gap-1 sm:justify-end">
+                            <CheckOut t={t} eventId={eventId} row={row} />
+                            {canManage ? (
+                              <EditRecord
+                                t={t}
+                                eventId={eventId}
+                                row={row}
+                                eventDefault={eventDefault}
+                              />
+                            ) : null}
+                          </div>
                         </div>
                       </td>
                     ) : null}

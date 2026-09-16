@@ -232,6 +232,69 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
                 ))}
             </ReportTable>
           ) : null}
+
+          {/*
+            The names behind the numbers above. A closing report is read by
+            people who were not there and checked by people who were, and only
+            a list of names lets the second group do that — it is also the
+            list the days credited are paid against, so both sit on one line.
+          */}
+          {data.roster.length > 0 ? (
+            <>
+              <h3 className="mt-4 text-[13.5px] font-semibold text-ink-200">
+                {t.credit.attendanceNames}
+              </h3>
+              <ReportTable
+                head={[
+                  t.team.fullName,
+                  t.team.employeeCode,
+                  t.assignment.location,
+                  t.common.status,
+                  t.attendance.checkIn,
+                  t.credit.days,
+                ]}
+              >
+                {data.roster.map((line) => (
+                  <tr key={line.eventMemberId}>
+                    <td className="font-medium text-ink-100">
+                      {line.name}
+                      {line.isReserve ? (
+                        <span className="text-ink-500"> · {t.eventTeam.reserve}</span>
+                      ) : null}
+                    </td>
+                    <td className="nums">{line.employeeCode}</td>
+                    <td>{line.locationName ?? '—'}</td>
+                    <td
+                      className={
+                        line.status === 'ABSENT'
+                          ? 'text-crit-text'
+                          : line.status === 'LATE'
+                            ? 'text-warn-text'
+                            : ''
+                      }
+                    >
+                      {attendanceLabel(line.status)}
+                    </td>
+                    <td className="nums report-nowrap">
+                      {line.checkInTime ? formatTime(line.checkInTime, locale) : '—'}
+                      {line.checkOutTime
+                        ? ` — ${formatTime(line.checkOutTime, locale)}`
+                        : ''}
+                    </td>
+                    <td className="nums">
+                      {line.days}
+                      {line.note ? (
+                        <span className="block text-[11px] text-ink-500">{line.note}</span>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </ReportTable>
+              <p className="report-hint">
+                {format(t.credit.eventTotal, { n: data.totalCreditDays })}
+              </p>
+            </>
+          ) : null}
         </ReportSection>
 
         {/* 5 — Changes during the event ------------------------------------ */}

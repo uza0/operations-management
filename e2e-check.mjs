@@ -212,6 +212,69 @@ check('report includes coverage per location', report.includes('نسبة الت�
 check('report ends with a sign-off block', report.includes('إعداد')
   && report.includes('مراجعة') && report.includes('اعتماد'));
 
+/* ---- 19-23: work credit ------------------------------------------------ */
+
+// The report names the people behind the counts, not just how many there were.
+check('report names who attended', report.includes('أسماء الحضور')
+  && report.includes('أمير عبد الله') && report.includes('TZ-'));
+
+/*
+ * Credit follows a rule rather than a copy of a number: an absent member earns
+ * nothing, and a figure entered by hand overrides the event's default. This
+ * checks the arithmetic end to end, through the screen the supervisor uses.
+ */
+await admin.goto(`${BASE}/admin/events/${eventId}/attendance`);
+await admin.waitForLoadState('networkidle');
+await admin.click('button:has-text("تعديل السجل")');
+await admin.waitForSelector('input[name=creditDays]');
+await admin.fill('input[name=creditDays]', '2');
+await admin.fill('input[name=creditNote]', 'حضر قبل يوم لترتيب القاعة');
+await admin.click('button:has-text("حفظ الرصيد")');
+await admin.waitForTimeout(2500);
+
+const credited = await db.prepare(
+  'select credit_days, credit_note from event_members where credit_days is not null and event_id=?',
+).get(eventId);
+check('a member can be credited more than the default', Number(credited?.credit_days) === 2,
+  String(credited?.credit_note ?? ''));
+
+// The times are the supervisor's to correct, and an empty box clears them.
+await admin.reload();
+await admin.waitForLoadState('networkidle');
+await admin.click('button:has-text("تعديل السجل")');
+await admin.waitForSelector('input[name=checkInTime]');
+await admin.fill('input[name=checkInTime]', '16:05');
+await admin.fill('input[name=checkOutTime]', '22:40');
+await admin.click('button:has-text("حفظ الأوقات")');
+await admin.waitForTimeout(2500);
+const times = await db.prepare(
+  'select check_in_time, check_out_time from attendance where event_id=? and check_in_time=?',
+).get(eventId, '16:05');
+check('attendance times can be edited', times?.check_out_time === '22:40',
+  `${times?.check_in_time} → ${times?.check_out_time}`);
+
+// The payroll report and the member's own record.
+await admin.goto(`${BASE}/admin/credits`);
+await admin.waitForLoadState('networkidle');
+const payroll = await admin.textContent('main');
+check('payroll report lists members and their days', payroll.includes('تقرير أرصدة الفريق')
+  && payroll.includes('الرصيد المعتمد') && payroll.includes('TZ-'));
+
+const someone = await db.prepare(
+  'select team_member_id from event_members where event_id=? limit 1').get(eventId);
+await admin.goto(`${BASE}/admin/team/${someone.team_member_id}`);
+await admin.waitForLoadState('networkidle');
+const ledgerText = await admin.textContent('main');
+check('member ledger shows the events behind the balance',
+  ledgerText.includes('الرصيد المعتمد') && ledgerText.includes('الزوراء'));
+
+const xlsx = await admin.request.get(`${BASE}/api/credits/export`);
+const xlsxBody = await xlsx.body();
+// "PK" — a real zip, which is what an .xlsx is. An HTML error page is not.
+check('credit report exports a workbook',
+  xlsx.status() === 200 && xlsxBody[0] === 0x50 && xlsxBody[1] === 0x4b,
+  `${xlsxBody.length} bytes`);
+
 /* ================= SECURITY TEST CASES (spec §53) ====================== */
 
 // A member cannot reach admin pages.
@@ -270,6 +333,30 @@ check('gate leader blocked from the leader briefing route too',
   gateLeader.url());
 
 check('gate leader nav omits management sections', !gateNav.includes('التوزيع'));
+
+/*
+ * A gate leader marks who turned up at their own gate. Rewriting the times and
+ * the days those turn into money is the supervisor's, so the server refuses it
+ * even though the same person may legitimately record the status beside it.
+ */
+const gateMemberId = (await db.prepare(
+  'select id from event_members where event_id=? limit 1').get(eventId)).id;
+const forgedTimes = await gateLeader.request.post(`${BASE}/admin/events/${eventId}/attendance`, {
+  form: { eventId, eventMemberId: gateMemberId, checkInTime: '01:00', checkOutTime: '02:00' },
+  headers: { 'next-action': 'forged' },
+  failOnStatusCode: false,
+});
+const untouched = await db.prepare(
+  'select check_in_time from attendance where event_member_id=?').get(gateMemberId);
+check('gate leader cannot rewrite attendance times',
+  untouched?.check_in_time !== '01:00',
+  `status ${forgedTimes.status()}, stored ${untouched?.check_in_time ?? 'none'}`);
+
+// The payroll figures are admin-only: a team leader has no business there.
+await leader.goto(`${BASE}/admin/credits`, { waitUntil: 'networkidle' });
+check('team leader blocked from the payroll report',
+  leader.url().includes('/forbidden') || leader.url().includes('/login'),
+  leader.url());
 
 // Wrong password is rejected.
 const badCtx = await browser.newContext();

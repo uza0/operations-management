@@ -154,6 +154,14 @@ export const events = sqliteTable(
     /** Per-event map override; falls back to the venue map. */
     mapImageUrl: text('map_image_url'),
     reportNotes: text('report_notes'),
+    /**
+     * Work days this event is worth to someone who worked it — the baseline
+     * every member starts from, which an individual can be moved off. One day
+     * is the ordinary case; an event whose team sets up the hall the day
+     * before is worth two to the people who did that, and they carry the
+     * difference on their own row, not here.
+     */
+    creditDaysDefault: real('credit_days_default').notNull().default(1),
     createdById: text('created_by_id').references(() => users.id, {
       onDelete: 'set null',
     }),
@@ -183,6 +191,19 @@ export const eventMembers = sqliteTable(
     tokenExpiresAt: integer('token_expires_at', { mode: 'timestamp_ms' }),
     /** Reserve members are on the team but excluded from gate staffing counts. */
     isReserve: integer('is_reserve', { mode: 'boolean' }).notNull().default(false),
+    /**
+     * What this event is worth to THIS person, when it is not the event's
+     * default: two days for someone who came the day before to lay out the
+     * seating, half a day for someone who covered part of a shift. Null means
+     * "the ordinary case" and follows the event — so raising an event's
+     * default later still moves everyone who was never singled out.
+     *
+     * Absence is handled by the rule, not by this column: see
+     * src/server/services/credit.ts.
+     */
+    creditDays: real('credit_days'),
+    /** Why this person is off the default — it appears in the payroll report. */
+    creditNote: text('credit_note'),
     /**
      * When this person was last sent their briefing, and by whom. Compared
      * against the assignment's own updatedAt so a member who was moved after
@@ -346,8 +367,28 @@ export const attendance = sqliteTable(
       .references(() => eventMembers.id, { onDelete: 'cascade' }),
     /** PENDING | PRESENT | LATE | ABSENT | EXCUSED */
     status: text('status').notNull().default('PENDING'),
-    checkInAt: integer('check_in_at', { mode: 'timestamp_ms' }),
-    checkOutAt: integer('check_out_at', { mode: 'timestamp_ms' }),
+    /**
+     * When the person actually arrived and left, as "HH:mm" — the same shape
+     * as every other clock value in this schema, and for the same reason: a
+     * timestamp is read back through whatever timezone the server happens to
+     * run in, so an arrival recorded at 17:05 in Baghdad displayed as 14:05
+     * once the app moved to a host running on UTC. A clock string reads back
+     * as the clock it was written from.
+     *
+     * Both are optional and stay editable: the supervisor is often writing
+     * down what happened an hour ago, not clocking someone in live.
+     */
+    checkInTime: text('check_in_time'),
+    checkOutTime: text('check_out_time'),
+    /**
+     * The timestamp columns these replaced. Nothing reads or writes them any
+     * more; they stay so that upgrading an existing database is a pure
+     * addition — no dropped column, no rewritten table, nothing to lose if an
+     * upgrade is interrupted. Drop them in a later release, once no deployment
+     * still holds times only in this form.
+     */
+    legacyCheckInAt: integer('check_in_at', { mode: 'timestamp_ms' }),
+    legacyCheckOutAt: integer('check_out_at', { mode: 'timestamp_ms' }),
     recordedById: text('recorded_by_id').references(() => users.id, {
       onDelete: 'set null',
     }),

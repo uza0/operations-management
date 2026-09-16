@@ -222,9 +222,9 @@ export default async function MemberPortalPage({
           <div className="flex items-center justify-between gap-3 px-4 py-3">
             <span className="text-[13px] text-ink-400">{t.member.attendanceStatus}</span>
             <span className="flex items-center gap-2">
-              {data.attendance.checkInAt ? (
+              {data.attendance.checkInTime ? (
                 <span className="nums text-[12.5px] text-ink-400">
-                  {formatClock(data.attendance.checkInAt, locale)}
+                  {formatTime(data.attendance.checkInTime, locale)}
                 </span>
               ) : null}
               <Badge tone={attendanceTone[data.attendance.status as AttendanceStatus]}>

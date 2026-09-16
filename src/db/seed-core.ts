@@ -100,9 +100,22 @@ const at = (hhmm: string, offsetMinutes = 0) => {
  * agrees with itself: the team arrived ninety minutes ago, kick-off is an hour
  * away, and the recorded check-in times sit just before the arrival time.
  */
-const sched = (hhmm: string) => {
-  const d = at(hhmm);
+const sched = (hhmm: string, offsetMinutes = 0) => {
+  const d = at(hhmm, offsetMinutes);
   return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+
+/**
+ * A literal clock string, shifted by minutes.
+ *
+ * Unlike `sched`, this does not travel through "now": a check-in recorded as
+ * 16:52 is stored as "16:52" whatever hour the seed is run, which is the whole
+ * point of keeping clock values as text.
+ */
+const clock = (hhmm: string, offsetMinutes = 0) => {
+  const [h, m] = hhmm.split(':').map(Number);
+  const total = (h * 60 + m + offsetMinutes + 24 * 60) % (24 * 60);
+  return `${pad(Math.floor(total / 60))}:${pad(total % 60)}`;
 };
 
 async function wipe() {
@@ -638,13 +651,13 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
           eventId: eventAId,
           eventMemberId: emIds[name],
           status,
-          checkInAt:
+          checkInTime:
             status === 'PRESENT'
-              ? at('16:52', (i % 9) * 2)
+              ? clock('16:52', (i % 9) * 2)
               : status === 'LATE'
-                ? at('17:26', (i % 5) * 3)
+                ? clock('17:26', (i % 5) * 3)
                 : null,
-          checkOutAt: null,
+          checkOutTime: null,
           recordedById: leaderId,
           notes:
             status === 'EXCUSED'

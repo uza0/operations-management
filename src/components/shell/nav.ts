@@ -24,6 +24,7 @@ export function globalNav(t: Dictionary, role: Role): NavSection[] {
           { href: '/admin/events', label: t.nav.events, icon: 'calendar' },
           { href: '/admin/venues', label: t.nav.venues, icon: 'pin' },
           { href: '/admin/team', label: t.nav.team, icon: 'users' },
+          { href: '/admin/credits', label: t.nav.credits, icon: 'report' },
           { href: '/admin/settings', label: t.nav.settings, icon: 'settings' },
         ],
       },

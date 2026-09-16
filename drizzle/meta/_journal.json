@@ -15,6 +15,13 @@
       "when": 1789505001871,
       "tag": "0001_noisy_squadron_supreme",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1789534404212,
+      "tag": "0002_fresh_alex_wilder",
+      "breakpoints": true
     }
   ]
 }

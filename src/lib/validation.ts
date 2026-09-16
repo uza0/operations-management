@@ -116,6 +116,57 @@ export const attendanceSchema = z.object({
   notes: longText,
 });
 
+/**
+ * An arrival or departure the supervisor is writing down, not clocking live.
+ * Both ends are optional and an empty box clears the time — a record that
+ * cannot be corrected is one people stop trusting.
+ */
+const optionalTime = z
+  .string()
+  .trim()
+  .transform((value) => (value === '' ? null : value))
+  .nullable()
+  .refine((value) => value === null || TIME_RE.test(value), 'invalidTime');
+
+export const attendanceTimesSchema = z.object({
+  eventMemberId: z.string().min(1),
+  checkInTime: optionalTime,
+  checkOutTime: optionalTime,
+});
+
+/**
+ * Days credited to one person for one event. Quarter-day steps cover the
+ * half shifts that actually occur; the cap is there so a typo cannot put a
+ * month's pay on one line.
+ */
+export const creditSchema = z.object({
+  eventMemberId: z.string().min(1),
+  creditDays: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? null : Number(value)))
+    .nullable()
+    .refine(
+      (value) =>
+        value === null ||
+        (Number.isFinite(value) && value >= 0 && value <= 31 && (value * 4) % 1 === 0),
+      'invalidCredit',
+    ),
+  creditNote: z.string().trim().max(160).optional().nullable(),
+});
+
+export const eventCreditSchema = z.object({
+  creditDaysDefault: z
+    .string()
+    .trim()
+    .transform((value) => Number(value))
+    .refine(
+      (value) =>
+        Number.isFinite(value) && value >= 0 && value <= 31 && (value * 4) % 1 === 0,
+      'invalidCredit',
+    ),
+});
+
 export const announcementSchema = z.object({
   title: shortText,
   message: z.string().trim().min(1).max(2000),

@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -239,7 +240,20 @@ export function TeamManager({ t, members }: { t: Dictionary; members: TeamRow[] 
                       {member.phone ?? '—'}
                     </td>
                     <td data-label={t.team.eventsWorked} className="nums text-ink-300">
-                      {member.eventCount}
+                      {/*
+                        The count is the way into the person's record — the
+                        question that follows "how many events?" is always
+                        "which ones, and what did they earn?".
+                      */}
+                      <Link
+                        href={`/admin/team/${member.id}`}
+                        className="-my-2.5 inline-flex min-h-[44px] items-center gap-1.5 py-2.5 hover:text-brand-300"
+                      >
+                        {member.eventCount}
+                        <span className="text-[12px] text-ink-500">
+                          {t.credit.memberLedger}
+                        </span>
+                      </Link>
                     </td>
                     <td data-label={t.common.status}>
                       <Badge tone={member.active ? 'ok' : 'neutral'}>
