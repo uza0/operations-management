@@ -1,0 +1,1 @@
+ALTER TABLE `events` ADD `team_departure_time` text;

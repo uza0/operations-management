@@ -148,6 +148,18 @@ export const events = sqliteTable(
     startTime: text('start_time').notNull(),
     /** "HH:mm" — when the field team must be on site. */
     teamArrivalTime: text('team_arrival_time').notNull(),
+    /**
+     * When the team stands down, as "HH:mm".
+     *
+     * Together with the arrival time this is the shift the whole team works,
+     * set once when the event is created. Every assignment starts from these
+     * two, so adding the forty-eighth person asks nothing about hours; only
+     * somebody whose hours genuinely differ carries their own.
+     *
+     * Null on events created before this existed — those keep whatever their
+     * assignments already say.
+     */
+    teamDepartureTime: text('team_departure_time'),
     description: text('description'),
     /** DRAFT | PLANNING | READY | LIVE | COMPLETED | ARCHIVED */
     status: text('status').notNull().default('DRAFT'),

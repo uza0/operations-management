@@ -1,8 +1,8 @@
 import Link from 'next/link';
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { users, venues } from '@/db/schema';
+import { events, users, venues } from '@/db/schema';
 import { requireRole } from '@/server/auth/rbac';
 import { getT } from '@/lib/i18n/server';
 import { PageHeader, Panel } from '@/components/ui/panel';
@@ -15,12 +15,27 @@ export default async function NewEventPage() {
   await requireRole('ADMIN');
   const { t } = await getT();
 
-  const [venueRows, leaderRows] = await Promise.all([
+  const [venueRows, leaderRows, templateRows] = await Promise.all([
     db.select({ id: venues.id, name: venues.name }).from(venues).orderBy(venues.name),
     db
       .select({ id: users.id, name: users.name })
       .from(users)
       .where(eq(users.role, 'TEAM_LEADER')),
+    /*
+     * Any event already planned can serve as the template — newest first,
+     * because the one you want is almost always the last one you ran.
+     */
+    db
+      .select({
+        id: events.id,
+        name: events.name,
+        date: events.date,
+        venueName: venues.name,
+      })
+      .from(events)
+      .leftJoin(venues, eq(events.venueId, venues.id))
+      .orderBy(desc(events.date))
+      .limit(30),
   ]);
 
   return (
@@ -57,7 +72,13 @@ export default async function NewEventPage() {
           <Panel bodyClassName="p-5">
             <Notice tone="info">{t.event.emptyHint}</Notice>
             <div className="mt-4">
-              <EventForm t={t} venues={venueRows} leaders={leaderRows} mode="create" />
+              <EventForm
+                t={t}
+                venues={venueRows}
+                leaders={leaderRows}
+                templates={templateRows}
+                mode="create"
+              />
             </div>
           </Panel>
         )}

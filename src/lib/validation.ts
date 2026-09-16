@@ -31,6 +31,8 @@ export const eventSchema = z.object({
   date,
   startTime: time,
   teamArrivalTime: time,
+  /** Optional so an older event without one can still be saved. */
+  teamDepartureTime: time.optional().nullable(),
   description: longText,
   status: z.enum(EVENT_STATUSES).optional(),
 });

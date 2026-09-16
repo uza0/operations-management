@@ -381,9 +381,79 @@ await admin.click('button:has-text("توزيع عضو")');
 await admin.waitForSelector('#a-member');
 const options = await admin.locator('#a-member option').count();
 check('already-assigned members are not offered twice', options <= 6, `${options} options`);
+
+/*
+ * The hours belong to the event, so the assignment form does not ask for them.
+ * They are there for the person whose hours genuinely differ, folded away.
+ */
+const hoursHidden = await admin.locator('#a-arrival').isVisible();
+check('assignment form does not ask for hours by default', hoursHidden === false,
+  `arrival field visible: ${hoursHidden}`);
+await admin.click(`text=${'وقت مختلف لهذا العضو'}`);
+check('hours can still be set for one person',
+  await admin.locator('#a-arrival').isVisible());
+await admin.keyboard.press('Escape');
+
+/* ---- building an event from a previous one ----------------------------- */
+await admin.goto(`${BASE}/admin/events/new`);
+await admin.waitForLoadState('networkidle');
+// Build it from the match specifically, so the copy can be compared with it.
+await admin.selectOption('#templateEventId', eventId);
+await admin.waitForTimeout(600);
+await admin.fill('#name', 'فعالية من قالب — فحص');
+await admin.selectOption('#venueId', { index: 1 });
+await admin.fill('#date', '2026-12-01');
+await admin.fill('#startTime', '20:00');
+await admin.fill('#teamArrivalTime', '18:00');
+await admin.fill('#teamDepartureTime', '23:00');
+// The page's own form, not the sign-out button in the shell above it.
+await admin.locator('form').filter({ has: admin.locator('#templateEventId') })
+  .locator('button[type=submit]').click();
+await admin.waitForTimeout(5000);
+
+const cloned = await db.prepare(
+  'select id, team_arrival_time, team_departure_time from events where name=?',
+).get('فعالية من قالب — فحص');
+check('an event can be created from a previous one', Boolean(cloned?.id));
+
+const clonedGates = await db.prepare(
+  'select count(*) as n from gates where event_id=?').get(cloned.id);
+const sourceGates = await db.prepare(
+  'select count(*) as n from gates where event_id=?').get(eventId);
+check('the template copies every gate',
+  Number(clonedGates.n) > 0 && Number(clonedGates.n) === Number(sourceGates.n),
+  `${clonedGates.n} of ${sourceGates.n}`);
+
+const clonedAssignments = await db.prepare(
+  'select count(*) as n from assignments where event_id=?').get(cloned.id);
+check('the template copies the team and their places',
+  Number(clonedAssignments.n) > 0, `${clonedAssignments.n} assignments`);
+
+// Every copied assignment takes the NEW event's hours, not the old ones.
+const strayHours = await db.prepare(
+  'select count(*) as n from assignments where event_id=? and (arrival_time!=? or shift_end!=?)',
+).get(cloned.id, '18:00', '23:00');
+check('copied assignments take the new event hours', Number(strayHours.n) === 0,
+  `${strayHours.n} with other hours`);
+
+// Tokens are keys: a copied member must never inherit one.
+const sharedTokens = await db.prepare(`
+  select count(*) as n from event_members a
+  join event_members b on a.token = b.token and a.id != b.id`).get();
+check('copied members get new personal links', Number(sharedTokens.n) === 0,
+  `${sharedTokens.n} shared tokens`);
+
+// The record of a day that happened must not travel to one that has not.
+const carried = await db.prepare(
+  'select count(*) as n from attendance where event_id=?').get(cloned.id);
+check('the template copies the plan, not the record', Number(carried.n) === 0,
+  `${carried.n} attendance rows`);
 await admin.keyboard.press('Escape');
 
 /* ---- RTL / LTR --------------------------------------------------------- */
+// From a known page, so this never depends on where the previous check ended.
+await admin.goto(`${BASE}/admin`);
+await admin.waitForLoadState('networkidle');
 const dirRtl = await admin.getAttribute('html', 'dir');
 check('Arabic renders RTL', dirRtl === 'rtl', dirRtl);
 await admin.click('button:has-text("English")');
@@ -391,7 +461,8 @@ await admin.waitForTimeout(1500);
 const dirLtr = await admin.getAttribute('html', 'dir');
 const enText = await admin.textContent('main');
 check('English renders LTR', dirLtr === 'ltr', dirLtr);
-check('English dictionary applied', enText.includes('Assignments') || enText.includes('assignments'), '');
+check('English dictionary applied',
+  enText.includes('Operations dashboard') && enText.includes('Live events'), '');
 
 await browser.close();
 db.close();

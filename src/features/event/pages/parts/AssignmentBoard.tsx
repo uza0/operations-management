@@ -67,6 +67,8 @@ type Props = {
   markers: MapMarkerLite[];
   mapImageUrl: string | null;
   defaultArrival: string;
+  /** The event's stand-down time, when it has one. */
+  defaultDeparture: string | null;
   canManage: boolean;
 };
 
@@ -74,25 +76,41 @@ type Props = {
 
 function AssignmentForm({
   t,
+  locale,
   eventId,
   locations,
   members,
   defaultArrival,
+  defaultDeparture,
   editing,
   presetLocationId,
   onDone,
 }: {
   t: Dictionary;
+  locale: 'ar' | 'en';
   eventId: string;
   locations: StaffedLocation[];
   members: AssignableMember[];
   defaultArrival: string;
+  defaultDeparture: string | null;
   editing?: AssignmentRow | null;
   presetLocationId?: string | null;
   onDone: () => void;
 }) {
   const router = useRouter();
   const [state, action] = useActionState(saveAssignmentAction, idle);
+  /*
+   * Editing someone who already has hours of their own opens with the fields
+   * showing — otherwise they would be hidden and silently rewritten on save.
+   */
+  const [customHours, setCustomHours] = useState(
+    Boolean(
+      editing &&
+        (editing.arrivalTime !== defaultArrival ||
+          editing.shiftStart !== defaultArrival ||
+          (defaultDeparture !== null && editing.shiftEnd !== defaultDeparture)),
+    ),
+  );
 
   useEffect(() => {
     if (state.status === 'success') {
@@ -223,7 +241,33 @@ function AssignmentForm({
         </select>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      {/*
+        The hours come from the event, so this is folded away. Opening it is a
+        deliberate act — "this person's hours are different" — which is exactly
+        how often it should happen. The inputs stay mounted either way, because
+        the form still has to submit three times.
+      */}
+      <div>
+        <label className="flex items-center gap-2.5 text-[14px] text-ink-200">
+          <input
+            type="checkbox"
+            checked={customHours}
+            onChange={(e) => setCustomHours(e.target.checked)}
+            className="h-4.5 w-4.5 accent-brand-500"
+          />
+          {t.event.customHours}
+        </label>
+        {!customHours ? (
+          <p className="mt-1 text-[12.5px] text-ink-500">
+            {t.event.followsEventHours} — {formatTime(defaultArrival, locale)}
+            {defaultDeparture ? ` – ${formatTime(defaultDeparture, locale)}` : ''}
+          </p>
+        ) : null}
+      </div>
+
+      <div
+        className={`grid grid-cols-1 gap-4 sm:grid-cols-3 ${customHours ? '' : 'hidden'}`}
+      >
         <div>
           <label className="field-label" htmlFor="a-arrival">
             {t.assignment.arrival}
@@ -260,7 +304,7 @@ function AssignmentForm({
             type="time"
             className="field nums"
             required
-            defaultValue={editing?.shiftEnd ?? '22:30'}
+            defaultValue={editing?.shiftEnd ?? defaultDeparture ?? '22:30'}
           />
         </div>
       </div>
@@ -361,6 +405,7 @@ export function AssignmentBoard({
   markers,
   mapImageUrl,
   defaultArrival,
+  defaultDeparture,
   canManage,
 }: Props) {
   const [view, setView] = useState<'list' | 'map'>('list');
@@ -753,7 +798,9 @@ export function AssignmentBoard({
           eventId={eventId}
           locations={locations}
           members={members}
+          locale={locale}
           defaultArrival={defaultArrival}
+          defaultDeparture={defaultDeparture}
           presetLocationId={preset}
           onDone={() => setCreating(false)}
         />
@@ -772,7 +819,9 @@ export function AssignmentBoard({
             eventId={eventId}
             locations={locations}
             members={members}
+            locale={locale}
             defaultArrival={defaultArrival}
+            defaultDeparture={defaultDeparture}
             editing={editing}
             onDone={() => setEditing(null)}
           />

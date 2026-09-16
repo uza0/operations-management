@@ -173,6 +173,7 @@ export async function seedLiveData(ctx: SeedContext): Promise<LiveSeedResult> {
       date: LIVE_EVENT.date,
       startTime: LIVE_EVENT.startTime,
       teamArrivalTime: LIVE_EVENT.teamArrivalTime,
+      teamDepartureTime: LIVE_EVENT.shiftEnd,
       description: LIVE_EVENT.description,
       status: LIVE_EVENT.status,
       mapImageUrl: LIVE_VENUE.mapImageUrl,

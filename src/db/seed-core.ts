@@ -336,6 +336,7 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
       date: EVENT_DATE,
       startTime: sched('19:30'),
       teamArrivalTime: sched('17:00'),
+      teamDepartureTime: sched('22:30'),
       description:
         'مباراة الجولة السابعة من الدوري الممتاز. حضور متوقع 11,000 متفرج، مع تشغيل المسح الإلكتروني على كل البوابات الجماهيرية.',
       status: 'LIVE',
@@ -977,6 +978,7 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
       date: addDays(19),
       startTime: '20:00',
       teamArrivalTime: '17:30',
+      teamDepartureTime: '23:30',
       description: 'ليلة الافتتاح، 4,200 تذكرة مباعة حتى الآن. الدخول بأسورة إلزامية.',
       status: 'PLANNING',
       mapImageUrl: null,
@@ -1108,6 +1110,7 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
       date: addDays(-14),
       startTime: '10:00',
       teamArrivalTime: '08:30',
+      teamDepartureTime: '16:00',
       description: 'اليوم الأخير من المعرض، الدخول مجاني مع تسجيل عند البوابة.',
       status: 'COMPLETED',
       mapImageUrl: null,

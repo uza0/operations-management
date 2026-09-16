@@ -6,6 +6,7 @@ import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { assignments, eventAccess, events, gates, venues } from '@/db/schema';
+import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
 import { EVENT_STATUS_FLOW, type EventStatus } from '@/lib/constants';
@@ -18,6 +19,7 @@ import {
   workspaceBase,
 } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
+import { cloneEventPlan } from '@/server/services/clone';
 import { getStaffedLocations } from '@/server/services/staffing';
 
 import { fail, ok, type ActionState } from './types';
@@ -48,6 +50,7 @@ export async function createEventAction(
     date: str(form, 'date') ?? '',
     startTime: str(form, 'startTime') ?? '',
     teamArrivalTime: str(form, 'teamArrivalTime') ?? '',
+    teamDepartureTime: str(form, 'teamDepartureTime'),
     description: str(form, 'description'),
   });
   if (!parsed.success) return fail(message(t, firstIssueKey(parsed.error)));
@@ -66,10 +69,30 @@ export async function createEventAction(
     date: parsed.data.date,
     startTime: parsed.data.startTime,
     teamArrivalTime: parsed.data.teamArrivalTime,
+    teamDepartureTime: parsed.data.teamDepartureTime ?? null,
     description: parsed.data.description ?? null,
     status: 'DRAFT',
     createdById: user.id,
   });
+
+  /*
+   * Built from a previous event: copy its plan across before anything else
+   * touches the new event, so the first screen the admin sees is already the
+   * gates and the team rather than an empty shell.
+   */
+  const templateId = str(form, 'templateEventId');
+  let cloned: Awaited<ReturnType<typeof cloneEventPlan>> | null = null;
+  if (templateId) {
+    const source = await db.query.events.findFirst({ where: eq(events.id, templateId) });
+    if (!source) return fail(t.errors.notFound);
+    cloned = await cloneEventPlan(templateId, id, {
+      arrivalTime: parsed.data.teamArrivalTime,
+      departureTime: parsed.data.teamDepartureTime ?? null,
+      withTeam: bool(form, 'copyTeam'),
+      withTimeline: bool(form, 'copyTimeline'),
+      createdById: user.id,
+    });
+  }
 
   // The creating admin may hand the event to a team leader straight away.
   const leaderId = str(form, 'leaderId');
@@ -91,7 +114,12 @@ export async function createEventAction(
     entity: 'EVENT',
     entityId: id,
     entityLabel: parsed.data.name,
-    newValues: { status: 'DRAFT', venue: venue.name, date: parsed.data.date },
+    newValues: {
+      status: 'DRAFT',
+      venue: venue.name,
+      date: parsed.data.date,
+      ...(cloned ? { copiedFrom: templateId, ...cloned } : {}),
+    },
     summary: `${t.enums.auditAction.CREATE}: ${parsed.data.name}`,
   });
 
@@ -123,6 +151,7 @@ export async function updateEventAction(
     date: str(form, 'date') ?? '',
     startTime: str(form, 'startTime') ?? '',
     teamArrivalTime: str(form, 'teamArrivalTime') ?? '',
+    teamDepartureTime: str(form, 'teamDepartureTime'),
     description: str(form, 'description'),
   });
   if (!parsed.success) return fail(message(t, firstIssueKey(parsed.error)));
@@ -136,10 +165,75 @@ export async function updateEventAction(
       date: parsed.data.date,
       startTime: parsed.data.startTime,
       teamArrivalTime: parsed.data.teamArrivalTime,
+      teamDepartureTime: parsed.data.teamDepartureTime ?? null,
       description: parsed.data.description ?? null,
       updatedAt: new Date(),
     })
     .where(eq(events.id, eventId));
+
+  /*
+   * The event's hours are the team's hours, so moving them moves everyone who
+   * was never given hours of their own. "Their own" means an assignment whose
+   * times no longer match what the event said — those are left exactly as they
+   * are, because somebody decided them on purpose.
+   */
+  const movedArrival = existing.teamArrivalTime !== parsed.data.teamArrivalTime;
+  const movedDeparture =
+    (existing.teamDepartureTime ?? null) !== (parsed.data.teamDepartureTime ?? null);
+
+  if (movedArrival || movedDeparture) {
+    const rows = await db
+      .select()
+      .from(assignments)
+      .where(eq(assignments.eventId, eventId));
+
+    let moved = 0;
+    for (const row of rows) {
+      const followedArrival =
+        row.arrivalTime === existing.teamArrivalTime &&
+        row.shiftStart === existing.teamArrivalTime;
+      const followedDeparture =
+        existing.teamDepartureTime !== null && row.shiftEnd === existing.teamDepartureTime;
+
+      const next: Partial<typeof row> = {};
+      if (movedArrival && followedArrival) {
+        next.arrivalTime = parsed.data.teamArrivalTime;
+        next.shiftStart = parsed.data.teamArrivalTime;
+      }
+      if (movedDeparture && followedDeparture && parsed.data.teamDepartureTime) {
+        next.shiftEnd = parsed.data.teamDepartureTime;
+      }
+      if (Object.keys(next).length === 0) continue;
+
+      await db
+        .update(assignments)
+        .set({ ...next, updatedById: user.id, updatedAt: new Date() })
+        .where(eq(assignments.id, row.id));
+      moved += 1;
+    }
+
+    if (moved > 0) {
+      await recordAudit({
+        eventId,
+        actorId: user.id,
+        actorName: user.name,
+        action: 'UPDATE',
+        entity: 'ASSIGNMENT',
+        entityId: null,
+        entityLabel: null,
+        oldValues: {
+          teamArrivalTime: existing.teamArrivalTime,
+          teamDepartureTime: existing.teamDepartureTime,
+        },
+        newValues: {
+          teamArrivalTime: parsed.data.teamArrivalTime,
+          teamDepartureTime: parsed.data.teamDepartureTime ?? null,
+          assignmentsMoved: moved,
+        },
+        summary: format(t.event.hoursMoved, { n: moved }),
+      });
+    }
+  }
 
   await recordAudit({
     eventId,
@@ -154,12 +248,14 @@ export async function updateEventAction(
       date: existing.date,
       startTime: existing.startTime,
       teamArrivalTime: existing.teamArrivalTime,
+      teamDepartureTime: existing.teamDepartureTime,
     },
     newValues: {
       name: parsed.data.name,
       date: parsed.data.date,
       startTime: parsed.data.startTime,
       teamArrivalTime: parsed.data.teamArrivalTime,
+      teamDepartureTime: parsed.data.teamDepartureTime ?? null,
     },
     summary: `${t.enums.auditAction.UPDATE}: ${parsed.data.name}`,
   });

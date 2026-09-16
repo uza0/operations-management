@@ -54,6 +54,7 @@ export async function EventAssignmentsPage({ eventId }: { eventId: string }) {
         markers={markers}
         mapImageUrl={event.mapImageUrl ?? event.venue.mapImageUrl}
         defaultArrival={event.teamArrivalTime}
+        defaultDeparture={event.teamDepartureTime}
         canManage={scope.canManage}
       />
     </>
