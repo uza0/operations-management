@@ -275,6 +275,48 @@ check('credit report exports a workbook',
   xlsx.status() === 200 && xlsxBody[0] === 0x50 && xlsxBody[1] === 0x4b,
   `${xlsxBody.length} bytes`);
 
+/* ---- adding a team member ----------------------------------------------- */
+/*
+ * The employee code follows a person through every event, report and audit
+ * line, so it is issued rather than typed: adding someone must need a name and
+ * nothing else that can be got wrong.
+ */
+await admin.goto(`${BASE}/admin/team`);
+await admin.waitForLoadState('networkidle');
+await admin.click('button:has-text("عضو جديد")');
+await admin.waitForTimeout(600);
+const codeFieldShown = await admin.locator('input[name="employeeCode"]').count();
+check('adding a member never asks for an employee code', codeFieldShown === 0,
+  `${codeFieldShown} code fields`);
+
+const highestBefore = (await db.prepare(
+  "select employee_code c from team_members where employee_code like 'TZ-%' order by c desc limit 1",
+).get())?.c;
+const newName = `فحص التسلسل ${Date.now() % 100000}`;
+await admin.fill('input[name="fullName"]', newName);
+await admin.locator('form button[type=submit]').last().click();
+await admin.waitForTimeout(2500);
+
+const added = await db.prepare('select employee_code from team_members where full_name=?')
+  .get(newName);
+const expected = `TZ-${String(Number(String(highestBefore).slice(3)) + 1).padStart(3, '0')}`;
+check('the new member gets the next code in sequence', added?.employee_code === expected,
+  `${highestBefore} → ${added?.employee_code} (expected ${expected})`);
+
+// And a second one continues rather than repeating.
+await admin.reload();
+await admin.waitForLoadState('networkidle');
+await admin.click('button:has-text("عضو جديد")');
+await admin.waitForTimeout(600);
+const secondName = `${newName} ب`;
+await admin.fill('input[name="fullName"]', secondName);
+await admin.locator('form button[type=submit]').last().click();
+await admin.waitForTimeout(2500);
+const second = await db.prepare('select employee_code from team_members where full_name=?')
+  .get(secondName);
+check('codes never repeat', second?.employee_code && second.employee_code !== added?.employee_code,
+  `${added?.employee_code} then ${second?.employee_code}`);
+
 /* ---- the distribution board -------------------------------------------- */
 await admin.goto(`${BASE}/admin/events/${eventId}/board`);
 await admin.waitForLoadState('networkidle');

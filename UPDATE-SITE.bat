@@ -32,7 +32,7 @@ git remote remove origin >nul 2>&1
 git remote add origin https://github.com/uza0/operations-management.git
 
 git add -A
-git commit -m "Field roles on the board (team leader, assistant, gate leader, section supervisor) and PDF export" >nul 2>&1
+git commit -m "Team members get their employee code automatically, in sequence" >nul 2>&1
 
 echo   A browser window may open asking you to sign in. Approve it.
 echo.

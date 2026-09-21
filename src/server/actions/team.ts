@@ -10,6 +10,7 @@ import { newId } from '@/lib/ids';
 import { bool, firstIssueKey, str, teamMemberSchema } from '@/lib/validation';
 import { assertRole } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
+import { nextEmployeeCode } from '@/server/services/team';
 
 import { fail, ok, type ActionState } from './types';
 
@@ -26,10 +27,29 @@ export async function saveTeamMemberAction(
   }
 
   const id = str(form, 'memberId');
+
+  /*
+   * A new person is given the next code in the roster's own sequence rather
+   * than being asked for one. The form does not send the field at all when
+   * adding, so there is nothing to mistype and no way to collide with a code
+   * that already belongs to somebody. An existing member keeps whatever code
+   * he has unless the edit form sends a different one — a code is the key the
+   * rest of the system remembers a person by, so it is never rewritten by
+   * accident.
+   */
+  const submittedCode = str(form, 'employeeCode');
+  let employeeCode = submittedCode;
+  if (!employeeCode) {
+    employeeCode = id
+      ? ((await db.query.teamMembers.findFirst({ where: eq(teamMembers.id, id) }))
+          ?.employeeCode ?? '')
+      : await nextEmployeeCode();
+  }
+
   const parsed = teamMemberSchema.safeParse({
     fullName: str(form, 'fullName') ?? '',
     phone: str(form, 'phone'),
-    employeeCode: str(form, 'employeeCode') ?? '',
+    employeeCode,
     active: bool(form, 'active'),
     notes: str(form, 'notes'),
   });

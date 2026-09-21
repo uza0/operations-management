@@ -201,6 +201,7 @@ export const en: Dictionary = {
     emptyHint: 'Add people once, then add them to any event later.',
     deactivate: 'Deactivate',
     activate: 'Activate',
+    codeAutomatic: 'Issued automatically on save',
     codeTaken: 'That employee code is already in use',
     minimalDataNote: 'Only the minimum information needed for field operations is stored.',
   },

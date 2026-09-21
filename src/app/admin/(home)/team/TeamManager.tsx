@@ -67,15 +67,27 @@ function MemberForm({
           <label className="field-label" htmlFor="employeeCode">
             {t.team.employeeCode}
           </label>
-          <input
-            id="employeeCode"
-            name="employeeCode"
-            className="field nums"
-            required
-            dir="ltr"
-            defaultValue={member?.employeeCode ?? ''}
-            placeholder="TZ-1042"
-          />
+          {member ? (
+            <input
+              id="employeeCode"
+              name="employeeCode"
+              className="field nums"
+              required
+              dir="ltr"
+              defaultValue={member.employeeCode}
+            />
+          ) : (
+            /*
+             * Adding someone asks for a name and nothing else that can be got
+             * wrong: the code is issued by the server, in the roster's own
+             * sequence, when the form is saved. Nothing is shown as a promise
+             * here because two people could be added at the same moment and
+             * only one of them can have the next number.
+             */
+            <p className="field flex items-center text-[13px] text-ink-500">
+              {t.team.codeAutomatic}
+            </p>
+          )}
         </div>
         <div>
           <label className="field-label" htmlFor="phone">

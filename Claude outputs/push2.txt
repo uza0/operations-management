@@ -1,0 +1,9 @@
+[main c297b6d] Field roles on the board (team leader, assistant, gate leader, section supervisor) and PDF export
+ 28 files changed, 3073 insertions(+), 29 deletions(-)
+ create mode 100644 Claude outputs/push-log.txt
+ create mode 100644 "Claude outputs/\331\203\330\264\331\201-\330\252\331\210\330\262\331\212\330\271-\330\247\331\204\330\250\331\210\330\247\330\250\330\247\330\252.pdf"
+ create mode 100644 drizzle/0005_powerful_pixie.sql
+ create mode 100644 drizzle/meta/0005_snapshot.json
+To https://github.com/uza0/operations-management.git
+   bfcd6c8..c297b6d  main -> main
+DONE 
