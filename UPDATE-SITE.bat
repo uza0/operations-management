@@ -32,7 +32,7 @@ git remote remove origin >nul 2>&1
 git remote add origin https://github.com/uza0/operations-management.git
 
 git add -A
-git commit -m "Work credit: editable attendance times, per-member day balances, payroll report" >nul 2>&1
+git commit -m "Distribution board: gate lanes, drag-and-drop placement, shareable distribution sheet" >nul 2>&1
 
 echo   A browser window may open asking you to sign in. Approve it.
 echo.
@@ -49,13 +49,13 @@ echo   Step 3 of 3  —  opening the setup link, then the site
 echo.
 start "" "%SETUP%"
 timeout /t 8 /nobreak >nul
-start "" "%SITE%/admin/credits"
+start "" "%SITE%/admin/events"
 
 echo.
 echo   ============================================================
 echo     Done.
 echo     The first tab should show  "status":"already-set-up"
-echo     The second tab is the new team-credit report.
+echo     The second tab is your events — open one, then "Distribution board".
 echo   ============================================================
 echo.
 pause

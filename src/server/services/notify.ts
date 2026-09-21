@@ -89,6 +89,7 @@ function buildMessage({
   shiftEnd,
   memberUrl,
   isReserve,
+  sheetUrl,
 }: {
   t: Dictionary;
   locale: 'ar' | 'en';
@@ -104,6 +105,7 @@ function buildMessage({
   shiftEnd: string | null;
   memberUrl: string;
   isReserve: boolean;
+  sheetUrl: string | null;
 }): string {
   const m = t.notify.message;
   const weekday = formatWeekday(date, locale);
@@ -135,7 +137,16 @@ function buildMessage({
     }
   }
 
-  lines.push('', m.linkIntro, memberUrl, '', m.private);
+  lines.push('', m.linkIntro, memberUrl);
+
+  /*
+   * The full sheet, when the supervisor has opened it: a member who wants to
+   * see where everyone else is standing gets that without having to ask, and
+   * the link is read-only and carries nobody's phone number.
+   */
+  if (sheetUrl) lines.push('', format(m.sheet, { url: sheetUrl }));
+
+  lines.push('', m.private);
 
   return lines.join('\n');
 }
@@ -158,6 +169,8 @@ export async function buildBriefings({
     name: string;
     date: string;
     teamArrivalTime: string;
+    /** Set once the supervisor has opened the public distribution sheet. */
+    boardToken?: string | null;
     venue: { name: string; locationUrl: string | null };
   };
   baseUrl: string;
@@ -236,6 +249,7 @@ export async function buildBriefings({
         shiftStart: active ? row.shiftStart : null,
         shiftEnd: active ? row.shiftEnd : null,
         memberUrl,
+        sheetUrl: event.boardToken ? `${baseUrl}/sheet/${event.boardToken}` : null,
         isReserve: row.isReserve || !active,
       }),
     };

@@ -36,6 +36,7 @@ export async function EventNotifyPage({ eventId }: { eventId: string }) {
       name: event.name,
       date: event.date,
       teamArrivalTime: event.teamArrivalTime,
+      boardToken: event.boardToken,
       venue: { name: event.venue.name, locationUrl: event.venue.locationUrl },
     },
     baseUrl,

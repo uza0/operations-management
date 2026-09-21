@@ -211,6 +211,8 @@ export async function seedLiveData(ctx: SeedContext): Promise<LiveSeedResult> {
           status: 'READY',
           gateLeaderId: null,
           sortOrder: location.sortOrder,
+          // The board's columns come straight from the printed plan.
+          lanes: JSON.stringify(location.teams.map((team) => team.task)),
         })
         .run();
       locationIdByName.set(location.name, { gateId: id, pointId: null });
@@ -226,6 +228,7 @@ export async function seedLiveData(ctx: SeedContext): Promise<LiveSeedResult> {
           requiredStaff: location.requiredStaff,
           status: 'READY',
           sortOrder: location.sortOrder,
+          lanes: JSON.stringify(location.teams.map((team) => team.task)),
         })
         .run();
       locationIdByName.set(location.name, { gateId: null, pointId: id });

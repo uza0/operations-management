@@ -384,6 +384,50 @@
     @apply block h-full bg-brand-500;
   }
 
+
+  /* ---- the distribution sheet ------------------------------------------ */
+  .sheet-grid {
+    @apply grid gap-3 sm:grid-cols-2;
+  }
+  .sheet-block {
+    @apply rounded-lg border border-ink-800;
+  }
+  .sheet-block-head {
+    @apply flex items-center justify-between gap-2 border-b border-ink-800 px-3 py-2 text-[14px] font-semibold text-ink-100;
+  }
+  .sheet-lanes {
+    @apply grid gap-2 p-2.5 sm:grid-cols-2;
+  }
+  .sheet-lane {
+    @apply rounded-md border border-ink-850 p-2;
+  }
+  .sheet-lane-head {
+    @apply mb-1 text-[11.5px] font-semibold uppercase tracking-wide text-ink-400;
+  }
+  .sheet-names {
+    @apply space-y-0.5 text-[13px] text-ink-200;
+    counter-reset: sheet-name;
+  }
+  .sheet-names li {
+    @apply flex items-baseline gap-2;
+    counter-increment: sheet-name;
+  }
+  /*
+   * The number is drawn by CSS rather than written into the markup, so a name
+   * removed from a lane never leaves a gap in the numbering on the printed
+   * sheet — the list renumbers itself.
+   */
+  .sheet-idx::before {
+    content: counter(sheet-name);
+    @apply text-[11px] text-ink-500;
+  }
+  .sheet-none {
+    @apply py-1 text-[12px] italic text-ink-600;
+  }
+  .sheet-pool {
+    @apply flex flex-wrap gap-x-3 gap-y-1 p-3 text-[13px] text-ink-300;
+  }
+
   .report-signatures {
     @apply grid grid-cols-1 gap-6 pt-2 sm:grid-cols-3;
     break-inside: avoid;
@@ -507,6 +551,24 @@
   /* On paper there is room again, so timestamps and labels stay on one line. */
   .report-nowrap {
     white-space: nowrap !important;
+  }
+
+  .sheet-block,
+  .sheet-lane {
+    border-color: #cbd5e1 !important;
+    break-inside: avoid;
+  }
+  .sheet-block-head {
+    border-bottom-color: #64748b !important;
+  }
+  .sheet-lane-head,
+  .sheet-idx::before,
+  .sheet-none {
+    color: #475569 !important;
+  }
+  .sheet-grid {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr !important;
   }
 
   /* A long table that spans pages repeats its header on each one. */

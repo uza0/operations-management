@@ -174,6 +174,15 @@ export const events = sqliteTable(
      * difference on their own row, not here.
      */
     creditDaysDefault: real('credit_days_default').notNull().default(1),
+    /**
+     * Opens the read-only distribution sheet to anyone holding the link.
+     *
+     * The sheet is the printed gate roster in web form: names, gates and
+     * tasks — the same thing that gets taped to the wall at the venue. It
+     * carries no phone numbers and no personal member links, and the token
+     * can be rotated at any time, which revokes every copy of the old link.
+     */
+    boardToken: text('board_token'),
     createdById: text('created_by_id').references(() => users.id, {
       onDelete: 'set null',
     }),
@@ -256,6 +265,16 @@ export const gates = sqliteTable(
     status: text('status').notNull().default('INACTIVE'),
     gateLeaderId: text('gate_leader_id'),
     sortOrder: integer('sort_order').notNull().default(0),
+    /**
+     * The columns this location is divided into on the distribution board —
+     * a JSON array of task codes, e.g. ["ELECTRONIC_SCANNING","INFORMATION"].
+     *
+     * A gate is not one undifferentiated group of people: it is a scanning
+     * line and an information desk, and the supervisor thinks in those
+     * columns when handing out names. Null means the location has not been
+     * divided yet and falls back to a sensible default for its kind.
+     */
+    lanes: text('lanes'),
     ...timestamps,
   },
   (t) => [
@@ -279,6 +298,16 @@ export const workingPoints = sqliteTable(
     /** INACTIVE | READY | ACTIVE | CLOSED */
     status: text('status').notNull().default('INACTIVE'),
     sortOrder: integer('sort_order').notNull().default(0),
+    /**
+     * The columns this location is divided into on the distribution board —
+     * a JSON array of task codes, e.g. ["ELECTRONIC_SCANNING","INFORMATION"].
+     *
+     * A gate is not one undifferentiated group of people: it is a scanning
+     * line and an information desk, and the supervisor thinks in those
+     * columns when handing out names. Null means the location has not been
+     * divided yet and falls back to a sensible default for its kind.
+     */
+    lanes: text('lanes'),
     ...timestamps,
   },
   (t) => [

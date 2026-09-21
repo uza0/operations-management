@@ -275,6 +275,79 @@ check('credit report exports a workbook',
   xlsx.status() === 200 && xlsxBody[0] === 0x50 && xlsxBody[1] === 0x4b,
   `${xlsxBody.length} bytes`);
 
+/* ---- the distribution board -------------------------------------------- */
+await admin.goto(`${BASE}/admin/events/${eventId}/board`);
+await admin.waitForLoadState('networkidle');
+const boardText = await admin.textContent('main');
+check('the board shows gates split into lanes',
+  boardText.includes('لوحة التوزيع') && boardText.includes('مسح التذاكر الإلكتروني'),
+  '');
+
+/*
+ * Take somebody off the board and put them back on a different lane — the two
+ * moves the board exists for, driven the way a finger drives them on a phone.
+ */
+const boardMember = await db.prepare(`
+  select em.id, tm.full_name from event_members em
+  join team_members tm on tm.id = em.team_member_id
+  join assignments a on a.event_member_id = em.id
+  where em.event_id=? limit 1`).get(eventId);
+
+const boardRow = admin.locator('article', { hasText: boardMember.full_name }).first();
+await boardRow.locator(`button[aria-label*="${boardMember.full_name}"]`).first().click();
+await admin.waitForTimeout(2500);
+const afterPull = await db.prepare(
+  "select count(*) as n from assignments where event_member_id=? and status!='CANCELLED'",
+).get(boardMember.id);
+check('a name can be pulled back to the pool', Number(afterPull.n) === 0,
+  `${afterPull.n} assignments left`);
+
+await admin.reload();
+await admin.waitForLoadState('networkidle');
+await admin.locator('aside button', { hasText: boardMember.full_name }).first().click();
+await admin.waitForTimeout(400);
+// Any lane will do: the point is that tapping a lane places the selected name.
+await admin.locator('article .rounded-lg.border-dashed').first().click();
+await admin.waitForTimeout(2800);
+const afterPlace = await db.prepare(
+  "select count(*) as n from assignments where event_member_id=? and status!='CANCELLED'",
+).get(boardMember.id);
+check('tapping a lane places the selected name', Number(afterPlace.n) === 1,
+  `${afterPlace.n} assignments`);
+
+/* ---- the shareable sheet ------------------------------------------------ */
+await admin.goto(`${BASE}/admin/events/${eventId}/board`);
+await admin.waitForLoadState('networkidle');
+await admin.click('button:has-text("إنشاء رابط المشاركة")');
+await admin.waitForTimeout(2500);
+const shared = await db.prepare('select board_token from events where id=?').get(eventId);
+check('a public link can be issued for the sheet', /^[a-f0-9]{32}$/.test(shared?.board_token ?? ''),
+  shared?.board_token ? 'issued' : 'none');
+
+// Anyone holding the link can read it — with no account at all.
+const guest = await browser.newContext();
+const guestPage = await guest.newPage();
+await guestPage.goto(`${BASE}/sheet/${shared.board_token}`);
+await guestPage.waitForLoadState('networkidle');
+const guestText = await guestPage.textContent('body');
+check('the sheet opens without signing in',
+  guestText.includes('كشف توزيع البوابات') && !guestPage.url().includes('/login'),
+  guestPage.url());
+
+// And it must not become a way to harvest the team's phone numbers.
+const phone = await db.prepare(
+  'select phone from team_members where phone is not null limit 1').get();
+check('the public sheet carries no phone numbers',
+  !guestText.includes(String(phone.phone).replace('+', '')) && !guestText.includes(String(phone.phone)),
+  '');
+
+// A revoked link stops working for everyone holding it.
+await admin.click('button:has-text("إلغاء الرابط")');
+await admin.waitForTimeout(2500);
+const revoked = await guestPage.goto(`${BASE}/sheet/${shared.board_token}`);
+check('revoking the link closes the sheet', revoked.status() === 404, `status ${revoked.status()}`);
+await guest.close();
+
 /* ================= SECURITY TEST CASES (spec §53) ====================== */
 
 // A member cannot reach admin pages.

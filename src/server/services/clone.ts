@@ -92,6 +92,8 @@ export async function cloneEventPlan(
           description: gate.description,
           capacity: gate.capacity,
           requiredStaff: gate.requiredStaff,
+          // How the gate is divided is part of the plan, so it travels too.
+          lanes: gate.lanes,
           // A fresh event opens with its gates not yet live.
           status: 'INACTIVE' as const,
           // Gate leaders point at an event member of the OLD event.
@@ -114,6 +116,7 @@ export async function cloneEventPlan(
           type: point.type,
           description: point.description,
           requiredStaff: point.requiredStaff,
+          lanes: point.lanes,
           status: 'INACTIVE' as const,
           sortOrder: point.sortOrder,
         };

@@ -54,6 +54,7 @@ export function eventNav(
     { href: `${root}/gates`, label: t.nav.gates, icon: 'gate' },
     { href: `${root}/team`, label: t.nav.team, icon: 'users' },
     { href: `${root}/assignments`, label: t.nav.assignments, icon: 'clipboard' },
+    { href: `${root}/board`, label: t.nav.board, icon: 'gate' },
     { href: `${root}/attendance`, label: t.nav.attendance, icon: 'checkCircle' },
   ];
   const ops: NavItem[] = [
