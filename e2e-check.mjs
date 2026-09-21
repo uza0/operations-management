@@ -294,7 +294,12 @@ const boardMember = await db.prepare(`
   where em.event_id=? limit 1`).get(eventId);
 
 const boardRow = admin.locator('article', { hasText: boardMember.full_name }).first();
-await boardRow.locator(`button[aria-label*="${boardMember.full_name}"]`).first().click();
+// The chip carries two labelled buttons now — the role badge and the × — so
+// the one that sends a name back has to be named exactly.
+await boardRow
+  .locator(`button[aria-label="إرجاع إلى القائمة — ${boardMember.full_name}"]`)
+  .first()
+  .click();
 await admin.waitForTimeout(2500);
 const afterPull = await db.prepare(
   "select count(*) as n from assignments where event_member_id=? and status!='CANCELLED'",
@@ -314,6 +319,80 @@ const afterPlace = await db.prepare(
 ).get(boardMember.id);
 check('tapping a lane places the selected name', Number(afterPlace.n) === 1,
   `${afterPlace.n} assignments`);
+
+/* ---- roles on the board ------------------------------------------------- */
+await admin.goto(`${BASE}/admin/events/${eventId}/board`);
+await admin.waitForLoadState('networkidle');
+const boardWithRoles = await admin.textContent('main');
+check('the board marks who runs a post', boardWithRoles.includes('ق.ب'),
+  boardWithRoles.includes('ق.ف') ? 'team leader shown too' : '');
+
+/*
+ * A role is a hat: giving it to a second person must take it off the first,
+ * and must land in BOTH places the system records gate leadership, or a gate
+ * shows one leader on the board and another on the gate screen.
+ */
+const gateForRole = await db.prepare(`
+  select g.id, g.name, g.gate_leader_id from gates g
+  where g.event_id=? and g.gate_leader_id is not null limit 1`).get(eventId);
+const successor = await db.prepare(`
+  select em.id, tm.full_name from event_members em
+  join team_members tm on tm.id = em.team_member_id
+  join assignments a on a.event_member_id = em.id
+  where a.gate_id=? and em.id != ? limit 1`).get(gateForRole.id, gateForRole.gate_leader_id);
+
+const roleCard = admin.locator('article', { hasText: gateForRole.name }).first();
+await roleCard.locator(`button[aria-label="الدور — ${successor.full_name}"]`).first().click();
+await admin.waitForTimeout(500);
+await admin.locator('button:has-text("قائد البوابة")').last().click();
+await admin.waitForTimeout(2800);
+
+const promoted = await db.prepare('select event_role from event_members where id=?').get(successor.id);
+check('a role can be given from the board', promoted?.event_role === 'GATE_LEADER',
+  String(promoted?.event_role));
+
+const demoted = await db.prepare('select event_role from event_members where id=?')
+  .get(gateForRole.gate_leader_id);
+check('the same role is never held twice', demoted?.event_role === null,
+  `previous holder now ${demoted?.event_role}`);
+
+const gateAfter = await db.prepare(
+  'select gate_leader_id from gates where id=?').get(gateForRole.id);
+const assignmentAfter = await db.prepare(
+  'select is_gate_leader from assignments where event_member_id=?').get(successor.id);
+check('gate leadership lands on the gate and the assignment too',
+  gateAfter.gate_leader_id === successor.id && Number(assignmentAfter.is_gate_leader) === 1,
+  `gate=${gateAfter.gate_leader_id === successor.id} assignment=${assignmentAfter.is_gate_leader}`);
+
+// A gate leader has to be standing at a gate — the pool is not a gate.
+const poolMember = await db.prepare(`
+  select em.id, tm.full_name from event_members em
+  join team_members tm on tm.id = em.team_member_id
+  left join assignments a on a.event_member_id = em.id
+  where em.event_id=? and a.id is null limit 1`).get(eventId);
+if (poolMember) {
+  await admin.reload();
+  await admin.waitForLoadState('networkidle');
+  await admin.locator(`aside button[aria-label="الدور — ${poolMember.full_name}"]`).first().click();
+  await admin.waitForTimeout(500);
+  await admin.locator('button:has-text("قائد البوابة")').last().click();
+  await admin.waitForTimeout(2000);
+  const refused = await db.prepare('select event_role from event_members where id=?').get(poolMember.id);
+  check('an unplaced member cannot be made a gate leader', refused?.event_role === null,
+    String(refused?.event_role));
+  await admin.keyboard.press('Escape');
+}
+
+/* ---- exporting the sheet ------------------------------------------------ */
+const exportLink = await admin.getAttribute('a:has-text("تصدير PDF")', 'href');
+check('the board offers a PDF export of its own',
+  Boolean(exportLink) && exportLink.endsWith('/board/sheet?print=1'), String(exportLink));
+
+await admin.goto(`${BASE}/admin/events/${eventId}/board/sheet`);
+await admin.waitForLoadState('networkidle');
+const sheetWithRoles = await admin.textContent('.report');
+check('the printed sheet names the role beside the name',
+  sheetWithRoles.includes('قائد البوابة') && sheetWithRoles.includes('قائد الفريق'), '');
 
 /* ---- the shareable sheet ------------------------------------------------ */
 await admin.goto(`${BASE}/admin/events/${eventId}/board`);
@@ -541,6 +620,15 @@ const carried = await db.prepare(
   'select count(*) as n from attendance where event_id=?').get(cloned.id);
 check('the template copies the plan, not the record', Number(carried.n) === 0,
   `${carried.n} attendance rows`);
+
+// Who leads the team, and who runs each gate, is part of the plan.
+const carriedRoles = await db.prepare(
+  'select count(*) as n from event_members where event_id=? and event_role is not null').get(cloned.id);
+const carriedGateLeads = await db.prepare(
+  'select count(*) as n from gates where event_id=? and gate_leader_id is not null').get(cloned.id);
+check('the template carries the roles and the gate leaders',
+  Number(carriedRoles.n) > 0 && Number(carriedGateLeads.n) > 0,
+  `${carriedRoles.n} roles, ${carriedGateLeads.n} gates with a leader`);
 await admin.keyboard.press('Escape');
 
 /* ---- RTL / LTR --------------------------------------------------------- */

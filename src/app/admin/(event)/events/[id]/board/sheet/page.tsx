@@ -1,6 +1,12 @@
 import { EventSheetPage } from '@/features/event/pages/SheetPage';
 
-export default async function Page({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = await params;
-  return <EventSheetPage eventId={id} />;
+export default async function Page({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ print?: string }>;
+}) {
+  const [{ id }, query] = await Promise.all([params, searchParams]);
+  return <EventSheetPage eventId={id} autoPrint={query.print === '1'} />;
 }

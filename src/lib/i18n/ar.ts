@@ -304,6 +304,14 @@ export const ar = {
     linkIssued: 'أُنشئ رابط كشف التوزيع',
     linkRevoked: 'أُلغي رابط كشف التوزيع',
     inMessage: 'كشف التوزيع الكامل',
+    role: 'الدور',
+    roleNone: 'عضو فريق',
+    roleTitle: 'دور العضو في هذه الفعالية',
+    roleHint: 'قائد الفريق ومساعده واحد لكل فعالية، وقائد البوابة واحد لكل بوابة، ومسؤول القسم واحد لكل مهمة داخل البوابة. إعطاء الدور لشخص آخر ينقله إليه.',
+    roleNeedsPlace: 'وزّع العضو على بوابة أو نقطة عمل أولاً، بعدها تكدر تخليه قائد بوابة أو مسؤول قسم.',
+    roleMoved: 'نُقل الدور من: {name}',
+    exportPdf: 'تصدير PDF',
+    exportHint: 'يفتح الكشف جاهزاً للطباعة — اختر «حفظ كـ PDF» من نافذة الطباعة.',
   },
   gate: {
     title: 'البوابات ونقاط العمل',
@@ -687,6 +695,18 @@ export const ar = {
       ADMIN: 'مشرف',
       TEAM_LEADER: 'قائد فريق',
       GATE_LEADER: 'قائد بوابة',
+    },
+    eventRole: {
+      TEAM_LEADER: 'قائد الفريق',
+      ASSISTANT_TEAM_LEADER: 'مساعد قائد الفريق',
+      GATE_LEADER: 'قائد البوابة',
+      SECTION_SUPERVISOR: 'مسؤول قسم',
+    },
+    eventRoleShort: {
+      TEAM_LEADER: 'ق.ف',
+      ASSISTANT_TEAM_LEADER: 'م.ق',
+      GATE_LEADER: 'ق.ب',
+      SECTION_SUPERVISOR: 'م.ق.س',
     },
     eventType: {
       FOOTBALL_MATCH: 'مباراة كرة قدم',

@@ -424,6 +424,17 @@
   .sheet-none {
     @apply py-1 text-[12px] italic text-ink-600;
   }
+  /*
+   * The role rides on the same line as the name rather than in a column of its
+   * own: four names in a lane carry a role and forty do not, and an empty
+   * column down the whole sheet is worse than a short label where it matters.
+   */
+  .sheet-person {
+    @apply min-w-0 flex-1;
+  }
+  .sheet-role {
+    @apply block text-[10px] font-semibold text-ink-400;
+  }
   .sheet-pool {
     @apply flex flex-wrap gap-x-3 gap-y-1 p-3 text-[13px] text-ink-300;
   }
@@ -564,6 +575,9 @@
   .sheet-lane-head,
   .sheet-idx::before,
   .sheet-none {
+    color: #475569 !important;
+  }
+  .sheet-role {
     color: #475569 !important;
   }
   .sheet-grid {

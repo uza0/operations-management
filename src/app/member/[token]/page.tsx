@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/icons';
 import type {
   AttendanceStatus,
+  EventRole,
   EventType,
   IssueStatus,
   IssueType,
@@ -122,7 +123,16 @@ export default async function MemberPortalPage({
             <p className="mt-1 text-[34px] font-bold leading-tight text-ink-100">
               {locationName}
             </p>
-            {assignment.isGateLeader ? (
+            {/* Being responsible for other people is the one thing a member
+                must not have to work out from the roster. */}
+            {membership.eventRole && membership.eventRole in t.enums.eventRole ? (
+              <span className="mt-2 inline-flex">
+                <Badge tone="brand">
+                  <IconTarget width={13} height={13} />
+                  {t.enums.eventRole[membership.eventRole as EventRole]}
+                </Badge>
+              </span>
+            ) : assignment.isGateLeader ? (
               <span className="mt-2 inline-flex">
                 <Badge tone="brand">
                   <IconTarget width={13} height={13} />

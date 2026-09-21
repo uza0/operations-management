@@ -304,6 +304,14 @@ export const en: Dictionary = {
     linkIssued: 'Distribution sheet link issued',
     linkRevoked: 'Distribution sheet link revoked',
     inMessage: 'Full distribution sheet',
+    role: 'Role',
+    roleNone: 'Team member',
+    roleTitle: 'This person\u2019s role for this event',
+    roleHint: 'One team leader and one assistant per event, one leader per gate, one supervisor per job within a gate. Giving a role to someone else moves it.',
+    roleNeedsPlace: 'Place this person at a gate or working point first \u2014 only then can they lead it or supervise a job there.',
+    roleMoved: 'Role taken from: {name}',
+    exportPdf: 'Export PDF',
+    exportHint: 'Opens the sheet ready to print \u2014 choose \u201cSave as PDF\u201d in the print dialog.',
   },
   gate: {
     title: 'Gates & working points',
@@ -687,6 +695,18 @@ export const en: Dictionary = {
       ADMIN: 'Admin',
       TEAM_LEADER: 'Team leader',
       GATE_LEADER: 'Gate leader',
+    },
+    eventRole: {
+      TEAM_LEADER: 'Team leader',
+      ASSISTANT_TEAM_LEADER: 'Assistant team leader',
+      GATE_LEADER: 'Gate leader',
+      SECTION_SUPERVISOR: 'Section supervisor',
+    },
+    eventRoleShort: {
+      TEAM_LEADER: 'TL',
+      ASSISTANT_TEAM_LEADER: 'ATL',
+      GATE_LEADER: 'GL',
+      SECTION_SUPERVISOR: 'SS',
     },
     eventType: {
       FOOTBALL_MATCH: 'Football match',

@@ -48,15 +48,29 @@ export function SubmitButton({
   pendingLabel,
   className = 'btn-primary',
   disabled,
+  name,
+  value,
 }: {
   children: ReactNode;
   pendingLabel?: string;
   className?: string;
   disabled?: boolean;
+  /**
+   * Set both to let several buttons share one form and say which was pressed —
+   * the pressed button's name/value is submitted with the rest of the fields.
+   */
+  name?: string;
+  value?: string;
 }) {
   const { pending } = useFormStatus();
   return (
-    <button type="submit" className={className} disabled={pending || disabled}>
+    <button
+      type="submit"
+      name={name}
+      value={value}
+      className={className}
+      disabled={pending || disabled}
+    >
       {pending && pendingLabel ? pendingLabel : children}
     </button>
   );

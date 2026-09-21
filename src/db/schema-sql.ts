@@ -1,6 +1,6 @@
 /**
  * GENERATED FILE — do not edit.
- * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql.
+ * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql.
  * Regenerate after changing src/db/schema.ts:
  *   npx drizzle-kit generate && node scripts/embed-schema.mjs
  */
@@ -70,4 +70,5 @@ export const SCHEMA_STATEMENTS: string[] = [
   "ALTER TABLE `events` ADD `board_token` text",
   "ALTER TABLE `gates` ADD `lanes` text",
   "ALTER TABLE `working_points` ADD `lanes` text",
+  "ALTER TABLE `event_members` ADD `event_role` text",
 ];

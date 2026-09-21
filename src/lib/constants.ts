@@ -7,6 +7,34 @@
 export const ROLES = ['ADMIN', 'TEAM_LEADER', 'GATE_LEADER'] as const;
 export type Role = (typeof ROLES)[number];
 
+/**
+ * What a person is on the ground for one event, over and above standing at a
+ * post. This is NOT the account role above: a team member has no account, and
+ * the person leading the team on match day is frequently not the person who
+ * signs in to plan it. Null — the ordinary case — is an ordinary member.
+ */
+export const EVENT_ROLES = [
+  'TEAM_LEADER',
+  'ASSISTANT_TEAM_LEADER',
+  'GATE_LEADER',
+  'SECTION_SUPERVISOR',
+] as const;
+export type EventRole = (typeof EVENT_ROLES)[number];
+
+/**
+ * How far a role reaches, which is also how many people may hold it:
+ *   EVENT — one for the whole event (team leader, his assistant)
+ *   GATE  — one per gate or working point
+ *   LANE  — one per job within a location (a scanning line's supervisor)
+ * Giving a role to a second person moves it; it is never held twice.
+ */
+export const EVENT_ROLE_SCOPE: Record<EventRole, 'EVENT' | 'GATE' | 'LANE'> = {
+  TEAM_LEADER: 'EVENT',
+  ASSISTANT_TEAM_LEADER: 'EVENT',
+  GATE_LEADER: 'GATE',
+  SECTION_SUPERVISOR: 'LANE',
+};
+
 export const EVENT_TYPES = [
   'FOOTBALL_MATCH',
   'CONCERT',

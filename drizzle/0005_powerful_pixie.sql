@@ -1,0 +1,1 @@
+ALTER TABLE `event_members` ADD `event_role` text;

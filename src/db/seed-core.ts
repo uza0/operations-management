@@ -601,6 +601,28 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
       sql: 'UPDATE gates SET gate_leader_id = ? WHERE id = ?',
       args: [emIds[name], gateIds[key]],
     });
+    // The same fact in the member's own row, which is what the board and the
+    // printed sheet read — see event_members.eventRole.
+    await sql.execute({
+      sql: "UPDATE event_members SET event_role = 'GATE_LEADER' WHERE id = ?",
+      args: [emIds[name]],
+    });
+  }
+
+  /*
+   * Whoever runs the team on the day, and his second. Neither is a gate's
+   * leader: they move between the gates, which is exactly why the role belongs
+   * to the person rather than to a post.
+   */
+  for (const [name, role] of [
+    ['علي الزبيدي', 'TEAM_LEADER'],
+    ['مرتضى الخفاجي', 'ASSISTANT_TEAM_LEADER'],
+    ['فاطمة الحلي', 'SECTION_SUPERVISOR'],
+  ] as const) {
+    await sql.execute({
+      sql: 'UPDATE event_members SET event_role = ? WHERE id = ?',
+      args: [role, emIds[name]],
+    });
   }
 
   // Gate leader account is scoped to gate 3 only (spec §3.3).

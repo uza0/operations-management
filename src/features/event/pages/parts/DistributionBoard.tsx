@@ -7,12 +7,13 @@ import {
   clearFromBoardAction,
   placeOnLaneAction,
   setLanesAction,
+  setMemberRoleAction,
 } from '@/server/actions/board';
 import { idle } from '@/server/actions/types';
 import { FormError } from '@/components/ui/states';
 import { Dialog, SubmitButton } from '@/components/ui/client';
 import { IconSearch } from '@/components/ui/icons';
-import { TASKS, type Task } from '@/lib/constants';
+import { EVENT_ROLES, TASKS, type Task } from '@/lib/constants';
 import { format, type Dictionary } from '@/lib/i18n';
 import type { BoardData, BoardPerson } from '@/server/services/board';
 
@@ -41,6 +42,7 @@ function Chip({
   selected,
   onSelect,
   onRemove,
+  onRole,
   draggable,
   t,
 }: {
@@ -49,6 +51,7 @@ function Chip({
   selected: boolean;
   onSelect: () => void;
   onRemove?: () => void;
+  onRole?: () => void;
   draggable: boolean;
   t: Dictionary;
 }) {
@@ -59,13 +62,13 @@ function Chip({
         e.dataTransfer.setData('text/plain', person.eventMemberId);
         e.dataTransfer.effectAllowed = 'move';
       }}
-      className={`group mb-1.5 flex items-center gap-2 rounded-lg border px-2 py-1.5 transition ${
+      className={`group mb-1.5 flex items-center gap-1.5 rounded-lg border px-1.5 py-1.5 transition ${
         selected
           ? 'border-brand-500 bg-brand-500/15 ring-1 ring-brand-500/40'
           : 'border-ink-700 bg-ink-900 hover:border-ink-500'
       } ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
     >
-      <span className="nums w-6 shrink-0 text-center text-[11px] text-ink-500">
+      <span className="nums w-4 shrink-0 text-center text-[11px] text-ink-500">
         {String(index + 1).padStart(2, '0')}
       </span>
       <button
@@ -81,6 +84,26 @@ function Chip({
           <span className="ms-1.5 text-[11px] text-info-text">{t.eventTeam.reserve}</span>
         ) : null}
       </button>
+      {onRole ? (
+        <button
+          type="button"
+          onClick={onRole}
+          aria-label={`${t.board.role} — ${person.name}`}
+          title={person.eventRole ? t.enums.eventRole[person.eventRole] : t.board.roleNone}
+          className={`min-h-[40px] shrink-0 rounded text-[10.5px] font-semibold leading-none sm:min-h-[28px] ${
+            person.eventRole
+              ? 'bg-brand-500/15 px-1.5 text-brand-300 ring-1 ring-brand-500/40'
+              : 'w-5 text-ink-600 hover:text-ink-300'
+          }`}
+        >
+          {person.eventRole ? t.enums.eventRoleShort[person.eventRole] : '⌄'}
+        </button>
+      ) : person.eventRole ? (
+        // Read-only viewers still need to see who runs the post.
+        <span className="shrink-0 rounded bg-brand-500/15 px-1.5 py-0.5 text-[10.5px] font-semibold text-brand-300">
+          {t.enums.eventRoleShort[person.eventRole]}
+        </span>
+      ) : null}
       {onRemove ? (
         <button
           type="button"
@@ -101,6 +124,8 @@ export function DistributionBoard({ t, data, canManage }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [note, setNote] = useState<string | null>(null);
+  const [roleFor, setRoleFor] = useState<BoardPerson | null>(null);
   const [lanesFor, setLanesFor] = useState<BoardData['locations'][number] | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
 
@@ -225,6 +250,12 @@ export function DistributionBoard({ t, data, canManage }: Props) {
         </div>
       ) : null}
 
+      {note ? (
+        <p className="mb-3 rounded-lg border border-info/40 bg-info/10 px-3 py-2 text-[12.5px] text-info-text">
+          {note}
+        </p>
+      ) : null}
+
       <div className="grid gap-4 lg:grid-cols-[300px_1fr] lg:items-start">
         {/* ---- the pool ---- */}
         <aside
@@ -266,6 +297,7 @@ export function DistributionBoard({ t, data, canManage }: Props) {
                       current === person.eventMemberId ? null : person.eventMemberId,
                     )
                   }
+                  onRole={canManage ? () => setRoleFor(person) : undefined}
                   draggable={canManage}
                   t={t}
                 />
@@ -344,6 +376,7 @@ export function DistributionBoard({ t, data, canManage }: Props) {
                               )
                             }
                             onRemove={canManage ? () => place(person.eventMemberId, null) : undefined}
+                            onRole={canManage ? () => setRoleFor(person) : undefined}
                             draggable={canManage}
                             t={t}
                           />
@@ -358,6 +391,19 @@ export function DistributionBoard({ t, data, canManage }: Props) {
         </section>
       </div>
 
+      {roleFor ? (
+        <RolePicker
+          t={t}
+          eventId={board.event.id}
+          person={roleFor}
+          onDone={(message) => {
+            setRoleFor(null);
+            setNote(message ?? null);
+            router.refresh();
+          }}
+        />
+      ) : null}
+
       {lanesFor ? (
         <LaneEditor
           t={t}
@@ -370,6 +416,65 @@ export function DistributionBoard({ t, data, canManage }: Props) {
         />
       ) : null}
     </>
+  );
+}
+
+/**
+ * Who this person is on the day: an ordinary member, or one of the four jobs
+ * that come with responsibility for other people.
+ *
+ * One tap, one decision — the list is short enough to be the whole dialog, and
+ * every option submits the form directly, so there is no "choose, then save".
+ */
+function RolePicker({
+  t,
+  eventId,
+  person,
+  onDone,
+}: {
+  t: Dictionary;
+  eventId: string;
+  person: BoardPerson;
+  onDone: (message?: string) => void;
+}) {
+  const [state, action] = useActionState(setMemberRoleAction, idle);
+
+  useEffect(() => {
+    if (state.status === 'success') onDone(state.message);
+  }, [state, onDone]);
+
+  const options: { value: string; label: string }[] = [
+    { value: '', label: t.board.roleNone },
+    ...EVENT_ROLES.map((role) => ({ value: role, label: t.enums.eventRole[role] })),
+  ];
+  const current = person.eventRole ?? '';
+
+  return (
+    <Dialog open onClose={() => onDone()} title={t.board.roleTitle} description={t.board.roleHint}>
+      <form action={action} className="space-y-2">
+        <input type="hidden" name="eventId" value={eventId} />
+        <input type="hidden" name="eventMemberId" value={person.eventMemberId} />
+        <p className="text-[13.5px] text-ink-300" style={{ unicodeBidi: 'plaintext' }}>
+          {person.name}
+        </p>
+        <div className="grid gap-1.5">
+          {options.map((option) => (
+            <SubmitButton
+              key={option.value || 'NONE'}
+              name="role"
+              value={option.value}
+              className={`btn-sm w-full justify-between ${
+                option.value === current ? 'btn-primary' : 'btn-ghost'
+              }`}
+            >
+              {option.label}
+              {option.value === current ? <span aria-hidden>✓</span> : null}
+            </SubmitButton>
+          ))}
+        </div>
+        <FormError message={state.status === 'error' ? state.message : null} />
+      </form>
+    </Dialog>
   );
 }
 

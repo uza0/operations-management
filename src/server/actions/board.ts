@@ -1,13 +1,20 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { assignments, eventMembers, events, gates, teamMembers, workingPoints } from '@/db/schema';
+import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
 import { newMemberToken } from '@/lib/ids';
-import { TASKS, type Task } from '@/lib/constants';
+import {
+  EVENT_ROLES,
+  EVENT_ROLE_SCOPE,
+  TASKS,
+  type EventRole,
+  type Task,
+} from '@/lib/constants';
 import { str } from '@/lib/validation';
 import { assertEventManager } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
@@ -224,6 +231,154 @@ export async function setLanesAction(
   revalidateBoard(eventId);
   return stillNeeded.length > 0
     ? fail(t.board.laneKept)
+    : ok();
+}
+
+/**
+ * Gives one member a role for this event, or takes it away.
+ *
+ * A role is a hat, and a hat is worn by one person at a time. Handing it to
+ * somebody else therefore takes it off whoever had it rather than refusing —
+ * at five o'clock on a match day, "that role is taken" is a worse answer than
+ * simply moving it and saying whose head it came off. How far "taken" reaches
+ * is the role's scope (EVENT_ROLE_SCOPE): the team leader is one per event, a
+ * gate leader one per gate, a section supervisor one per job within a gate.
+ */
+export async function setMemberRoleAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  const user = await assertEventManager(eventId).catch(() => null);
+  if (!user) return fail(t.errors.forbidden);
+
+  const eventMemberId = str(form, 'eventMemberId');
+  if (!eventMemberId) return fail(t.errors.notFound);
+
+  const raw = str(form, 'role') ?? '';
+  const role = (EVENT_ROLES as readonly string[]).includes(raw) ? (raw as EventRole) : null;
+
+  const member = await db
+    .select({
+      id: eventMembers.id,
+      eventId: eventMembers.eventId,
+      eventRole: eventMembers.eventRole,
+      name: teamMembers.fullName,
+    })
+    .from(eventMembers)
+    .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+    .where(eq(eventMembers.id, eventMemberId))
+    .get();
+  if (!member || member.eventId !== eventId) return fail(t.errors.notFound);
+
+  const assignment = await db.query.assignments.findFirst({
+    where: eq(assignments.eventMemberId, eventMemberId),
+  });
+
+  /*
+   * A gate leader leads a gate and a section supervisor runs a job at one, so
+   * both need the person to be standing somewhere first. The team leader and
+   * his assistant lead the whole team and may still be in the pool.
+   */
+  if (role && EVENT_ROLE_SCOPE[role] !== 'EVENT' && !assignment) {
+    return fail(t.board.roleNeedsPlace);
+  }
+
+  // Everyone the new role would collide with, by how far that role reaches.
+  let displaced: { id: string; name: string }[] = [];
+  if (role) {
+    const holders = await db
+      .select({
+        id: eventMembers.id,
+        name: teamMembers.fullName,
+        gateId: assignments.gateId,
+        workingPointId: assignments.workingPointId,
+        task: assignments.task,
+      })
+      .from(eventMembers)
+      .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+      .leftJoin(assignments, eq(assignments.eventMemberId, eventMembers.id))
+      .where(
+        and(eq(eventMembers.eventId, eventId), eq(eventMembers.eventRole, role)),
+      );
+
+    const scope = EVENT_ROLE_SCOPE[role];
+    const here = assignment?.gateId ?? assignment?.workingPointId ?? null;
+    displaced = holders
+      .filter((holder) => {
+        if (holder.id === eventMemberId) return false;
+        if (scope === 'EVENT') return true;
+        const theirs = holder.gateId ?? holder.workingPointId ?? null;
+        if (theirs !== here) return false;
+        return scope === 'GATE' || holder.task === assignment?.task;
+      })
+      .map((holder) => ({ id: holder.id, name: holder.name }));
+
+    for (const person of displaced) {
+      await db
+        .update(eventMembers)
+        .set({ eventRole: null, updatedAt: new Date() })
+        .where(eq(eventMembers.id, person.id));
+      await db
+        .update(assignments)
+        .set({ isGateLeader: false })
+        .where(eq(assignments.eventMemberId, person.id));
+    }
+  }
+
+  await db
+    .update(eventMembers)
+    .set({ eventRole: role, updatedAt: new Date() })
+    .where(eq(eventMembers.id, eventMemberId));
+
+  /*
+   * Gate leadership was already recorded in two places before roles existed —
+   * on the assignment and on the gate — and every screen that shows a gate
+   * leader reads those. Keeping them in step is what makes the new role the
+   * same fact rather than a second, competing one.
+   */
+  if (assignment) {
+    const leads = role === 'GATE_LEADER';
+    await db
+      .update(assignments)
+      .set({ isGateLeader: leads })
+      .where(eq(assignments.id, assignment.id));
+    if (assignment.gateId) {
+      if (leads) {
+        await db
+          .update(gates)
+          .set({ gateLeaderId: eventMemberId, updatedAt: new Date() })
+          .where(eq(gates.id, assignment.gateId));
+      } else {
+        await db
+          .update(gates)
+          .set({ gateLeaderId: null, updatedAt: new Date() })
+          .where(
+            and(eq(gates.id, assignment.gateId), eq(gates.gateLeaderId, eventMemberId)),
+          );
+      }
+    }
+  }
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'EVENT_MEMBER',
+    entityId: eventMemberId,
+    entityLabel: member.name,
+    oldValues: { eventRole: member.eventRole },
+    newValues: { eventRole: role },
+    summary: role
+      ? `${member.name}: ${t.enums.eventRole[role]}`
+      : `${member.name}: ${t.board.roleNone}`,
+  });
+
+  revalidateBoard(eventId);
+  return displaced.length > 0
+    ? ok(format(t.board.roleMoved, { name: displaced.map((p) => p.name).join('، ') }))
     : ok();
 }
 

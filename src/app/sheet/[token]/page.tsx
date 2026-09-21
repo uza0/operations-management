@@ -17,10 +17,12 @@ export const dynamic = 'force-dynamic';
 
 export default async function PublicSheetPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ token: string }>;
+  searchParams: Promise<{ print?: string }>;
 }) {
-  const { token } = await params;
+  const [{ token }, query] = await Promise.all([params, searchParams]);
   const data = await boardByToken(token);
   if (!data) notFound();
   const { locale, t } = await getT();
@@ -28,7 +30,7 @@ export default async function PublicSheetPage({
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
       <div className="no-print mb-4 flex justify-end">
-        <PrintButton label={t.report.printReport} />
+        <PrintButton label={t.report.printReport} auto={query.print === '1'} />
       </div>
       <SheetDocument t={t} locale={locale} data={data} />
     </main>

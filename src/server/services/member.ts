@@ -39,6 +39,7 @@ export async function getMemberPortal(token: string) {
       status: eventMembers.status,
       tokenExpiresAt: eventMembers.tokenExpiresAt,
       isReserve: eventMembers.isReserve,
+      eventRole: eventMembers.eventRole,
       memberName: teamMembers.fullName,
       eventId: events.id,
       eventName: events.name,

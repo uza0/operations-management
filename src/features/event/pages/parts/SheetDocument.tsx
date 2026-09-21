@@ -73,7 +73,20 @@ export function SheetDocument({
                       {lane.people.map((person) => (
                         <li key={person.eventMemberId}>
                           <span className="nums sheet-idx" />
-                          <span style={{ unicodeBidi: 'plaintext' }}>{person.name}</span>
+                          {/*
+                           * Name and role share one cell, the role on its own
+                           * line: a lane column is narrow, and a label sitting
+                           * beside the name would push the name itself onto
+                           * two lines for the sake of a subtitle.
+                           */}
+                          <span className="sheet-person">
+                            <span style={{ unicodeBidi: 'plaintext' }}>{person.name}</span>
+                            {person.eventRole ? (
+                              <span className="sheet-role">
+                                {t.enums.eventRole[person.eventRole]}
+                              </span>
+                            ) : null}
+                          </span>
                         </li>
                       ))}
                     </ol>

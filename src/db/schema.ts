@@ -226,6 +226,20 @@ export const eventMembers = sqliteTable(
     /** Why this person is off the default — it appears in the payroll report. */
     creditNote: text('credit_note'),
     /**
+     * TEAM_LEADER | ASSISTANT_TEAM_LEADER | GATE_LEADER | SECTION_SUPERVISOR.
+     *
+     * Null — the ordinary case — is an ordinary member, so nothing has to be
+     * filled in for the great majority of a roster. It lives here rather than
+     * on the assignment because it describes the person's standing in this
+     * event, which survives being moved from one gate to another; a gate
+     * leader's gate is simply wherever their assignment puts them.
+     *
+     * assignments.isGateLeader and gates.gateLeaderId stay in step with the
+     * GATE_LEADER value (src/server/actions/board.ts), so every screen that
+     * already knew about gate leaders keeps working unchanged.
+     */
+    eventRole: text('event_role'),
+    /**
      * When this person was last sent their briefing, and by whom. Compared
      * against the assignment's own updatedAt so a member who was moved after
      * being told can be flagged — telling someone the wrong gate is worse than

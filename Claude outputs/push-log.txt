@@ -1,0 +1,22 @@
+[main bfcd6c8] Distribution board: gate lanes, drag-and-drop placement, shareable distribution sheet
+ 31 files changed, 4342 insertions(+), 6 deletions(-)
+ create mode 100644 "Claude outputs/\330\247\331\204\330\263\331\203\330\261\330\250\330\252-\330\247\331\204\331\203\330\247\331\205\331\204.md"
+ create mode 100644 "Claude outputs/\330\254\331\210\331\204\330\251-\330\247\331\204\331\206\330\270\330\247\331\205.mp4"
+ create mode 100644 "Claude outputs/\331\206\330\265-\330\247\331\204\330\252\330\271\331\204\331\212\331\202-\330\247\331\204\330\265\331\210\330\252\331\212.md"
+ create mode 100644 drizzle/0004_great_the_renegades.sql
+ create mode 100644 drizzle/meta/0004_snapshot.json
+ create mode 100644 src/app/admin/(event)/events/[id]/board/page.tsx
+ create mode 100644 src/app/admin/(event)/events/[id]/board/sheet/page.tsx
+ create mode 100644 src/app/leader/(event)/events/[id]/board/page.tsx
+ create mode 100644 src/app/leader/(event)/events/[id]/board/sheet/page.tsx
+ create mode 100644 src/app/sheet/[token]/page.tsx
+ create mode 100644 src/features/event/pages/BoardPage.tsx
+ create mode 100644 src/features/event/pages/SheetPage.tsx
+ create mode 100644 src/features/event/pages/parts/DistributionBoard.tsx
+ create mode 100644 src/features/event/pages/parts/SheetDocument.tsx
+ create mode 100644 src/features/event/pages/parts/SheetLink.tsx
+ create mode 100644 src/server/actions/board.ts
+ create mode 100644 src/server/services/board.ts
+To https://github.com/uza0/operations-management.git
+   88d3d01..bfcd6c8  main -> main
+DONE 

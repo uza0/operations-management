@@ -12,7 +12,7 @@ import {
   venues,
   workingPoints,
 } from '@/db/schema';
-import { TASKS, type Task } from '@/lib/constants';
+import { EVENT_ROLES, TASKS, type EventRole, type Task } from '@/lib/constants';
 
 /**
  * The distribution board.
@@ -63,6 +63,8 @@ export type BoardPerson = {
   employeeCode: string;
   isReserve: boolean;
   isGateLeader: boolean;
+  /** Null for an ordinary member — see event_members.eventRole. */
+  eventRole: EventRole | null;
 };
 
 export type BoardLane = {
@@ -133,6 +135,7 @@ export async function buildBoard(eventId: string): Promise<BoardData | null> {
         name: teamMembers.fullName,
         employeeCode: teamMembers.employeeCode,
         isReserve: eventMembers.isReserve,
+        eventRole: eventMembers.eventRole,
         memberStatus: eventMembers.status,
         assignmentId: assignments.id,
         assignmentStatus: assignments.status,
@@ -197,6 +200,11 @@ export async function buildBoard(eventId: string): Promise<BoardData | null> {
       employeeCode: row.employeeCode,
       isReserve: row.isReserve,
       isGateLeader: row.isGateLeader ?? false,
+      // A value written before a role was removed from the list is treated as
+      // no role rather than rendering a label nobody can read.
+      eventRole: (EVENT_ROLES as readonly string[]).includes(row.eventRole ?? '')
+        ? (row.eventRole as EventRole)
+        : null,
     };
 
     const locationId = row.gateId ?? row.workingPointId;
@@ -222,7 +230,16 @@ export async function buildBoard(eventId: string): Promise<BoardData | null> {
 
   for (const location of locations) {
     for (const lane of location.lanes) {
-      lane.people.sort((a, b) => a.name.localeCompare(b.name));
+      /*
+       * Whoever runs the post is listed first — on the printed sheet the name
+       * at the top of a gate is the one you go to, and alphabetical order
+       * would bury him somewhere in the middle of his own gate.
+       */
+      lane.people.sort(
+        (a, b) =>
+          Number(Boolean(b.eventRole)) - Number(Boolean(a.eventRole)) ||
+          a.name.localeCompare(b.name),
+      );
     }
   }
   pool.sort((a, b) => a.name.localeCompare(b.name));

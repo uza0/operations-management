@@ -153,6 +153,9 @@ export async function cloneEventPlan(
             // Credit is a decision about one day's work, not a standing rate.
             creditDays: null,
             creditNote: null,
+            // Who leads the team, and who runs each gate, is part of the plan
+            // being copied — it is the same people doing the same jobs again.
+            eventRole: member.eventRole,
           };
         }),
       );
@@ -195,6 +198,20 @@ export async function cloneEventPlan(
     if (rows.length > 0) {
       await db.insert(assignments).values(rows);
       assignmentCount = rows.length;
+
+      /*
+       * A gate's leader is recorded twice — on the assignment and on the gate —
+       * and both have to come across, or the new event shows a gate leader in
+       * the roster and an empty leader field on the gate itself.
+       */
+      for (const row of rows) {
+        if (row.isGateLeader && row.gateId) {
+          await db
+            .update(gates)
+            .set({ gateLeaderId: row.eventMemberId, updatedAt: new Date() })
+            .where(eq(gates.id, row.gateId));
+        }
+      }
     }
   }
 
