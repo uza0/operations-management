@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/status';
 import { ConfirmSubmit, Dialog, SubmitButton } from '@/components/ui/client';
 import { IconEdit, IconPlus, IconSearch, IconUsers } from '@/components/ui/icons';
 import type { Dictionary } from '@/lib/i18n';
+import { compareNames } from '@/lib/sort';
 
 export type TeamRow = {
   id: string;
@@ -169,13 +170,20 @@ export function TeamManager({ t, members }: { t: Dictionary; members: TeamRow[] 
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return members;
-    return members.filter(
-      (m) =>
-        m.fullName.toLowerCase().includes(q) ||
-        m.employeeCode.toLowerCase().includes(q) ||
-        (m.phone ?? '').includes(q),
-    );
+    const matching = q
+      ? members.filter(
+          (m) =>
+            m.fullName.toLowerCase().includes(q) ||
+            m.employeeCode.toLowerCase().includes(q) ||
+            (m.phone ?? '').includes(q),
+        )
+      : members;
+    /*
+     * Alphabetical across both scripts — SQLite's own ORDER BY puts every
+     * Latin name before every Arabic one, which on a roster that mixes them
+     * reads as no order at all. See src/lib/sort.ts.
+     */
+    return [...matching].sort((a, b) => compareNames(a.fullName, b.fullName));
   }, [members, query]);
 
   return (

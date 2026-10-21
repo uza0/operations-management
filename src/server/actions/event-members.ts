@@ -47,25 +47,62 @@ export async function addMembersToEventAction(
     .where(inArray(teamMembers.id, ids));
 
   const already = await db
-    .select({ teamMemberId: eventMembers.teamMemberId })
+    .select({
+      id: eventMembers.id,
+      teamMemberId: eventMembers.teamMemberId,
+      status: eventMembers.status,
+    })
     .from(eventMembers)
     .where(eq(eventMembers.eventId, eventId));
-  const existing = new Set(already.map((r) => r.teamMemberId));
 
-  const toAdd = people.filter((p) => !existing.has(p.id));
-  if (toAdd.length === 0) return ok();
+  /*
+   * Someone whose participation was cancelled still has a row — there is one
+   * row per person per event and a unique index to prove it — so adding them
+   * again is reinstating that row, not inserting a second one. Without this,
+   * cancelling somebody by mistake made them impossible to put back: the
+   * picker skipped them as "already on the event" and the insert would have
+   * collided with the index anyway.
+   */
+  const onEvent = new Map(already.map((r) => [r.teamMemberId, r]));
+  const toReinstate = people.filter((p) => onEvent.get(p.id)?.status === 'CANCELLED');
+  const toAdd = people.filter((p) => !onEvent.has(p.id));
 
-  await db.insert(eventMembers).values(
-    toAdd.map((p) => ({
-      id: newId(),
-      eventId,
-      teamMemberId: p.id,
-      status: 'INVITED',
-      token: newMemberToken(),
-      tokenExpiresAt: null,
-      isReserve: asReserve,
-    })),
-  );
+  if (toAdd.length === 0 && toReinstate.length === 0) return ok();
+
+  if (toReinstate.length > 0) {
+    await db
+      .update(eventMembers)
+      .set({
+        status: 'INVITED',
+        isReserve: asReserve,
+        // A fresh key: the one they had was burned when they were cancelled.
+        token: newMemberToken(),
+        tokenExpiresAt: null,
+        notifiedAt: null,
+        notifiedById: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        inArray(
+          eventMembers.id,
+          toReinstate.map((p) => onEvent.get(p.id)!.id),
+        ),
+      );
+  }
+
+  if (toAdd.length > 0) {
+    await db.insert(eventMembers).values(
+      toAdd.map((p) => ({
+        id: newId(),
+        eventId,
+        teamMemberId: p.id,
+        status: 'INVITED',
+        token: newMemberToken(),
+        tokenExpiresAt: null,
+        isReserve: asReserve,
+      })),
+    );
+  }
 
   await recordAudit({
     eventId,
@@ -73,9 +110,13 @@ export async function addMembersToEventAction(
     actorName: user.name,
     action: 'CREATE',
     entity: 'EVENT_MEMBER',
-    entityLabel: toAdd.map((p) => p.fullName).join('، '),
-    newValues: { count: toAdd.length, reserve: asReserve },
-    summary: `${t.eventTeam.addToEvent}: ${toAdd.length}`,
+    entityLabel: [...toAdd, ...toReinstate].map((p) => p.fullName).join('، '),
+    newValues: {
+      count: toAdd.length,
+      reinstated: toReinstate.length,
+      reserve: asReserve,
+    },
+    summary: `${t.eventTeam.addToEvent}: ${toAdd.length + toReinstate.length}`,
   });
 
   revalidateEvent(eventId);
@@ -243,6 +284,74 @@ export async function revokeEventMemberAction(
     entityLabel: row.name,
     newValues: { status: 'CANCELLED' },
     summary: `${t.eventTeam.revoke}: ${row.name}`,
+  });
+
+  revalidateEvent(eventId);
+  return ok();
+}
+
+/**
+ * Puts a cancelled participant back on the event.
+ *
+ * The counterpart to revoking, and on the same card — cancelling somebody by
+ * mistake should be undone where it was done, not by going to another screen
+ * and searching for them. They come back as INVITED rather than straight to
+ * ACTIVE: being on the team again is not the same as having been told.
+ */
+export async function reinstateEventMemberAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  let user;
+  try {
+    user = await assertEventManager(eventId);
+  } catch {
+    return fail(t.errors.forbidden);
+  }
+
+  const id = str(form, 'eventMemberId');
+  if (!id) return fail(t.errors.notFound);
+
+  const row = await db
+    .select({
+      id: eventMembers.id,
+      eventId: eventMembers.eventId,
+      status: eventMembers.status,
+      name: teamMembers.fullName,
+    })
+    .from(eventMembers)
+    .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+    .where(eq(eventMembers.id, id))
+    .get();
+  if (!row || row.eventId !== eventId) return fail(t.errors.notFound);
+  if (row.status !== 'CANCELLED') return ok();
+
+  await db
+    .update(eventMembers)
+    .set({
+      status: 'INVITED',
+      // A new personal link, for the same reason adding one does.
+      token: newMemberToken(),
+      tokenExpiresAt: null,
+      notifiedAt: null,
+      notifiedById: null,
+      updatedAt: new Date(),
+    })
+    .where(eq(eventMembers.id, id));
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'EVENT_MEMBER',
+    entityId: id,
+    entityLabel: row.name,
+    oldValues: { status: 'CANCELLED' },
+    newValues: { status: 'INVITED' },
+    summary: `${t.eventTeam.reinstate}: ${row.name}`,
   });
 
   revalidateEvent(eventId);

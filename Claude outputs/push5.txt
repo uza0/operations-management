@@ -1,0 +1,14 @@
+[main 91c41db] Light theme, send-to-everyone run, official WhatsApp Cloud API, gate leader in the briefing
+ 22 files changed, 1260 insertions(+), 51 deletions(-)
+ create mode 100644 Claude outputs/ch4.txt
+ create mode 100644 Claude outputs/push4.txt
+ create mode 100644 "Claude outputs/\330\252\331\202\331\212\331\212\331\205\330\247\330\252-\330\247\331\204\331\201\330\261\331\212\331\202-\330\250\330\247\331\204\330\252\331\202\330\261\331\212\330\261.png"
+ create mode 100644 "Claude outputs/\330\252\331\210\330\262\331\212\330\271-\330\247\331\204\330\250\331\210\330\247\330\250\330\251-\330\247\331\204\330\261\330\246\331\212\330\263\331\212\330\251.png"
+ create mode 100644 "Claude outputs/\331\201\331\210\330\261\331\205-\330\247\331\204\330\252\331\202\331\212\331\212\331\205.png"
+ create mode 100644 "Claude outputs/\331\203\330\264\331\201-\330\247\331\204\330\252\331\210\330\262\331\212\330\271-\331\205\330\271-\330\247\331\204\330\250\331\210\330\247\330\250\330\251-\330\247\331\204\330\261\330\246\331\212\330\263\331\212\330\251.pdf"
+ create mode 100644 docs/WHATSAPP.md
+ create mode 100644 src/components/pwa/ThemeToggle.tsx
+ create mode 100644 src/server/services/whatsapp.ts
+To https://github.com/uza0/operations-management.git
+   8cd3572..91c41db  main -> main
+DONE 

@@ -17,6 +17,7 @@ import {
 import type { Task } from '@/lib/constants';
 import { format, type Dictionary } from '@/lib/i18n';
 import { formatDate, formatTime, formatWeekday } from '@/lib/time';
+import { compareNames } from '@/lib/sort';
 
 /**
  * The briefing each member gets before an event.
@@ -218,9 +219,10 @@ export async function buildBriefings({
   t: Dictionary;
   locale: 'ar' | 'en';
 }): Promise<Briefing[]> {
-  const rows = await db
+  const all = await db
     .select({
       eventMemberId: eventMembers.id,
+      memberStatus: eventMembers.status,
       token: eventMembers.token,
       isReserve: eventMembers.isReserve,
       notifiedAt: eventMembers.notifiedAt,
@@ -248,8 +250,17 @@ export async function buildBriefings({
     )
     .leftJoin(gates, eq(assignments.gateId, gates.id))
     .leftJoin(workingPoints, eq(assignments.workingPointId, workingPoints.id))
-    .where(eq(eventMembers.eventId, eventId))
-    .orderBy(teamMembers.fullName);
+    .where(eq(eventMembers.eventId, eventId));
+
+  /*
+   * Somebody taken off the event is not briefed. They kept their row — the
+   * record of who was dropped matters — but a message telling them when to
+   * arrive is worse than no message, and before this filter existed they got
+   * one, listed as a reserve.
+   */
+  const rows = all.filter((row) => row.memberStatus !== 'CANCELLED');
+  // Alphabetical across both scripts, which SQLite's own ORDER BY is not.
+  rows.sort((a, b) => compareNames(a.name, b.name));
 
   /*
    * One query for the whole detail rather than one per member: a roster of

@@ -21,6 +21,7 @@ import { getStaffedLocations } from '@/server/services/staffing';
 import { creditFor } from '@/server/services/credit';
 import type { AttendanceStatus, IssueStatus, IssueType } from '@/lib/constants';
 import { toMinutes } from '@/lib/time';
+import { compareNames } from '@/lib/sort';
 
 /**
  * Everything the closing report states, computed in one place.
@@ -390,7 +391,7 @@ export async function buildReport(eventId: string): Promise<ReportData> {
     .sort((a, b) => {
       const rank = (line: RosterLine) =>
         line.status === 'PRESENT' ? 0 : line.status === 'LATE' ? 1 : 2;
-      return rank(a) - rank(b) || a.name.localeCompare(b.name);
+      return rank(a) - rank(b) || compareNames(a.name, b.name);
     });
 
   return {

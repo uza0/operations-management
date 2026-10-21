@@ -14,6 +14,7 @@ import {
   workingPoints,
 } from '@/db/schema';
 import { TASKS, type Task } from '@/lib/constants';
+import { byName } from '@/lib/sort';
 
 /**
  * The main-gate detail: who stands at the venue's front entrance in the hours
@@ -116,7 +117,7 @@ export async function buildMainGate(eventId: string): Promise<MainGateData> {
           normalPlace: places.get(row.eventMemberId) ?? null,
           picked: false,
         }))
-        .sort((a, b) => a.name.localeCompare(b.name)),
+        .sort(byName),
     };
   }
 
@@ -178,7 +179,7 @@ export async function buildMainGate(eventId: string): Promise<MainGateData> {
         normalPlace: places.get(row.eventMemberId) ?? null,
         picked: onDetail.has(row.eventMemberId),
       }))
-      .sort((a, b) => a.name.localeCompare(b.name)),
+      .sort(byName),
   };
 }
 

@@ -16,6 +16,7 @@ import { IconSearch } from '@/components/ui/icons';
 import { EVENT_ROLES, TASKS, type Task } from '@/lib/constants';
 import { format, type Dictionary } from '@/lib/i18n';
 import type { BoardData, BoardPerson } from '@/server/services/board';
+import { byName } from '@/lib/sort';
 
 /**
  * The board: a pile of names on one side, the gates on the other.
@@ -160,7 +161,7 @@ export function DistributionBoard({ t, data, canManage }: Props) {
           if (lane) lane.people = [...lane.people, person];
         }
       } else {
-        pool = [...pool, person].sort((a, b) => a.name.localeCompare(b.name));
+        pool = [...pool, person].sort(byName);
       }
 
       for (const location of locations) {

@@ -826,6 +826,117 @@ check('the template carries the roles and the gate leaders',
   `${carriedRoles.n} roles, ${carriedGateLeads.n} gates with a leader`);
 await admin.keyboard.press('Escape');
 
+/* ---- cancelling and putting back ----------------------------------------- */
+/*
+ * Cancelling somebody used to be one-way: their row stayed on the event, the
+ * picker therefore skipped them as "already added", and nothing could put them
+ * back. This is the round trip.
+ */
+const spare = await db.prepare(`
+  select em.id, tm.full_name from event_members em
+  join team_members tm on tm.id = em.team_member_id
+  left join assignments a
+    on a.event_member_id = em.id and a.status != 'CANCELLED'
+  where em.event_id=? and a.id is null and em.status != 'CANCELLED' limit 1`).get(eventId);
+
+if (spare) {
+  await admin.goto(`${BASE}/admin/events/${eventId}/team`);
+  await admin.waitForLoadState('networkidle');
+
+  admin.once('dialog', (d) => d.accept());
+  await admin
+    .locator('tr', { hasText: spare.full_name })
+    .first()
+    .locator('button:has-text("إلغاء المشاركة")')
+    .click();
+  await admin.waitForTimeout(2500);
+  const cancelled = await db.prepare('select status from event_members where id=?').get(spare.id);
+  check('a member can be taken off the event', cancelled?.status === 'CANCELLED',
+    String(cancelled?.status));
+
+  // The picker must offer them again.
+  await admin.reload();
+  await admin.waitForLoadState('networkidle');
+  await admin.click('button:has-text("إضافة أعضاء للفعالية")');
+  await admin.waitForTimeout(700);
+  const offered = await admin.locator(`label:has-text("${spare.full_name}")`).count();
+  check('a cancelled member is offered again by the picker', offered > 0, `${offered} entries`);
+  await admin.keyboard.press('Escape');
+
+  // And their own card offers the way back, which is what the screen is for.
+  await admin.reload();
+  await admin.waitForLoadState('networkidle');
+  await admin
+    .locator('tr', { hasText: spare.full_name })
+    .first()
+    .locator('button:has-text("إعادة المشاركة")')
+    .click();
+  await admin.waitForTimeout(2500);
+  const back = await db.prepare('select status from event_members where id=?').get(spare.id);
+  check('a cancelled member can be put back', back?.status === 'INVITED', String(back?.status));
+}
+
+/* ---- order of the lists -------------------------------------------------- */
+/*
+ * The roster mixes Arabic and Latin names. SQLite's own ORDER BY puts every
+ * Latin name first, which reads as no order at all, so the check is that the
+ * rendered order matches a collator rather than that it is merely sorted.
+ */
+const collator = new Intl.Collator(['ar', 'en'], {
+  numeric: true,
+  sensitivity: 'base',
+  ignorePunctuation: true,
+});
+
+await admin.goto(`${BASE}/admin/team`);
+await admin.waitForLoadState('networkidle');
+const teamNames = (await admin.locator('tbody tr td:first-child').allTextContents())
+  .map((value) => value.trim())
+  .filter(Boolean);
+const teamSorted = [...teamNames].sort(collator.compare);
+check('the team database reads alphabetically',
+  JSON.stringify(teamNames) === JSON.stringify(teamSorted),
+  `${teamNames.length} names`);
+
+await admin.goto(`${BASE}/admin/events/${eventId}/team`);
+await admin.waitForLoadState('networkidle');
+
+/*
+ * The screen shows two sections — working, then reserve — so the order is
+ * checked WITHIN each section rather than across the whole table; a reserve
+ * member sorting after an active one is the layout, not a bug.
+ */
+const eventRows = await admin.locator('tbody tr').all();
+const listed = [];
+for (const row of eventRows) {
+  const name = (await row.locator('td').first().textContent())?.trim() ?? '';
+  const text = (await row.textContent()) ?? '';
+  if (name) listed.push({ name, cancelled: text.includes('ملغى'), reserve: text.includes('احتياط') });
+}
+
+let orderOk = true;
+for (const group of [false, true]) {
+  const section = listed.filter((row) => row.reserve === group);
+  const want = [...section].sort(
+    (a, b) => Number(a.cancelled) - Number(b.cancelled) || collator.compare(a.name, b.name),
+  );
+  if (JSON.stringify(section) !== JSON.stringify(want)) orderOk = false;
+}
+check('the event team reads alphabetically with cancelled at the end', orderOk,
+  `${listed.length} rows, ${listed.filter((r) => r.cancelled).length} cancelled`);
+
+// Somebody taken off the event must not be sent a briefing at all.
+const droppedOne = await db.prepare(
+  "select em.id, tm.full_name from event_members em join team_members tm on tm.id = em.team_member_id where em.event_id=? and em.status='CANCELLED' limit 1",
+).get(eventId);
+if (droppedOne) {
+  await admin.goto(`${BASE}/admin/events/${eventId}/notify`);
+  await admin.waitForLoadState('networkidle');
+  const briefingList = await admin.textContent('main');
+  check('a cancelled member is not briefed',
+    !briefingList.includes(droppedOne.full_name), droppedOne.full_name);
+}
+
 /* ---- the theme ----------------------------------------------------------- */
 /*
  * The palette lives in CSS variables, so "does the light theme work" is one

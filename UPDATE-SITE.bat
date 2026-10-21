@@ -32,7 +32,7 @@ git remote remove origin >nul 2>&1
 git remote add origin https://github.com/uza0/operations-management.git
 
 git add -A
-git commit -m "Light theme, send-to-everyone run, official WhatsApp Cloud API, gate leader in the briefing" >nul 2>&1
+git commit -m "Cancelled members can be put back, alphabetical order everywhere, cancelled sink to the end" >nul 2>&1
 
 echo   A browser window may open asking you to sign in. Approve it.
 echo.

@@ -13,6 +13,7 @@ import {
   workingPoints,
 } from '@/db/schema';
 import { EVENT_ROLES, TASKS, type EventRole, type Task } from '@/lib/constants';
+import { byName, compareNames } from '@/lib/sort';
 
 /**
  * The distribution board.
@@ -187,7 +188,7 @@ export async function buildBoard(eventId: string): Promise<BoardData | null> {
       })),
       placed: 0,
     })),
-  ].sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
+  ].sort((a, b) => a.sortOrder - b.sortOrder || compareNames(a.name, b.name));
 
   const byId = new Map(locations.map((l) => [l.id, l]));
   const pool: BoardPerson[] = [];
@@ -238,11 +239,11 @@ export async function buildBoard(eventId: string): Promise<BoardData | null> {
       lane.people.sort(
         (a, b) =>
           Number(Boolean(b.eventRole)) - Number(Boolean(a.eventRole)) ||
-          a.name.localeCompare(b.name),
+          compareNames(a.name, b.name),
       );
     }
   }
-  pool.sort((a, b) => a.name.localeCompare(b.name));
+  pool.sort(byName);
 
   const placed = active.length - pool.length;
   return {

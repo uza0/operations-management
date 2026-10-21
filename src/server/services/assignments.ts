@@ -11,6 +11,7 @@ import {
   workingPoints,
 } from '@/db/schema';
 import { rangesOverlap } from '@/lib/time';
+import { compareNames } from '@/lib/sort';
 
 export type AssignmentRow = {
   id: string;
@@ -83,9 +84,9 @@ export async function listAssignments(eventId: string): Promise<AssignmentRow[]>
     }))
     .sort(
       (a, b) =>
-        a.locationName.localeCompare(b.locationName) ||
+        compareNames(a.locationName, b.locationName) ||
         Number(b.isGateLeader) - Number(a.isGateLeader) ||
-        a.memberName.localeCompare(b.memberName),
+        compareNames(a.memberName, b.memberName),
     );
 }
 
@@ -187,6 +188,6 @@ export async function listAssignableMembers(eventId: string) {
       (a, b) =>
         Number(a.assigned) - Number(b.assigned) ||
         Number(a.isReserve) - Number(b.isReserve) ||
-        a.name.localeCompare(b.name),
+        compareNames(a.name, b.name),
     );
 }

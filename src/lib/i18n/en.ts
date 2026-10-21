@@ -289,6 +289,7 @@ export const en: Dictionary = {
     showQr: 'Show QR code',
     rotateToken: 'Rotate token',
     rotateTokenConfirm: 'The old link stops working immediately and the member needs a new one. Continue?',
+    reinstate: 'Put back on the event',
     revoke: 'Revoke participation',
     revokeConfirm: 'This cancels the member’s participation and revokes their link. Continue?',
     removeBlocked: 'This member has an active assignment. Cancel it first.',

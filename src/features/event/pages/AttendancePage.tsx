@@ -17,6 +17,7 @@ import { creditFor } from '@/server/services/credit';
 
 import { AttendanceTable, type AttendanceRow } from './parts/AttendanceTable';
 import { EventCreditDefault } from './parts/EventCreditDefault';
+import { byName } from '@/lib/sort';
 
 export async function EventAttendancePage({ eventId }: { eventId: string }) {
   const { scope, event, locale, t } = await loadEventPage(eventId);
@@ -77,7 +78,7 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
         eventDefault: event.creditDaysDefault,
       }),
     }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort(byName);
 
   const counts = data.reduce<Record<string, number>>((acc, row) => {
     acc[row.status] = (acc[row.status] ?? 0) + 1;

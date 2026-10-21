@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import {
   addMembersToEventAction,
+  reinstateEventMemberAction,
   revokeEventMemberAction,
   rotateMemberTokenAction,
   updateEventMemberAction,
@@ -21,6 +22,7 @@ import {
 import { IconPlus, IconQr, IconRefresh, IconSearch, IconUsers } from '@/components/ui/icons';
 import { EVENT_MEMBER_STATUSES, type EventMemberStatus } from '@/lib/constants';
 import type { Dictionary } from '@/lib/i18n';
+import { byStatusThenName } from '@/lib/sort';
 
 export type EventTeamRow = {
   id: string;
@@ -142,16 +144,38 @@ function MemberActions({
   const [rotateState, rotate] = useActionState(rotateMemberTokenAction, idle);
   const [revokeState, revoke] = useActionState(revokeEventMemberAction, idle);
   const [updateState, update] = useActionState(updateEventMemberAction, idle);
+  const [backState, putBack] = useActionState(reinstateEventMemberAction, idle);
 
   useEffect(() => {
     if (
       rotateState.status === 'success' ||
       revokeState.status === 'success' ||
-      updateState.status === 'success'
+      updateState.status === 'success' ||
+      backState.status === 'success'
     ) {
       router.refresh();
     }
-  }, [rotateState, revokeState, updateState, router]);
+  }, [rotateState, revokeState, updateState, backState, router]);
+
+  /*
+   * A cancelled participant gets one button, and it is the way back. The rest
+   * — reserve, rotate, cancel — are operations on somebody who is working the
+   * event, and offering them here only invites a second mistake.
+   */
+  if (member.status === 'CANCELLED') {
+    return (
+      <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+        <form action={putBack}>
+          <input type="hidden" name="eventId" value={eventId} />
+          <input type="hidden" name="eventMemberId" value={member.id} />
+          <SubmitButton className="btn-secondary btn-sm">
+            <IconRefresh width={14} height={14} />
+            {t.eventTeam.reinstate}
+          </SubmitButton>
+        </form>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
@@ -176,23 +200,21 @@ function MemberActions({
         </ConfirmSubmit>
       </form>
 
-      {member.status !== 'CANCELLED' ? (
-        <form action={revoke} className="flex flex-col items-end">
-          <input type="hidden" name="eventId" value={eventId} />
-          <input type="hidden" name="eventMemberId" value={member.id} />
-          <ConfirmSubmit
-            className="btn-ghost btn-sm text-crit-text"
-            message={t.eventTeam.revokeConfirm}
-          >
-            {t.eventTeam.revoke}
-          </ConfirmSubmit>
-          {revokeState.status === 'error' ? (
-            <span className="max-w-[200px] text-end text-[11.5px] leading-4 text-crit-text">
-              {revokeState.message}
-            </span>
-          ) : null}
-        </form>
-      ) : null}
+      <form action={revoke} className="flex flex-col items-end">
+        <input type="hidden" name="eventId" value={eventId} />
+        <input type="hidden" name="eventMemberId" value={member.id} />
+        <ConfirmSubmit
+          className="btn-ghost btn-sm text-crit-text"
+          message={t.eventTeam.revokeConfirm}
+        >
+          {t.eventTeam.revoke}
+        </ConfirmSubmit>
+        {revokeState.status === 'error' ? (
+          <span className="max-w-[200px] text-end text-[11.5px] leading-4 text-crit-text">
+            {revokeState.message}
+          </span>
+        ) : null}
+      </form>
     </div>
   );
 }
@@ -218,11 +240,15 @@ export function EventTeamManager({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return members;
-    return members.filter(
-      (m) =>
-        m.name.toLowerCase().includes(q) || m.employeeCode.toLowerCase().includes(q),
-    );
+    const matching = q
+      ? members.filter(
+          (m) =>
+            m.name.toLowerCase().includes(q) || m.employeeCode.toLowerCase().includes(q),
+        )
+      : members;
+    // Alphabetical, with anyone taken off the event at the end — see
+    // src/lib/sort.ts.
+    return [...matching].sort(byStatusThenName);
   }, [members, query]);
 
   const active = filtered.filter((m) => !m.isReserve);

@@ -679,6 +679,16 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
     )
     .run();
 
+  /*
+   * One person taken off the event, so the demo shows what that looks like:
+   * the row stays — the record of who was dropped matters — and the list puts
+   * them below everyone still working rather than in the middle of it.
+   */
+  await sql.execute({
+    sql: "UPDATE event_members SET status = 'CANCELLED' WHERE id = ?",
+    args: [emIds['تبارك القيسي']],
+  });
+
   // Gate leader account is scoped to gate 3 only (spec §3.3).
   await db.insert(eventAccess)
     .values({

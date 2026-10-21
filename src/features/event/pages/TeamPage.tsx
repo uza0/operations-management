@@ -14,6 +14,7 @@ import { loadEventPage } from '@/features/event/workspace';
 import { PageHeader } from '@/components/ui/panel';
 
 import { EventTeamManager } from './parts/EventTeamManager';
+import { byName } from '@/lib/sort';
 
 async function resolveBaseUrl(): Promise<string> {
   const configured = process.env.NEXT_PUBLIC_APP_URL;
@@ -77,12 +78,20 @@ export async function EventTeamPage({ eventId }: { eventId: string }) {
     })),
   );
 
+  /*
+   * Who the picker must NOT offer: the people actually on the event. Somebody
+   * whose participation was cancelled is deliberately not in this set, so they
+   * can be put back from the same place anyone else is added — leaving them
+   * out here is what made a cancelled member impossible to re-add at all.
+   */
   const inEvent = new Set(
     (
       await db
         .select({ teamMemberId: eventMembers.teamMemberId })
         .from(eventMembers)
-        .where(eq(eventMembers.eventId, eventId))
+        .where(
+          and(eq(eventMembers.eventId, eventId), ne(eventMembers.status, 'CANCELLED')),
+        )
     ).map((r) => r.teamMemberId),
   );
 
@@ -96,8 +105,10 @@ export async function EventTeamPage({ eventId }: { eventId: string }) {
           })
           .from(teamMembers)
           .where(eq(teamMembers.active, true))
-          .orderBy(teamMembers.fullName)
-      ).filter((p) => !inEvent.has(p.id))
+      )
+          .filter((p) => !inEvent.has(p.id))
+          // Alphabetical across both scripts — see src/lib/sort.ts.
+          .sort(byName)
     : [];
 
   return (
