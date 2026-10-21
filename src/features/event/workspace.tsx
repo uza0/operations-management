@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -5,6 +6,8 @@ import { getT } from '@/lib/i18n/server';
 import { requireEventScope, type EventScope } from '@/server/auth/rbac';
 import { getEventOr404 } from '@/server/services/events';
 import { AppShell } from '@/components/shell/AppShell';
+
+import { SetupWizard } from './SetupWizard';
 import { eventNav } from '@/components/shell/nav';
 import { formatDate, formatTime } from '@/lib/time';
 import type { EventStatus, EventType } from '@/lib/constants';
@@ -42,6 +45,16 @@ export async function EventWorkspaceLayout({
         <span aria-hidden>/</span>
         <span className="truncate text-ink-300">{event.name}</span>
       </nav>
+      {/*
+        * The walk-through, when the URL says we are in it. Above the page
+        * rather than instead of it: every step is the real screen.
+        */}
+      {scope.canManage ? (
+        <Suspense fallback={null}>
+          <SetupWizard t={t} base={base} eventId={eventId} />
+        </Suspense>
+      ) : null}
+
       {children}
     </AppShell>
   );

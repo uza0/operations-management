@@ -937,6 +937,78 @@ if (droppedOne) {
     !briefingList.includes(droppedOne.full_name), droppedOne.full_name);
 }
 
+/* ---- the setup walk-through ---------------------------------------------- */
+/*
+ * A new event lands on the first thing that has to be done rather than on an
+ * empty overview, and every step is the real screen — so the check follows the
+ * URLs, which is what the walk-through actually is.
+ */
+await admin.goto(`${BASE}/admin/events/new`);
+await admin.waitForLoadState('networkidle');
+await admin.fill('input[name="name"]', `فحص التجهيز ${Date.now() % 100000}`);
+await admin.selectOption('select[name="venueId"]', { index: 1 });
+await admin.fill('input[name="date"]', '2026-12-09');
+await admin.fill('input[name="startTime"]', '20:00');
+await admin.fill('input[name="teamArrivalTime"]', '17:00');
+await Promise.all([
+  admin.waitForURL('**/gates?setup=1', { timeout: 25000 }),
+  admin.locator('button[type=submit]').last().click(),
+]);
+check('a new event opens on the first setup step', admin.url().includes('/gates?setup=1'),
+  new URL(admin.url()).search);
+
+const walkEventId = admin.url().split('/events/')[1].split('/')[0];
+
+// Next moves on …
+await Promise.all([
+  admin.waitForURL('**/team?setup=2', { timeout: 15000 }),
+  admin.click('a:has-text("التالي")'),
+]);
+check('next moves to the team step', admin.url().includes('/team?setup=2'), '');
+
+// … and so does skip, which is the point: a step may be left undone.
+await Promise.all([
+  admin.waitForURL('**/board?setup=3', { timeout: 15000 }),
+  admin.click('a:has-text("تخطّي")'),
+]);
+check('skip moves on without doing the step', admin.url().includes('/board?setup=3'), '');
+
+// Any step is reachable directly — going back to fix the gates must not mean
+// starting the walk again.
+await Promise.all([
+  admin.waitForURL('**/gates?setup=1', { timeout: 15000 }),
+  admin.click('a[aria-current="step"] >> nth=-1').catch(() => {}),
+  admin.locator('ol a', { hasText: 'البوابات ونقاط العمل' }).first().click(),
+]).catch(async () => {
+  await admin.goto(`${BASE}/admin/events/${walkEventId}/gates?setup=1`);
+});
+check('the steps can be jumped between', admin.url().includes('setup=1'),
+  new URL(admin.url()).search);
+
+// The last step finishes, and finishing leaves the walk-through for good.
+await admin.goto(`${BASE}/admin/events/${walkEventId}/notify?setup=5`);
+await admin.waitForLoadState('networkidle');
+await Promise.all([
+  admin.waitForURL((u) => !u.search.includes('setup'), { timeout: 15000 }),
+  admin.locator('a.btn-primary', { hasText: 'إنهاء' }).first().click(),
+]);
+check('finishing leaves the walk-through', !admin.url().includes('setup'),
+  new URL(admin.url()).pathname);
+
+await admin.goto(`${BASE}/admin/events/${walkEventId}/gates`);
+await admin.waitForLoadState('networkidle');
+check('an ordinary visit shows no walk-through',
+  (await admin.locator('text=تجهيز الفعالية').count()) === 0, '');
+
+// A gate leader is never walked through setting an event up.
+const gateLeaderWalk = await gateLeader.goto(
+  `${BASE}/leader/events/${eventId}/gates?setup=1`,
+);
+check('a gate leader never sees the walk-through',
+  gateLeaderWalk.status() !== 200
+    || (await gateLeader.locator('text=تجهيز الفعالية').count()) === 0,
+  `status ${gateLeaderWalk.status()}`);
+
 /* ---- the theme ----------------------------------------------------------- */
 /*
  * The palette lives in CSS variables, so "does the light theme work" is one

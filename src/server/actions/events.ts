@@ -20,6 +20,7 @@ import {
 } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
 import { cloneEventPlan } from '@/server/services/clone';
+import { hrefForStep } from '@/features/event/setup-steps';
 import { getStaffedLocations } from '@/server/services/staffing';
 
 import { fail, ok, type ActionState } from './types';
@@ -124,7 +125,12 @@ export async function createEventAction(
   });
 
   revalidatePath('/admin/events');
-  redirect(`/admin/events/${id}`);
+  /*
+   * Straight into the walk-through rather than onto an empty overview: a new
+   * event has nothing on it, and the first screen a supervisor sees should be
+   * the first thing he has to do, not a summary of nothing.
+   */
+  redirect(hrefForStep('/admin', id, 1));
 }
 
 export async function updateEventAction(
