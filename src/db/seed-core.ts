@@ -61,6 +61,9 @@ const {
   timelineItems,
   mapMarkers,
   auditLogs,
+  mainGateDetails,
+  mainGateMembers,
+  eventFeedback,
 } = schema;
 
 const MINUTES = 60 * 1000;
@@ -247,6 +250,18 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
         email: 'admin@operations.local',
         name: 'مشرف العمليات',
         passwordHash: bcrypt.hashSync(adminPassword, 10),
+        role: 'ADMIN',
+        active: true,
+        teamMemberId: null,
+      },
+      {
+        // A second administrator, because operations is run by more than one
+        // person and the demo should not suggest otherwise.
+        id: newId(),
+        username: 'numan',
+        email: 'numan@operations.local',
+        name: 'Mohamed Numan',
+        passwordHash: bcrypt.hashSync(process.env.SEED_NUMAN_PASSWORD ?? 'Numan@12345', 10),
         role: 'ADMIN',
         active: true,
         teamMemberId: null,
@@ -624,6 +639,45 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
       args: [role, emIds[name]],
     });
   }
+
+  /*
+   * The main-gate detail: six people pulled forward to the complex's own front
+   * entrance for the three hours before the stadium gates open, three scanning
+   * and three fitting wristbands. Every one of them is still assigned to a
+   * gate below — that is the whole point of the feature, and the demo would
+   * not show it if they were not.
+   */
+  const mainGateDetailId = newId();
+  await db.insert(mainGateDetails)
+    .values({
+      id: mainGateDetailId,
+      eventId: eventAId,
+      name: 'البوابة الرئيسية للمجمع',
+      startTime: sched('14:00'),
+      endTime: sched('17:00'),
+      notes: 'الجمهور يبدأ يوصل من الساعة الثانية — الدخول من بوابة المجمع فقط.',
+    })
+    .run();
+
+  await db.insert(mainGateMembers)
+    .values(
+      [
+        ['حسن الساعدي', 'ELECTRONIC_SCANNING'],
+        ['محمد العبيدي', 'ELECTRONIC_SCANNING'],
+        ['سجاد البياتي', 'ELECTRONIC_SCANNING'],
+        ['مريم الطائي', 'WRISTBAND_FITTING'],
+        ['رغد العزاوي', 'WRISTBAND_FITTING'],
+        ['زينب الشمري', 'WRISTBAND_FITTING'],
+      ].map(([name, task], i) => ({
+        id: newId(),
+        detailId: mainGateDetailId,
+        eventId: eventAId,
+        eventMemberId: emIds[name],
+        task,
+        sortOrder: i,
+      })),
+    )
+    .run();
 
   // Gate leader account is scoped to gate 3 only (spec §3.3).
   await db.insert(eventAccess)
@@ -1270,6 +1324,35 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
       summary: 'انتهت الفعالية «معرض بغداد الدولي للكتاب — اليوم الختامي»',
       createdAt: at('20:00', -60 * 24 * 14),
     })
+    .run();
+
+  /*
+   * Feedback from the finished event, so the report's last section has
+   * something in it and so the shape of a real answer is visible: a rating
+   * from everyone, words from some, and one complaint worth acting on.
+   */
+  const feedbackLines: [string, number, string | null, string | null, string | null][] = [
+    ['أمير عبد الله', 5, 'التوزيع كان واضح من البداية والبوابة ما ازدحمت.', null, null],
+    ['زينب الشمري', 4, 'الجمهور دخل بسلاسة.', 'الأساور خلصت قبل انتهاء الدخول بنص ساعة.', 'نزيد كمية الأساور 10% احتياط.'],
+    ['مريم الطائي', 3, null, 'الماسح الثاني وقف مرتين وما كان عدنا بديل جاهز.', 'جهاز احتياط بكل بوابة.'],
+    ['حسن الساعدي', 5, 'التبليغ وصل قبل يوم وعرفت مكاني قبل ما أجي.', null, null],
+    ['علي الزبيدي', 4, null, 'ما كان واضح منو مسؤول البوابة الخارجية بأول ساعة.', 'نثبّت قائد لكل بوابة قبل الفتح.'],
+    ['رغد العزاوي', 4, 'الاستراحة كانت منظمة.', null, null],
+  ];
+
+  await db.insert(eventFeedback)
+    .values(
+      feedbackLines.map(([name, rating, wentWell, problems, suggestions], i) => ({
+        id: newId(),
+        eventId: eventCId,
+        eventMemberId: cEmIds[name],
+        rating,
+        wentWell,
+        problems,
+        suggestions,
+        submittedAt: at('21:30', i * 7 - 60 * 24 * 14),
+      })),
+    )
     .run();
 
   /* ---- done ------------------------------------------------------------- */

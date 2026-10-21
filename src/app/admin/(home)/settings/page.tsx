@@ -9,6 +9,8 @@ import { Badge } from '@/components/ui/status';
 import { Notice } from '@/components/ui/states';
 import type { Role } from '@/lib/constants';
 
+import { PasswordForm } from './PasswordForm';
+
 /** Users and access. Account creation is intentionally out of MVP scope. */
 export default async function SettingsPage() {
   const me = await requireRole('ADMIN');
@@ -44,7 +46,11 @@ export default async function SettingsPage() {
           </dl>
         </Panel>
 
-        <Panel title={t.enums.auditEntity.USER} className="lg:col-span-2" bodyClassName="p-0">
+        <Panel title={t.auth.changePassword} className="lg:col-span-1">
+          <PasswordForm t={t} />
+        </Panel>
+
+        <Panel title={t.enums.auditEntity.USER} className="lg:col-span-3" bodyClassName="p-0">
           <div className="table-wrap">
             <table className="op-table op-table-stack">
               <thead>

@@ -6,6 +6,8 @@ import { getMemberPortal } from '@/server/services/member';
 import { formatClock, formatDate, formatTime } from '@/lib/time';
 import { format } from '@/lib/i18n';
 import { Badge, attendanceTone, priorityTone } from '@/components/ui/status';
+
+import { FeedbackForm } from './FeedbackForm';
 import {
   IconAlert,
   IconClock,
@@ -111,6 +113,31 @@ export default async function MemberPortalPage({
             })}
           </p>
         </div>
+      ) : null}
+
+      {/* Before the show, when they are somewhere else first ------------- */}
+      {data.mainGate ? (
+        <section className="rounded-card border border-warn/40 bg-warn/10 p-4">
+          <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-warn-text">
+            {t.mainGate.memberTitle}
+          </p>
+          <p className="mt-1 text-[20px] font-bold leading-tight text-ink-100">
+            {data.mainGate.name}
+          </p>
+          <p className="nums mt-1 text-[15px] font-semibold text-ink-100">
+            {formatTime(data.mainGate.startTime, locale)} –{' '}
+            {formatTime(data.mainGate.endTime, locale)}
+          </p>
+          <p className="mt-1 text-[13.5px] text-ink-200">
+            {t.enums.task[data.mainGate.task]}
+          </p>
+          <p className="mt-2 text-[12.5px] leading-5 text-ink-400">
+            {t.mainGate.memberHint}
+          </p>
+          {data.mainGate.notes ? (
+            <p className="mt-1 text-[12.5px] leading-5 text-ink-400">{data.mainGate.notes}</p>
+          ) : null}
+        </section>
       ) : null}
 
       {/* The three answers, in field-readable type ----------------------- */}
@@ -245,16 +272,52 @@ export default async function MemberPortalPage({
         ) : null}
       </section>
 
-      {/* Map ------------------------------------------------------------- */}
-      {data.mapImageUrl ? (
-        <Link
-          href={`/member/${token}/map`}
-          className="btn-secondary w-full justify-center py-3.5 text-[15px]"
-        >
-          <IconMap width={18} height={18} />
-          {t.member.viewMap}
-        </Link>
-      ) : null}
+      {/* Getting there ---------------------------------------------------
+        *
+        * Two different questions, and a member standing outside needs both:
+        * where the venue is on a real map, and where inside it their own post
+        * is. The second used to be the only one offered, and it disappeared
+        * entirely when nobody had uploaded a venue photo — so now the section
+        * is always here and says plainly which of the two is missing.
+        */}
+      <section className="space-y-2">
+        <h2 className="mb-1 flex items-center gap-2 text-[15px] font-semibold text-ink-100">
+          <IconMap width={17} height={17} className="text-ink-500" />
+          {t.member.gettingThere}
+        </h2>
+
+        {membership.venueLocationUrl ? (
+          <a
+            href={membership.venueLocationUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="btn-primary w-full justify-center py-3.5 text-[15px]"
+          >
+            <IconPin width={18} height={18} />
+            {t.member.openInMaps}
+          </a>
+        ) : null}
+
+        {data.mapImageUrl ? (
+          <Link
+            href={`/member/${token}/map`}
+            className="btn-secondary w-full justify-center py-3.5 text-[15px]"
+          >
+            <IconMap width={18} height={18} />
+            {t.member.viewMap}
+          </Link>
+        ) : (
+          <p className="panel px-4 py-4 text-center text-[13px] leading-6 text-ink-500">
+            {t.member.noVenueMapYet}
+          </p>
+        )}
+
+        {membership.venueAddress ? (
+          <p className="px-1 text-center text-[12.5px] text-ink-500">
+            {membership.venueAddress}
+          </p>
+        ) : null}
+      </section>
 
       {/* Announcements --------------------------------------------------- */}
       <section>
@@ -348,6 +411,11 @@ export default async function MemberPortalPage({
           </ul>
         ) : null}
       </section>
+
+      {/* Asked last, and only once the evening is actually over. */}
+      {membership.eventStatus === 'COMPLETED' || membership.eventStatus === 'ARCHIVED' ? (
+        <FeedbackForm t={t} token={token} existing={data.myFeedback} />
+      ) : null}
 
       <p className="pb-2 text-center text-[11.5px] text-ink-600">
         {t.member.savedOffline}

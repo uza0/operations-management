@@ -1,6 +1,7 @@
 import { formatDate, formatTime } from '@/lib/time';
 import { format, type Dictionary } from '@/lib/i18n';
 import type { BoardData } from '@/server/services/board';
+import type { MainGateData } from '@/server/services/main-gate';
 
 /**
  * The distribution sheet — the thing that gets printed and pinned up.
@@ -17,10 +18,12 @@ export function SheetDocument({
   t,
   locale,
   data,
+  mainGate,
 }: {
   t: Dictionary;
   locale: 'ar' | 'en';
   data: BoardData;
+  mainGate?: MainGateData | null;
 }) {
   const { event, locations, pool, totals } = data;
 
@@ -49,6 +52,56 @@ export function SheetDocument({
           </span>
         </div>
       </header>
+
+      {/*
+        * The early detail goes FIRST, because it happens first: whoever reads
+        * this sheet at four in the afternoon needs the main entrance, not the
+        * gates that open later. Every name here also appears below at its own
+        * gate, which is correct — these people have two places to be.
+        */}
+      {mainGate?.detail && mainGate.people.length > 0 ? (
+        <section className="sheet-block mb-3">
+          <h2 className="sheet-block-head">
+            <span>
+              {t.mainGate.title} · {mainGate.detail.name}
+            </span>
+            <span className="nums text-ink-400">
+              {formatTime(mainGate.detail.startTime, locale)} –{' '}
+              {formatTime(mainGate.detail.endTime, locale)}
+            </span>
+          </h2>
+          <div className="sheet-lanes">
+            {mainGate.groups
+              .filter((group) => group.people.length > 0)
+              .map((group) => (
+                <div key={group.task} className="sheet-lane">
+                  <p className="sheet-lane-head">
+                    {t.enums.task[group.task]}
+                    <span className="nums"> ({group.people.length})</span>
+                  </p>
+                  <ol className="sheet-names">
+                    {group.people.map((person) => (
+                      <li key={person.id}>
+                        <span className="nums sheet-idx" />
+                        <span className="sheet-person">
+                          <span style={{ unicodeBidi: 'plaintext' }}>{person.name}</span>
+                          {person.normalPlace ? (
+                            <span className="sheet-role">
+                              {format(t.mainGate.thenBackTo, { place: person.normalPlace })}
+                            </span>
+                          ) : null}
+                        </span>
+                      </li>
+                    ))}
+                  </ol>
+                </div>
+              ))}
+          </div>
+          {mainGate.detail.notes ? (
+            <p className="sheet-pool">{mainGate.detail.notes}</p>
+          ) : null}
+        </section>
+      ) : null}
 
       <div className="sheet-grid">
         {locations.map((location) => (

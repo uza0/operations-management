@@ -531,6 +531,114 @@ export const issues = sqliteTable(
   (t) => [index('issues_event_idx').on(t.eventId), index('issues_status_idx').on(t.status)],
 );
 
+/* -------------------------------------------------------------------------- */
+/* The main-gate detail                                                        */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A posting at the venue's own front gate for the hours before the doors of
+ * the hall itself open.
+ *
+ * At a mall venue the audience starts arriving four or five hours early, long
+ * before the hall gates are staffed, and they come through the complex's main
+ * entrance rather than through any of the event's gates. So a handful of
+ * people are pulled forward to stand there — some scanning tickets, some
+ * fitting wristbands — and two hours before the show they go back to the posts
+ * they are actually assigned to.
+ *
+ * It is modelled separately from `assignments` for exactly that reason: these
+ * people have NOT been moved. Their gate assignment is still theirs, is still
+ * what the staffing arithmetic counts and what the printed sheet shows them
+ * against; this is an earlier shift on top of it. Writing it as an assignment
+ * would make every one of them look like a reassignment and leave their real
+ * gate one short.
+ *
+ * Optional by design: most venues never need one, so an event has no detail
+ * until somebody creates it.
+ */
+export const mainGateDetails = sqliteTable(
+  'main_gate_details',
+  {
+    id: text('id').primaryKey(),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    /** What the place is called — "البوابة الرئيسية للمجمع" and the like. */
+    name: text('name').notNull(),
+    /** "HH:mm", like every other clock value here — never a timestamp. */
+    startTime: text('start_time').notNull(),
+    endTime: text('end_time').notNull(),
+    notes: text('notes'),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('main_gate_details_event_unique').on(t.eventId)],
+);
+
+export const mainGateMembers = sqliteTable(
+  'main_gate_members',
+  {
+    id: text('id').primaryKey(),
+    detailId: text('detail_id')
+      .notNull()
+      .references(() => mainGateDetails.id, { onDelete: 'cascade' }),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    eventMemberId: text('event_member_id')
+      .notNull()
+      .references(() => eventMembers.id, { onDelete: 'cascade' }),
+    /** Usually ELECTRONIC_SCANNING or WRISTBAND_FITTING — the pair at a gate. */
+    task: text('task').notNull(),
+    sortOrder: integer('sort_order').notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('main_gate_members_unique').on(t.detailId, t.eventMemberId),
+    index('main_gate_members_event_idx').on(t.eventId),
+  ],
+);
+
+/* -------------------------------------------------------------------------- */
+/* Feedback                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What the people who actually worked the event thought of it.
+ *
+ * The closing report says what happened; this says how it felt to be standing
+ * at gate 6 while it happened, which is where the next event's fixes come
+ * from. One entry per person per event, written through their own personal
+ * link and editable by them until they stop caring — never by a supervisor,
+ * because feedback somebody else can rewrite is not feedback.
+ *
+ * It opens when the event is marked finished: before that the evening is not
+ * over and the answer would be a guess.
+ */
+export const eventFeedback = sqliteTable(
+  'event_feedback',
+  {
+    id: text('id').primaryKey(),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    eventMemberId: text('event_member_id')
+      .notNull()
+      .references(() => eventMembers.id, { onDelete: 'cascade' }),
+    /** 1–5. The one number that can be averaged across events. */
+    rating: integer('rating').notNull(),
+    /** What went well, what went wrong, and what to do differently. */
+    wentWell: text('went_well'),
+    problems: text('problems'),
+    suggestions: text('suggestions'),
+    submittedAt: integer('submitted_at', { mode: 'timestamp_ms' }).notNull(),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('event_feedback_member_unique').on(t.eventId, t.eventMemberId),
+    index('event_feedback_event_idx').on(t.eventId),
+  ],
+);
+
 export const timelineItems = sqliteTable(
   'timeline_items',
   {
@@ -809,5 +917,8 @@ export type Announcement = typeof announcements.$inferSelect;
 export type Issue = typeof issues.$inferSelect;
 export type TimelineItem = typeof timelineItems.$inferSelect;
 export type MapMarker = typeof mapMarkers.$inferSelect;
+export type MainGateDetail = typeof mainGateDetails.$inferSelect;
+export type MainGateMember = typeof mainGateMembers.$inferSelect;
+export type EventFeedback = typeof eventFeedback.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type Upload = typeof uploads.$inferSelect;

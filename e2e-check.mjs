@@ -469,6 +469,159 @@ const revoked = await guestPage.goto(`${BASE}/sheet/${shared.board_token}`);
 check('revoking the link closes the sheet', revoked.status() === 404, `status ${revoked.status()}`);
 await guest.close();
 
+/* ---- the main-gate detail ----------------------------------------------- */
+await admin.goto(`${BASE}/admin/events/${eventId}/board`);
+await admin.waitForLoadState('networkidle');
+const mgText = await admin.textContent('main');
+check('the board shows the main-gate detail',
+  mgText.includes('توزيع البوابة الرئيسية') && mgText.includes('البوابة الرئيسية للمجمع'), '');
+
+/*
+ * The whole point of the feature: a person on the detail has NOT been moved.
+ * Their gate assignment must still be there, and the gate must still count them.
+ */
+const onDetail = await db.prepare(`
+  select mgm.event_member_id, tm.full_name from main_gate_members mgm
+  join event_members em on em.id = mgm.event_member_id
+  join team_members tm on tm.id = em.team_member_id
+  where mgm.event_id=? limit 1`).get(eventId);
+const stillAssigned = await db.prepare(
+  "select count(*) as n from assignments where event_member_id=? and status!='CANCELLED'",
+).get(onDetail.event_member_id);
+check('being on the main gate does not move anyone off their post',
+  Number(stillAssigned.n) === 1, `${stillAssigned.n} assignments`);
+
+check('the detail names where each person goes afterwards',
+  mgText.includes('وبعدها يرجع إلى'), '');
+
+// It is optional: an event that never had one shows the offer, not a detail.
+const eventWithoutDetail = await db.prepare(
+  "select id from events where id != ? and status='COMPLETED' limit 1").get(eventId);
+if (eventWithoutDetail) {
+  await admin.goto(`${BASE}/admin/events/${eventWithoutDetail.id}/board`);
+  await admin.waitForLoadState('networkidle');
+  const emptyText = await admin.textContent('main');
+  check('an event with no main-gate detail is simply offered one',
+    emptyText.includes('إضافة توزيع البوابة الرئيسية'), '');
+}
+
+// And it reaches the paper the team actually reads.
+await admin.goto(`${BASE}/admin/events/${eventId}/board/sheet`);
+await admin.waitForLoadState('networkidle');
+const sheetMg = await admin.textContent('.report');
+check('the printed sheet carries the main-gate detail first',
+  sheetMg.includes('البوابة الرئيسية للمجمع') && sheetMg.includes('موظف أساور'), '');
+
+/* ---- what the member sees ------------------------------------------------ */
+const mgMemberToken = await db.prepare(
+  'select token from event_members where id=?').get(onDetail.event_member_id);
+const memberPage = await browser.newContext();
+const mp = await memberPage.newPage();
+await mp.goto(`${BASE}/member/${mgMemberToken.token}`);
+await mp.waitForLoadState('networkidle');
+const mpText = await mp.textContent('body');
+check('the member is told about the early shift', mpText.includes('قبل الحفل'), '');
+check('the member is always offered the venue location',
+  mpText.includes('الوصول إلى الموقع')
+    && (mpText.includes('افتح موقع الفعالية على الخرائط') || mpText.includes('خريطة')),
+  '');
+
+// The distribution map itself must open for an ordinary member.
+const mapResponse = await mp.goto(`${BASE}/member/${mgMemberToken.token}/map`);
+check('the distribution map opens for an ordinary member',
+  mapResponse.status() === 200 && (await mp.textContent('body')).includes('موقعك'),
+  `status ${mapResponse.status()}`);
+
+/* ---- the briefing message ------------------------------------------------ */
+await admin.goto(`${BASE}/admin/events/${eventId}/notify`);
+await admin.waitForLoadState('networkidle');
+// The message itself only exists inside the preview, which is where the
+// supervisor reads it before sending — so that is where it has to be checked.
+await admin
+  .locator('tr', { hasText: onDetail.full_name })
+  .first()
+  .locator('button:has-text("معاينة الرسالة")')
+  .click();
+await admin.waitForTimeout(700);
+const notifyText = await admin.textContent('pre');
+check('the briefing carries the venue location and the map',
+  notifyText.includes('الموقع على الخرائط') && notifyText.includes('مكانك على خريطة الموقع'),
+  '');
+check('the briefing tells the early shift where to be first',
+  notifyText.includes('قبل الحفل:'), '');
+await admin.keyboard.press('Escape');
+
+/* ---- feedback ------------------------------------------------------------ */
+const doneEvent = await db.prepare(
+  "select id from events where status='COMPLETED' limit 1").get();
+const doneMember = await db.prepare(
+  'select token, id from event_members where event_id=? limit 1').get(doneEvent.id);
+
+await mp.goto(`${BASE}/member/${doneMember.token}`);
+await mp.waitForLoadState('networkidle');
+// Scoped to the rendered page: the whole dictionary is serialised into the
+// document for the client components, so `body` text contains every label.
+check('a finished event asks its team for feedback',
+  (await mp.locator('h2:has-text("تقييم الفعالية")').count()) === 1, '');
+
+// An event still to come does not: the evening is not over yet.
+const upcoming = await db.prepare(`
+  select em.token from event_members em
+  join events e on e.id = em.event_id
+  where e.status not in ('COMPLETED','ARCHIVED') limit 1`).get();
+if (upcoming) {
+  await mp.goto(`${BASE}/member/${upcoming.token}`);
+  await mp.waitForLoadState('networkidle');
+  check('an event that has not finished does not ask yet',
+    (await mp.locator('h2:has-text("تقييم الفعالية")').count()) === 0, '');
+}
+
+await mp.goto(`${BASE}/member/${doneMember.token}`);
+await mp.waitForLoadState('networkidle');
+await mp.locator('button[aria-pressed]').nth(3).click();
+await mp.fill('#fb-problems', 'فحص آلي — الماسح وقف مرتين');
+await mp.locator('form button[type=submit]').last().click();
+await mp.waitForTimeout(2500);
+const saved = await db.prepare(
+  'select rating, problems from event_feedback where event_member_id=?').get(doneMember.id);
+check('a member can rate the event they worked',
+  Number(saved?.rating) === 4 && String(saved?.problems).includes('الماسح'),
+  `${saved?.rating} / 5`);
+
+// And the supervisor reads it in the closing report.
+await admin.goto(`${BASE}/admin/events/${doneEvent.id}/reports`);
+await admin.waitForLoadState('networkidle');
+const reportFeedback = await admin.textContent('.report-doc');
+check('the closing report carries the team feedback',
+  reportFeedback.includes('تقييمات الفريق') && reportFeedback.includes('الماسح'), '');
+
+await memberPage.close();
+
+/* ---- accounts ------------------------------------------------------------ */
+await admin.goto(`${BASE}/admin/settings`);
+await admin.waitForLoadState('networkidle');
+const settingsText = await admin.textContent('main');
+check('the second administrator exists', settingsText.includes('Mohamed Numan'), '');
+
+// Changing your own password, which is what makes a shipped account yours.
+await admin.fill('#currentPassword', 'Admin@12345');
+await admin.fill('#newPassword', 'Admin@67890');
+await admin.fill('#confirmPassword', 'Admin@67890');
+await admin.locator('form:has(#currentPassword) button[type=submit]').click();
+await admin.waitForTimeout(2000);
+check('a password can be changed from inside the app',
+  (await admin.textContent('main')).includes('تم تغيير كلمة المرور'), '');
+
+// Put it back, so the suite is repeatable.
+await admin.fill('#currentPassword', 'Admin@67890');
+await admin.fill('#newPassword', 'Admin@12345');
+await admin.fill('#confirmPassword', 'Admin@12345');
+await admin.locator('form:has(#currentPassword) button[type=submit]').click();
+await admin.waitForTimeout(2000);
+const restored = await admin.textContent('main');
+check('and changed back, so the old one works again',
+  restored.includes('تم تغيير كلمة المرور'), '');
+
 /* ================= SECURITY TEST CASES (spec §53) ====================== */
 
 // A member cannot reach admin pages.

@@ -17,9 +17,8 @@
  *   • `npm run db:seed:live`
  *   • the setup route with `&reset=1` (src/app/api/setup/route.ts)
  */
-import bcrypt from 'bcryptjs';
-
 import * as schema from './schema';
+import { STANDING_ACCOUNTS, passwordFor, rowFor } from './accounts';
 import { TEAM_ROSTER } from './roster';
 import { LIVE_EVENT, LIVE_PLAN, LIVE_VENUE } from './live-event';
 import { newId, newMemberToken } from '../lib/ids';
@@ -45,12 +44,8 @@ const {
 } = schema;
 
 export type LiveSeedResult = {
-  adminUsername: string;
-  adminPassword: string;
-  leaderUsername: string;
-  leaderPassword: string;
-  gateUsername: string;
-  gatePassword: string;
+  /** username → "username / password", one entry per standing account. */
+  credentials: Record<string, string>;
   teamSize: number;
   eventName: string;
   locations: number;
@@ -105,55 +100,29 @@ export async function seedLiveData(ctx: SeedContext): Promise<LiveSeedResult> {
     .run();
 
   console.log('› accounts…');
-  const adminUsername = process.env.SEED_ADMIN_USERNAME ?? 'admin';
-  const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? 'Admin@12345';
-  const leaderUsername = process.env.SEED_LEADER_USERNAME ?? 'leader';
-  const leaderPassword = process.env.SEED_LEADER_PASSWORD ?? 'Leader@12345';
-  const gateUsername = process.env.SEED_GATELEADER_USERNAME ?? 'gate';
-  const gatePassword = process.env.SEED_GATELEADER_PASSWORD ?? 'Gate@12345';
-
   /*
+   * The sign-in accounts come from one list (src/db/accounts.ts), the same one
+   * the setup route tops up on a live database. Keeping them in a single place
+   * is what lets a new colleague be added to a running site without a reset.
+   *
    * The two non-admin accounts are deliberately not tied to anyone on the
    * roster. Who leads a team or a gate is decided per event, and binding an
    * account to a person here would be a guess that outlives the guessing.
    */
-  const adminId = newId();
-  const leaderId = newId();
-  await db
-    .insert(users)
-    .values([
-      {
-        id: adminId,
-        username: adminUsername,
-        email: 'admin@operations.local',
-        name: 'مشرف العمليات',
-        passwordHash: bcrypt.hashSync(adminPassword, 10),
-        role: 'ADMIN' as const,
-        active: true,
-        teamMemberId: null,
-      },
-      {
-        id: leaderId,
-        username: leaderUsername,
-        email: 'leader@operations.local',
-        name: 'قائد الفريق',
-        passwordHash: bcrypt.hashSync(leaderPassword, 10),
-        role: 'TEAM_LEADER' as const,
-        active: true,
-        teamMemberId: null,
-      },
-      {
-        id: newId(),
-        username: gateUsername,
-        email: 'gate@operations.local',
-        name: 'قائد بوابة',
-        passwordHash: bcrypt.hashSync(gatePassword, 10),
-        role: 'GATE_LEADER' as const,
-        active: true,
-        teamMemberId: null,
-      },
-    ])
-    .run();
+  const rows = STANDING_ACCOUNTS.map((account) => ({
+    account,
+    row: rowFor(account),
+  }));
+  await db.insert(users).values(rows.map((entry) => entry.row)).run();
+
+  const adminId = rows.find((entry) => entry.account.username === 'admin')!.row.id;
+  const leaderId = rows.find((entry) => entry.account.role === 'TEAM_LEADER')!.row.id;
+  const credentials = Object.fromEntries(
+    rows.map((entry) => [
+      entry.account.username,
+      `${entry.account.username} / ${passwordFor(entry.account)}`,
+    ]),
+  );
 
   /* ---- the venue and the match ------------------------------------------ */
 
@@ -285,12 +254,7 @@ export async function seedLiveData(ctx: SeedContext): Promise<LiveSeedResult> {
   await db.insert(assignments).values(assignmentRows).run();
 
   return {
-    adminUsername,
-    adminPassword,
-    leaderUsername,
-    leaderPassword,
-    gateUsername,
-    gatePassword,
+    credentials,
     teamSize: TEAM_ROSTER.length,
     eventName: LIVE_EVENT.name,
     locations: LIVE_PLAN.length,

@@ -37,6 +37,9 @@ export async function EventNotifyPage({ eventId }: { eventId: string }) {
       date: event.date,
       teamArrivalTime: event.teamArrivalTime,
       boardToken: event.boardToken,
+      // An event's own photo, or the venue's — the member's map page falls
+      // back the same way, so the link is offered on the same condition.
+      hasMap: Boolean(event.mapImageUrl ?? event.venue.mapImageUrl),
       venue: { name: event.venue.name, locationUrl: event.venue.locationUrl },
     },
     baseUrl,

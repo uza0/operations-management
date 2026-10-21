@@ -470,8 +470,50 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
           />
         </ReportSection>
 
-        {/* 10 — Sign-off ---------------------------------------------------- */}
-        <ReportSection index={10} title={t.report.section10}>
+        {/* 10 — What the team said ----------------------------------------- */}
+        <ReportSection index={10} title={t.feedback.adminTitle} hint={t.feedback.subtitle}>
+          {data.feedback.responses === 0 ? (
+            <p className="report-hint">{t.feedback.adminEmpty}</p>
+          ) : (
+            <>
+              <FactGrid>
+                <div>
+                  <Fact label={t.feedback.average}>
+                    <span className="nums">{data.feedback.average} / 5</span>
+                  </Fact>
+                  <Fact label={t.feedback.responseCount}>
+                    <span className="nums">{data.feedback.responses}</span>
+                  </Fact>
+                </div>
+              </FactGrid>
+
+              <ReportTable
+                head={[
+                  t.common.name,
+                  t.feedback.average,
+                  t.feedback.wentWell,
+                  t.feedback.problems,
+                  t.feedback.suggestions,
+                ]}
+              >
+                {data.feedback.rows.map((row) => (
+                  <tr key={row.id}>
+                    <td className="font-medium text-ink-100" style={{ unicodeBidi: 'plaintext' }}>
+                      {row.memberName}
+                    </td>
+                    <td className="nums">{row.rating} / 5</td>
+                    <td>{row.wentWell ?? '—'}</td>
+                    <td>{row.problems ?? '—'}</td>
+                    <td>{row.suggestions ?? '—'}</td>
+                  </tr>
+                ))}
+              </ReportTable>
+            </>
+          )}
+        </ReportSection>
+
+        {/* 11 — Sign-off ---------------------------------------------------- */}
+        <ReportSection index={11} title={t.report.section10}>
           <SignatureBlock
             preparedBy={scope.user.name}
             labels={{

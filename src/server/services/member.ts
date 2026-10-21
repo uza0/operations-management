@@ -3,11 +3,13 @@ import 'server-only';
 import { and, asc, desc, eq, ne, or } from 'drizzle-orm';
 
 import { db } from '@/db';
+import { mainGateForMember } from '@/server/services/main-gate';
 import {
   announcements,
   assignmentChanges,
   assignments,
   attendance,
+  eventFeedback,
   eventMembers,
   events,
   gates,
@@ -52,6 +54,9 @@ export async function getMemberPortal(token: string) {
       venueName: venues.name,
       venueAddress: venues.address,
       venueMapUrl: venues.mapImageUrl,
+      /* Where the place is on a real map — the first thing a member needs,
+         and the one thing a printed gate number cannot tell them. */
+      venueLocationUrl: venues.locationUrl,
     })
     .from(eventMembers)
     .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
@@ -160,6 +165,33 @@ export async function getMemberPortal(token: string) {
         .get()
     : null;
 
+  /*
+   * The hours before the hall opens, when they are spent somewhere else
+   * entirely: see src/server/services/main-gate.ts.
+   */
+  const mainGate = await mainGateForMember(membership.eventId, membership.id);
+
+  /*
+   * Their own feedback, so the form opens filled in rather than blank: a
+   * member who wants to add a line to what they already said should not have
+   * to retype the rest of it.
+   */
+  const myFeedback = await db
+    .select({
+      rating: eventFeedback.rating,
+      wentWell: eventFeedback.wentWell,
+      problems: eventFeedback.problems,
+      suggestions: eventFeedback.suggestions,
+    })
+    .from(eventFeedback)
+    .where(
+      and(
+        eq(eventFeedback.eventId, membership.eventId),
+        eq(eventFeedback.eventMemberId, membership.id),
+      ),
+    )
+    .get();
+
   const markers = await db
     .select({
       id: mapMarkers.id,
@@ -203,6 +235,8 @@ export async function getMemberPortal(token: string) {
     assignment,
     gateLeaderName,
     teamLeaderName: teamLeader?.name ?? null,
+    mainGate,
+    myFeedback: myFeedback ?? null,
     attendance: attendanceRow ?? null,
     announcements: announcementRows,
     lastChange,

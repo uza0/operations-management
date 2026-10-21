@@ -4,7 +4,14 @@ import { revalidatePath } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { assignments, gates, issues, workingPoints } from '@/db/schema';
+import {
+  assignments,
+  eventFeedback,
+  events,
+  gates,
+  issues,
+  workingPoints,
+} from '@/db/schema';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
 import { firstIssueKey, issueSchema, str } from '@/lib/validation';
@@ -108,4 +115,98 @@ export async function memberReportIssueAction(
   revalidatePath(`/member/${token}`);
 
   return ok(t.issue.submitted);
+}
+
+/**
+ * A member's verdict on the event they just worked.
+ *
+ * Written with their own token and nothing else, and re-writable by them for
+ * as long as they want to change their mind: this is an opinion, not a record
+ * of fact, and an opinion someone cannot correct is one they stop giving. A
+ * supervisor can read it and can never write it.
+ *
+ * It is refused before the event is marked finished — an evening that has not
+ * happened yet cannot be reviewed, and a half-written verdict at the busiest
+ * moment of the night is worse than none.
+ */
+export async function submitFeedbackAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const token = String(form.get('token') ?? '');
+
+  const member = await resolveMemberByToken(token);
+  if (!member) return fail(t.member.invalidToken);
+  if (member.status === 'CANCELLED') return fail(t.member.cancelled);
+  if (member.tokenExpiresAt && member.tokenExpiresAt.getTime() < Date.now()) {
+    return fail(t.member.expiredToken);
+  }
+
+  const event = await db.query.events.findFirst({ where: eq(events.id, member.eventId) });
+  if (!event) return fail(t.errors.notFound);
+  if (event.status !== 'COMPLETED' && event.status !== 'ARCHIVED') {
+    return fail(t.feedback.notYet);
+  }
+
+  const rating = Number(form.get('rating') ?? 0);
+  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
+    return fail(t.feedback.pickRating);
+  }
+
+  const wentWell = str(form, 'wentWell');
+  const problems = str(form, 'problems');
+  const suggestions = str(form, 'suggestions');
+
+  const existing = await db.query.eventFeedback.findFirst({
+    where: and(
+      eq(eventFeedback.eventId, member.eventId),
+      eq(eventFeedback.eventMemberId, member.id),
+    ),
+  });
+
+  if (existing) {
+    await db
+      .update(eventFeedback)
+      .set({
+        rating,
+        wentWell: wentWell ?? null,
+        problems: problems ?? null,
+        suggestions: suggestions ?? null,
+        submittedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(eventFeedback.id, existing.id));
+  } else {
+    await db.insert(eventFeedback).values({
+      id: newId(),
+      eventId: member.eventId,
+      eventMemberId: member.id,
+      rating,
+      wentWell: wentWell ?? null,
+      problems: problems ?? null,
+      suggestions: suggestions ?? null,
+      submittedAt: new Date(),
+    });
+  }
+
+  /*
+   * The audit line records that a verdict arrived and from whom, never what it
+   * said: the log is read by more people than the feedback is meant for, and a
+   * complaint quoted in a log is a complaint nobody writes twice.
+   */
+  await recordAudit({
+    eventId: member.eventId,
+    actorId: null,
+    actorName: member.name,
+    action: 'UPDATE',
+    entity: 'EVENT_MEMBER',
+    entityId: member.id,
+    entityLabel: member.name,
+    summary: existing ? t.feedback.updated : t.feedback.received,
+  });
+
+  revalidatePath(`/member/${token}`);
+  revalidatePath(`/admin/events/${member.eventId}/reports`);
+  return ok(t.feedback.thanks);
 }

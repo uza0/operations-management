@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { getT } from '@/lib/i18n/server';
 import { boardByToken } from '@/server/services/board';
+import { buildMainGate } from '@/server/services/main-gate';
 
 import { PrintButton } from '@/features/event/pages/parts/ReportParts';
 import { SheetDocument } from '@/features/event/pages/parts/SheetDocument';
@@ -25,14 +26,14 @@ export default async function PublicSheetPage({
   const [{ token }, query] = await Promise.all([params, searchParams]);
   const data = await boardByToken(token);
   if (!data) notFound();
-  const { locale, t } = await getT();
+  const [mainGate, { locale, t }] = await Promise.all([buildMainGate(data.event.id), getT()]);
 
   return (
     <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
       <div className="no-print mb-4 flex justify-end">
         <PrintButton label={t.report.printReport} auto={query.print === '1'} />
       </div>
-      <SheetDocument t={t} locale={locale} data={data} />
+      <SheetDocument t={t} locale={locale} data={data} mainGate={mainGate} />
     </main>
   );
 }

@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 
 import { loadEventPage } from '@/features/event/workspace';
 import { buildBoard } from '@/server/services/board';
+import { buildMainGate } from '@/server/services/main-gate';
 import { PageHeader } from '@/components/ui/panel';
 
 import { PrintButton } from './parts/ReportParts';
@@ -22,7 +23,7 @@ export async function EventSheetPage({
   autoPrint?: boolean;
 }) {
   const { locale, t } = await loadEventPage(eventId);
-  const data = await buildBoard(eventId);
+  const [data, mainGate] = await Promise.all([buildBoard(eventId), buildMainGate(eventId)]);
   if (!data) notFound();
 
   return (
@@ -34,7 +35,7 @@ export async function EventSheetPage({
           action={<PrintButton label={t.report.printReport} auto={autoPrint} />}
         />
       </div>
-      <SheetDocument t={t} locale={locale} data={data} />
+      <SheetDocument t={t} locale={locale} data={data} mainGate={mainGate} />
     </>
   );
 }

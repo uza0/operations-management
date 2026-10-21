@@ -91,6 +91,13 @@ export const TASKS = [
   'PAPER_TICKETS',
   'CROWD_GUIDANCE',
   'WRISTBAND_DISTRIBUTION',
+  /*
+   * Handing a wristband over and fastening one onto a person are two different
+   * jobs at a venue: the first happens at a wristband desk, the second happens
+   * at the gate, standing directly behind whoever is scanning the tickets.
+   * They are counted and staffed separately, so they are separate tasks.
+   */
+  'WRISTBAND_FITTING',
   'VIP_MANAGEMENT',
   'INFORMATION',
   'GATE_MANAGEMENT',

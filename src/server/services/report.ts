@@ -8,6 +8,7 @@ import {
   assignmentChanges,
   assignments,
   attendance,
+  eventFeedback,
   eventMembers,
   events,
   gates,
@@ -115,6 +116,25 @@ export type ReportData = {
   }>;
   timelineDone: number;
   tasks: Array<{ task: string; count: number }>;
+  /**
+   * What the people who worked it said afterwards. The rest of this report is
+   * measured; this is the only part of it that is felt, and it is the part
+   * that says why a gate that looks fully staffed on paper was chaos at eight
+   * o'clock.
+   */
+  feedback: {
+    responses: number;
+    average: number | null;
+    rows: Array<{
+      id: string;
+      memberName: string;
+      rating: number;
+      wentWell: string | null;
+      problems: string | null;
+      suggestions: string | null;
+      submittedAt: Date;
+    }>;
+  };
 };
 
 function minutesBetween(from: Date, to: Date): number {
@@ -134,6 +154,7 @@ export async function buildReport(eventId: string): Promise<ReportData> {
     gateRows,
     pointRows,
     eventRow,
+    feedbackRows,
   ] = await Promise.all([
     getStaffedLocations(eventId),
     db
@@ -209,6 +230,21 @@ export async function buildReport(eventId: string): Promise<ReportData> {
       .from(events)
       .where(eq(events.id, eventId))
       .get(),
+    db
+      .select({
+        id: eventFeedback.id,
+        rating: eventFeedback.rating,
+        wentWell: eventFeedback.wentWell,
+        problems: eventFeedback.problems,
+        suggestions: eventFeedback.suggestions,
+        submittedAt: eventFeedback.submittedAt,
+        memberName: teamMembers.fullName,
+      })
+      .from(eventFeedback)
+      .innerJoin(eventMembers, eq(eventFeedback.eventMemberId, eventMembers.id))
+      .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+      .where(eq(eventFeedback.eventId, eventId))
+      .orderBy(desc(eventFeedback.submittedAt)),
   ]);
 
   /* ---- attendance ------------------------------------------------------- */
@@ -404,6 +440,18 @@ export async function buildReport(eventId: string): Promise<ReportData> {
         scheduledTime: row.scheduledTime,
         status: row.status,
       })),
+    feedback: {
+      responses: feedbackRows.length,
+      average:
+        feedbackRows.length > 0
+          ? Math.round(
+              (feedbackRows.reduce((sum, row) => sum + row.rating, 0) /
+                feedbackRows.length) *
+                10,
+            ) / 10
+          : null,
+      rows: feedbackRows,
+    },
     timelineDone: timelineRows.filter((r) => r.status === 'COMPLETED').length,
     tasks: [...taskMap.entries()]
       .map(([task, count]) => ({ task, count }))

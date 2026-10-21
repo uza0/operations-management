@@ -5,6 +5,8 @@ import { and, eq } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   assignments,
+  mainGateDetails,
+  mainGateMembers,
   eventMembers,
   gates,
   teamMembers,
@@ -90,6 +92,8 @@ function buildMessage({
   memberUrl,
   isReserve,
   sheetUrl,
+  mapUrl,
+  mainGate,
 }: {
   t: Dictionary;
   locale: 'ar' | 'en';
@@ -106,6 +110,9 @@ function buildMessage({
   memberUrl: string;
   isReserve: boolean;
   sheetUrl: string | null;
+  /** Their own spot on the venue map — null when no map was uploaded. */
+  mapUrl: string | null;
+  mainGate: { place: string; start: string; end: string; task: string } | null;
 }): string {
   const m = t.notify.message;
   const weekday = formatWeekday(date, locale);
@@ -122,6 +129,23 @@ function buildMessage({
 
   lines.push('');
 
+  /*
+   * The early shift comes before the gate assignment in the message for the
+   * same reason it comes first on the sheet: it happens first, and a member
+   * who reads only the top of a message has to read the right half of it.
+   */
+  if (mainGate) {
+    lines.push(
+      format(m.mainGate, {
+        place: mainGate.place,
+        from: formatTime(mainGate.start, locale),
+        to: formatTime(mainGate.end, locale),
+        task: mainGate.task,
+      }),
+      '',
+    );
+  }
+
   if (isReserve) {
     lines.push(m.reserve);
   } else {
@@ -136,6 +160,10 @@ function buildMessage({
       );
     }
   }
+
+  // Where to stand, drawn on the venue's own photo. It is the member's own
+  // page, so it carries nothing anyone else's link would not already show.
+  if (mapUrl) lines.push('', format(m.guide, { url: mapUrl }));
 
   lines.push('', m.linkIntro, memberUrl);
 
@@ -171,6 +199,8 @@ export async function buildBriefings({
     teamArrivalTime: string;
     /** Set once the supervisor has opened the public distribution sheet. */
     boardToken?: string | null;
+    /** True when a venue photo exists, so a "your spot" link means something. */
+    hasMap?: boolean;
     venue: { name: string; locationUrl: string | null };
   };
   baseUrl: string;
@@ -209,6 +239,23 @@ export async function buildBriefings({
     .where(eq(eventMembers.eventId, eventId))
     .orderBy(teamMembers.fullName);
 
+  /*
+   * One query for the whole detail rather than one per member: a roster of
+   * ninety people would otherwise mean ninety round trips to build one screen.
+   */
+  const detail = await db
+    .select({
+      name: mainGateDetails.name,
+      startTime: mainGateDetails.startTime,
+      endTime: mainGateDetails.endTime,
+      eventMemberId: mainGateMembers.eventMemberId,
+      task: mainGateMembers.task,
+    })
+    .from(mainGateMembers)
+    .innerJoin(mainGateDetails, eq(mainGateMembers.detailId, mainGateDetails.id))
+    .where(eq(mainGateMembers.eventId, eventId));
+  const detailByMember = new Map(detail.map((row) => [row.eventMemberId, row]));
+
   return rows.map((row) => {
     const active = Boolean(row.assignmentId) && row.status !== 'CANCELLED';
     const place = active ? (row.gateName ?? row.pointName ?? null) : null;
@@ -217,6 +264,15 @@ export async function buildBriefings({
       active && row.task ? (t.enums.task[row.task as Task] ?? row.task) : null;
     const memberUrl = `${baseUrl}/member/${row.token}`;
     const arrivalTime = (active ? row.arrivalTime : null) ?? event.teamArrivalTime;
+    const early = detailByMember.get(row.eventMemberId);
+    const mainGate = early
+      ? {
+          place: early.name,
+          start: early.startTime,
+          end: early.endTime,
+          task: t.enums.task[early.task as Task] ?? early.task,
+        }
+      : null;
 
     return {
       eventMemberId: row.eventMemberId,
@@ -250,6 +306,8 @@ export async function buildBriefings({
         shiftEnd: active ? row.shiftEnd : null,
         memberUrl,
         sheetUrl: event.boardToken ? `${baseUrl}/sheet/${event.boardToken}` : null,
+        mapUrl: event.hasMap ? `${memberUrl}/map` : null,
+        mainGate,
         isReserve: row.isReserve || !active,
       }),
     };

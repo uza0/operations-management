@@ -38,9 +38,9 @@ seedLiveData({ db, sql })
   .then((result) => {
     console.log(`\n✔ Live install ready — ${result.teamSize} team members\n`);
     console.log('  Accounts');
-    console.log(`    admin        ${result.adminUsername} / ${result.adminPassword}`);
-    console.log(`    team leader  ${result.leaderUsername} / ${result.leaderPassword}`);
-    console.log(`    gate leader  ${result.gateUsername} / ${result.gatePassword}`);
+    for (const line of Object.values(result.credentials)) {
+      console.log(`    ${line}`);
+    }
     console.log(
       `\n  Event: ${result.eventName} — ${result.locations} locations, ${result.assigned} assigned\n`,
     );

@@ -4,6 +4,7 @@ import { sql } from 'drizzle-orm';
 
 import { db, rawClient } from '@/db';
 import { SCHEMA_STATEMENTS } from '@/db/schema-sql';
+import { ensureStandingAccounts } from '@/db/accounts';
 import { seedDemoData } from '@/db/seed-core';
 import { seedLiveData } from '@/db/seed-live';
 
@@ -82,16 +83,25 @@ export async function GET(request: Request) {
       sql`select count(*) as count from users`,
     );
     if ((existing?.count ?? 0) > 0 && !reset) {
+      /*
+       * A release that adds a colleague to the standing account list must be
+       * able to reach a database full of real work. Adding the missing ones is
+       * safe in a way that reseeding is not: nothing already there is touched.
+       */
+      const addedAccounts = await ensureStandingAccounts(
+        db as unknown as Parameters<typeof ensureStandingAccounts>[0],
+      );
       return NextResponse.json({
         status: 'already-set-up',
         tables: created.length,
         // The schema upgrade above still ran, so say what it changed: this is
         // the path a live site takes when it is updated, not wiped.
         columnsAdded: upgraded,
-        users: existing?.count ?? 0,
+        accountsAdded: addedAccounts,
+        users: (existing?.count ?? 0) + addedAccounts.length,
         message:
-          upgraded.length > 0
-            ? 'The database already has accounts, so the data was kept. New columns were added so the site matches this release.'
+          upgraded.length > 0 || addedAccounts.length > 0
+            ? 'The database already has accounts, so the data was kept. New columns and any new sign-in accounts were added so the site matches this release.'
             : 'The database already has accounts and is up to date, so nothing was changed. Add &reset=1 to load data again: the real roster by default, or the demonstration with &demo=1.',
       });
     }
@@ -129,11 +139,7 @@ export async function GET(request: Request) {
       teamSize: result.teamSize,
       event: `${result.eventName} — ${result.locations} locations, ${result.assigned} assigned`,
       signIn: `${url.origin}/login`,
-      accounts: {
-        admin: `${result.adminUsername} / ${result.adminPassword}`,
-        teamLeader: `${result.leaderUsername} / ${result.leaderPassword}`,
-        gateLeader: `${result.gateUsername} / ${result.gatePassword}`,
-      },
+      accounts: result.credentials,
       next: 'Place the markers on the venue map, then delete this route or unset SETUP_KEY.',
     });
   } catch (error) {

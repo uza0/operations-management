@@ -1,6 +1,6 @@
 /**
  * GENERATED FILE — do not edit.
- * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql.
+ * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql.
  * Regenerate after changing src/db/schema.ts:
  *   npx drizzle-kit generate && node scripts/embed-schema.mjs
  */
@@ -71,4 +71,12 @@ export const SCHEMA_STATEMENTS: string[] = [
   "ALTER TABLE `gates` ADD `lanes` text",
   "ALTER TABLE `working_points` ADD `lanes` text",
   "ALTER TABLE `event_members` ADD `event_role` text",
+  "CREATE TABLE IF NOT EXISTS `event_feedback` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`event_id` text NOT NULL,\n\t`event_member_id` text NOT NULL,\n\t`rating` integer NOT NULL,\n\t`went_well` text,\n\t`problems` text,\n\t`suggestions` text,\n\t`submitted_at` integer NOT NULL,\n\t`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\t`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\tFOREIGN KEY (`event_id`) REFERENCES `events`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`event_member_id`) REFERENCES `event_members`(`id`) ON UPDATE no action ON DELETE cascade\n)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS `event_feedback_member_unique` ON `event_feedback` (`event_id`,`event_member_id`)",
+  "CREATE INDEX IF NOT EXISTS `event_feedback_event_idx` ON `event_feedback` (`event_id`)",
+  "CREATE TABLE IF NOT EXISTS `main_gate_details` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`event_id` text NOT NULL,\n\t`name` text NOT NULL,\n\t`start_time` text NOT NULL,\n\t`end_time` text NOT NULL,\n\t`notes` text,\n\t`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\t`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\tFOREIGN KEY (`event_id`) REFERENCES `events`(`id`) ON UPDATE no action ON DELETE cascade\n)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS `main_gate_details_event_unique` ON `main_gate_details` (`event_id`)",
+  "CREATE TABLE IF NOT EXISTS `main_gate_members` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`detail_id` text NOT NULL,\n\t`event_id` text NOT NULL,\n\t`event_member_id` text NOT NULL,\n\t`task` text NOT NULL,\n\t`sort_order` integer DEFAULT 0 NOT NULL,\n\t`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\t`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\tFOREIGN KEY (`detail_id`) REFERENCES `main_gate_details`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`event_id`) REFERENCES `events`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`event_member_id`) REFERENCES `event_members`(`id`) ON UPDATE no action ON DELETE cascade\n)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS `main_gate_members_unique` ON `main_gate_members` (`detail_id`,`event_member_id`)",
+  "CREATE INDEX IF NOT EXISTS `main_gate_members_event_idx` ON `main_gate_members` (`event_id`)",
 ];

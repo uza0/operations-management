@@ -43,6 +43,13 @@
       "when": 1790002606602,
       "tag": "0005_powerful_pixie",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1792604333495,
+      "tag": "0006_condemned_lady_deathstrike",
+      "breakpoints": true
     }
   ]
 }

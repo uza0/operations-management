@@ -2,12 +2,18 @@ import Link from 'next/link';
 
 import { loadEventPage } from '@/features/event/workspace';
 import { buildBoard } from '@/server/services/board';
+import {
+  buildMainGate,
+  eventStartTime,
+  suggestedHours,
+} from '@/server/services/main-gate';
 import { PageHeader } from '@/components/ui/panel';
 import { EmptyState } from '@/components/ui/states';
 import { IconGate, IconPrint } from '@/components/ui/icons';
 import { notFound } from 'next/navigation';
 
 import { DistributionBoard } from './parts/DistributionBoard';
+import { MainGatePanel } from './parts/MainGatePanel';
 import { SheetLink } from './parts/SheetLink';
 
 export async function EventBoardPage({
@@ -17,8 +23,12 @@ export async function EventBoardPage({
   eventId: string;
   base: '/admin' | '/leader';
 }) {
-  const { scope, t } = await loadEventPage(eventId);
-  const data = await buildBoard(eventId);
+  const { scope, locale, t } = await loadEventPage(eventId);
+  const [data, mainGate, startTime] = await Promise.all([
+    buildBoard(eventId),
+    buildMainGate(eventId),
+    eventStartTime(eventId),
+  ]);
   if (!data) notFound();
 
   return (
@@ -64,6 +74,18 @@ export async function EventBoardPage({
       ) : (
         <>
           <DistributionBoard t={t} data={data} canManage={scope.canManage} />
+
+          {/* The detail sits under the board because it is read after it:
+              first who is where, then who is borrowed beforehand. */}
+          <MainGatePanel
+            t={t}
+            locale={locale}
+            eventId={eventId}
+            data={mainGate}
+            suggested={suggestedHours(startTime)}
+            canManage={scope.canManage}
+          />
+
           {scope.canManage ? (
             <SheetLink t={t} eventId={eventId} token={data.event.boardToken} />
           ) : null}
