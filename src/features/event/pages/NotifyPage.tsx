@@ -1,22 +1,13 @@
-import { headers } from 'next/headers';
 import QRCode from 'qrcode';
 
 import { loadEventPage } from '@/features/event/workspace';
 import { PageHeader } from '@/components/ui/panel';
 import { redirect } from 'next/navigation';
 
-import { buildBriefings } from '@/server/services/notify';
+import { buildBriefings, resolveBaseUrl } from '@/server/services/notify';
+import { readStatus } from '@/server/services/whatsapp';
 
 import { BriefingBoard } from './parts/BriefingBoard';
-
-async function resolveBaseUrl(): Promise<string> {
-  const configured = process.env.NEXT_PUBLIC_APP_URL;
-  if (configured) return configured.replace(/\/$/, '');
-  const store = await headers();
-  const host = store.get('x-forwarded-host') ?? store.get('host') ?? 'localhost:3000';
-  const proto = store.get('x-forwarded-proto') ?? 'http';
-  return `${proto}://${host}`;
-}
 
 /**
  * Briefing the team before an event.
@@ -68,6 +59,7 @@ export async function EventNotifyPage({ eventId }: { eventId: string }) {
         eventId={eventId}
         rows={rows}
         hasLocation={Boolean(event.venue.locationUrl)}
+        api={readStatus()}
       />
     </>
   );

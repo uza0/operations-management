@@ -6,6 +6,7 @@ import { getT } from '@/lib/i18n/server';
 import type { SessionUser } from '@/server/auth/session';
 import { IconLogout } from '@/components/ui/icons';
 import { LocaleSwitcher } from '@/components/ui/client';
+import { ThemeToggle } from '@/components/pwa/ThemeToggle';
 import { InstallPrompt } from '@/components/pwa/InstallPrompt';
 import { OfflineBanner } from '@/components/pwa/OfflineBanner';
 
@@ -103,7 +104,8 @@ export async function AppShell({
           </div>
 
           <div className="flex shrink-0 items-center gap-1">
-            <LocaleSwitcher locale={locale} labels={{ ar: 'العربية', en: 'English' }} />
+            <ThemeToggle t={t} />
+          <LocaleSwitcher locale={locale} labels={{ ar: 'العربية', en: 'English' }} />
             <form action={logoutAction}>
               <button type="submit" className="btn-ghost btn-sm" title={t.common.logout}>
                 <IconLogout width={16} height={16} />

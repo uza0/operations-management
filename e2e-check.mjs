@@ -826,6 +826,87 @@ check('the template carries the roles and the gate leaders',
   `${carriedRoles.n} roles, ${carriedGateLeads.n} gates with a leader`);
 await admin.keyboard.press('Escape');
 
+/* ---- the theme ----------------------------------------------------------- */
+/*
+ * The palette lives in CSS variables, so "does the light theme work" is one
+ * question: does the page background actually change. If it does, every
+ * component changed with it, because they all read the same variables.
+ */
+const themeCtx = await browser.newContext({ colorScheme: 'light' });
+const themePage = await themeCtx.newPage();
+await themePage.goto(`${BASE}/login`);
+await themePage.waitForLoadState('networkidle');
+const lightBg = await themePage.evaluate(
+  () => getComputedStyle(document.body).backgroundColor,
+);
+check('a device set to light gets the light theme', lightBg === 'rgb(246, 247, 249)', lightBg);
+
+// An explicit choice beats the device: dark stays dark on a light phone.
+await themePage.evaluate(() => {
+  localStorage.setItem('ops-theme', 'dark');
+});
+await themePage.reload();
+await themePage.waitForLoadState('networkidle');
+const forcedDark = await themePage.evaluate(
+  () => getComputedStyle(document.body).backgroundColor,
+);
+check('a chosen theme overrides the device', forcedDark === 'rgb(8, 11, 17)', forcedDark);
+
+// And the choice is applied before paint, not after hydration.
+const attrBeforeHydration = await themePage.evaluate(
+  () => document.documentElement.getAttribute('data-theme'),
+);
+check('the chosen theme is applied without a flash', attrBeforeHydration === 'dark',
+  String(attrBeforeHydration));
+
+const darkCtx = await browser.newContext({ colorScheme: 'dark' });
+const darkPage = await darkCtx.newPage();
+await darkPage.goto(`${BASE}/login`);
+await darkPage.waitForLoadState('networkidle');
+const darkBg = await darkPage.evaluate(() => getComputedStyle(document.body).backgroundColor);
+check('a device set to dark stays dark', darkBg === 'rgb(8, 11, 17)', darkBg);
+await themeCtx.close();
+await darkCtx.close();
+
+/* ---- briefing: sending to everyone --------------------------------------- */
+await admin.goto(`${BASE}/admin/events/${eventId}/notify`);
+await admin.waitForLoadState('networkidle');
+const notifyScreen = await admin.textContent('main');
+check('the briefing screen offers a run through the whole team',
+  notifyScreen.includes('إرسال للكل'), '');
+
+/*
+ * The official route is described whether or not it is connected — without
+ * keys it must say what is missing rather than pretending the feature is not
+ * there. No token is configured in the test run, so this is the "not yet"
+ * state, and the names of the variables are all it may show.
+ */
+check('the official WhatsApp route explains what it needs',
+  notifyScreen.includes('الإرسال التلقائي عبر واتساب')
+    && notifyScreen.includes('WHATSAPP_TOKEN'),
+  '');
+check('no secret reaches the briefing screen',
+  !notifyScreen.includes('Bearer') && !notifyScreen.includes('graph.facebook.com'), '');
+
+// The gate leader's name is in the message the member receives.
+const anyLed = await db.prepare(`
+  select tm.full_name from assignments a
+  join gates g on g.id = a.gate_id and g.gate_leader_id is not null
+  join event_members em on em.id = a.event_member_id
+  join team_members tm on tm.id = em.team_member_id
+  where a.event_id=? and em.id != g.gate_leader_id limit 1`).get(eventId);
+if (anyLed) {
+  await admin
+    .locator('tr', { hasText: anyLed.full_name })
+    .first()
+    .locator('button:has-text("معاينة الرسالة")')
+    .click();
+  await admin.waitForTimeout(600);
+  const msg = await admin.textContent('pre');
+  check('the message names who to report to', msg.includes('قائد بوابتك'), '');
+  await admin.keyboard.press('Escape');
+}
+
 /* ---- RTL / LTR --------------------------------------------------------- */
 // From a known page, so this never depends on where the previous check ended.
 await admin.goto(`${BASE}/admin`);

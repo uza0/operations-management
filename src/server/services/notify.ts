@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { headers } from 'next/headers';
+
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -91,6 +93,7 @@ function buildMessage({
   shiftEnd,
   memberUrl,
   isReserve,
+  gateLeaderName,
   sheetUrl,
   mapUrl,
   mainGate,
@@ -109,6 +112,8 @@ function buildMessage({
   shiftEnd: string | null;
   memberUrl: string;
   isReserve: boolean;
+  /** Who to report to on the night — the one name a member actually needs. */
+  gateLeaderName: string | null;
   sheetUrl: string | null;
   /** Their own spot on the venue map — null when no map was uploaded. */
   mapUrl: string | null;
@@ -159,6 +164,12 @@ function buildMessage({
         }),
       );
     }
+    /*
+     * A colleague's name, and the only one in the message: a member who finds
+     * a problem at eight o'clock needs to know who to walk to, and "ask your
+     * gate leader" is useless without the name.
+     */
+    if (gateLeaderName) lines.push(format(m.leader, { name: gateLeaderName }));
   }
 
   // Where to stand, drawn on the venue's own photo. It is the member's own
@@ -222,6 +233,7 @@ export async function buildBriefings({
       shiftStart: assignments.shiftStart,
       shiftEnd: assignments.shiftEnd,
       status: assignments.status,
+      gateId: assignments.gateId,
       gateName: gates.name,
       pointName: workingPoints.name,
     })
@@ -256,6 +268,25 @@ export async function buildBriefings({
     .where(eq(mainGateMembers.eventId, eventId));
   const detailByMember = new Map(detail.map((row) => [row.eventMemberId, row]));
 
+  /*
+   * Gate → the name of whoever leads it, resolved once. A member's own name is
+   * never used as their leader: telling someone to report to themselves is
+   * worse than telling them nothing.
+   */
+  const leaderRows = await db
+    .select({
+      gateId: gates.id,
+      leaderMemberId: gates.gateLeaderId,
+      leaderName: teamMembers.fullName,
+    })
+    .from(gates)
+    .innerJoin(eventMembers, eq(gates.gateLeaderId, eventMembers.id))
+    .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+    .where(eq(gates.eventId, eventId));
+  const leaderByGate = new Map(
+    leaderRows.map((row) => [row.gateId, { id: row.leaderMemberId, name: row.leaderName }]),
+  );
+
   return rows.map((row) => {
     const active = Boolean(row.assignmentId) && row.status !== 'CANCELLED';
     const place = active ? (row.gateName ?? row.pointName ?? null) : null;
@@ -264,6 +295,9 @@ export async function buildBriefings({
       active && row.task ? (t.enums.task[row.task as Task] ?? row.task) : null;
     const memberUrl = `${baseUrl}/member/${row.token}`;
     const arrivalTime = (active ? row.arrivalTime : null) ?? event.teamArrivalTime;
+    const leader = active && row.gateId ? leaderByGate.get(row.gateId) : undefined;
+    const gateLeaderName =
+      leader && leader.id !== row.eventMemberId ? leader.name : null;
     const early = detailByMember.get(row.eventMemberId);
     const mainGate = early
       ? {
@@ -305,6 +339,7 @@ export async function buildBriefings({
         shiftStart: active ? row.shiftStart : null,
         shiftEnd: active ? row.shiftEnd : null,
         memberUrl,
+        gateLeaderName,
         sheetUrl: event.boardToken ? `${baseUrl}/sheet/${event.boardToken}` : null,
         mapUrl: event.hasMap ? `${memberUrl}/map` : null,
         mainGate,
@@ -312,4 +347,20 @@ export async function buildBriefings({
       }),
     };
   });
+}
+
+/**
+ * The address the member links are built from.
+ *
+ * A personal link that points at localhost is useless in a WhatsApp message,
+ * so the configured public URL wins; the request's own host is the fallback
+ * for a deployment nobody has told about itself yet.
+ */
+export async function resolveBaseUrl(): Promise<string> {
+  const configured = process.env.NEXT_PUBLIC_APP_URL;
+  if (configured) return configured.replace(/\/$/, '');
+  const store = await headers();
+  const host = store.get('x-forwarded-host') ?? store.get('host') ?? 'localhost:3000';
+  const proto = store.get('x-forwarded-proto') ?? 'http';
+  return `${proto}://${host}`;
 }

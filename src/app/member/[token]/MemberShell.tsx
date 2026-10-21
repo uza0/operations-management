@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 
 import { getT } from '@/lib/i18n/server';
 import { LocaleSwitcher } from '@/components/ui/client';
+import { ThemeToggle } from '@/components/pwa/ThemeToggle';
 import { getLocale } from '@/lib/i18n/server';
 import { IconAlert } from '@/components/ui/icons';
 import { InstallPrompt } from '@/components/pwa/InstallPrompt';
@@ -40,6 +41,7 @@ export async function MemberShell({
             <p className="truncate text-[15px] font-bold text-ink-100">{title}</p>
             <p className="truncate text-[12px] text-ink-500">{subtitle}</p>
           </div>
+          <ThemeToggle t={t} />
           <LocaleSwitcher locale={locale} labels={{ ar: 'العربية', en: 'English' }} />
         </div>
       </header>

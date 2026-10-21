@@ -8,42 +8,65 @@ const config: Config = {
         sans: ['var(--font-ui)', 'system-ui', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
       },
+      /*
+       * Every colour is a CSS variable holding bare RGB channels, so the same
+       * class names paint a dark interface or a light one depending on what
+       * :root says. The scale is semantic rather than literal: ink-950 is
+       * always "the page", ink-100 is always "the text on it", and in the
+       * light theme those two swap ends. That is what lets the theme change
+       * without touching a single component.
+       */
       colors: {
-        // Operational dark foundation
         ink: {
-          950: '#080b11',
-          900: '#0d1117',
-          850: '#11161f',
-          800: '#161c27',
-          750: '#1c2431',
-          700: '#232c3b',
-          600: '#2f3a4c',
-          500: '#44526a',
-          400: '#64748b',
-          300: '#94a3b8',
-          200: '#cbd5e1',
-          100: '#e8edf4',
+          950: 'rgb(var(--ink-950) / <alpha-value>)',
+          900: 'rgb(var(--ink-900) / <alpha-value>)',
+          850: 'rgb(var(--ink-850) / <alpha-value>)',
+          800: 'rgb(var(--ink-800) / <alpha-value>)',
+          750: 'rgb(var(--ink-750) / <alpha-value>)',
+          700: 'rgb(var(--ink-700) / <alpha-value>)',
+          600: 'rgb(var(--ink-600) / <alpha-value>)',
+          500: 'rgb(var(--ink-500) / <alpha-value>)',
+          400: 'rgb(var(--ink-400) / <alpha-value>)',
+          300: 'rgb(var(--ink-300) / <alpha-value>)',
+          200: 'rgb(var(--ink-200) / <alpha-value>)',
+          100: 'rgb(var(--ink-100) / <alpha-value>)',
         },
         brand: {
-          50: '#ecfdf6',
-          100: '#d1fae5',
-          300: '#6ee7b7',
-          400: '#34d399',
-          500: '#10b981',
-          600: '#059669',
-          700: '#047857',
-          900: '#064e3b',
+          50: 'rgb(var(--brand-50) / <alpha-value>)',
+          100: 'rgb(var(--brand-100) / <alpha-value>)',
+          300: 'rgb(var(--brand-300) / <alpha-value>)',
+          400: 'rgb(var(--brand-400) / <alpha-value>)',
+          500: 'rgb(var(--brand-500) / <alpha-value>)',
+          600: 'rgb(var(--brand-600) / <alpha-value>)',
+          700: 'rgb(var(--brand-700) / <alpha-value>)',
+          900: 'rgb(var(--brand-900) / <alpha-value>)',
         },
-        ok: { DEFAULT: '#16a34a', soft: '#0f2a1c', text: '#4ade80' },
-        warn: { DEFAULT: '#d97706', soft: '#2b1f0a', text: '#fbbf24' },
-        crit: { DEFAULT: '#dc2626', soft: '#2b1114', text: '#f87171' },
-        info: { DEFAULT: '#2563eb', soft: '#0f1c33', text: '#60a5fa' },
+        ok: {
+          DEFAULT: 'rgb(var(--ok) / <alpha-value>)',
+          soft: 'rgb(var(--ok-soft) / <alpha-value>)',
+          text: 'rgb(var(--ok-text) / <alpha-value>)',
+        },
+        warn: {
+          DEFAULT: 'rgb(var(--warn) / <alpha-value>)',
+          soft: 'rgb(var(--warn-soft) / <alpha-value>)',
+          text: 'rgb(var(--warn-text) / <alpha-value>)',
+        },
+        crit: {
+          DEFAULT: 'rgb(var(--crit) / <alpha-value>)',
+          soft: 'rgb(var(--crit-soft) / <alpha-value>)',
+          text: 'rgb(var(--crit-text) / <alpha-value>)',
+        },
+        info: {
+          DEFAULT: 'rgb(var(--info) / <alpha-value>)',
+          soft: 'rgb(var(--info-soft) / <alpha-value>)',
+          text: 'rgb(var(--info-text) / <alpha-value>)',
+        },
       },
       borderRadius: {
         card: '14px',
       },
       boxShadow: {
-        panel: '0 1px 0 0 rgba(255,255,255,0.04) inset, 0 12px 32px -18px rgba(0,0,0,0.9)',
+        panel: 'var(--shadow-panel)',
       },
       keyframes: {
         pulseSoft: {

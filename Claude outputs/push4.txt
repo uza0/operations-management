@@ -1,0 +1,17 @@
+[main 8cd3572] Main-gate detail, team feedback, wristband-fitting task, second admin, member map and briefing fixes
+ 37 files changed, 5278 insertions(+), 94 deletions(-)
+ create mode 100644 Claude outputs/cloudhashes.txt
+ create mode 100644 Claude outputs/push3.txt
+ create mode 100644 Claude outputs/repo-snapshot.tar.gz
+ create mode 100644 "Claude outputs/\330\245\330\266\330\247\331\201\330\251-\330\271\330\266\331\210-\330\261\331\202\331\205-\330\252\331\204\331\202\330\247\330\246\331\212.png"
+ create mode 100644 drizzle/0006_condemned_lady_deathstrike.sql
+ create mode 100644 drizzle/meta/0006_snapshot.json
+ create mode 100644 src/app/admin/(home)/settings/PasswordForm.tsx
+ create mode 100644 src/app/member/[token]/FeedbackForm.tsx
+ create mode 100644 src/db/accounts.ts
+ create mode 100644 src/features/event/pages/parts/MainGatePanel.tsx
+ create mode 100644 src/server/actions/main-gate.ts
+ create mode 100644 src/server/services/main-gate.ts
+To https://github.com/uza0/operations-management.git
+   780b7cd..8cd3572  main -> main
+DONE 

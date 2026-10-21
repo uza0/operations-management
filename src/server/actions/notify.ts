@@ -4,10 +4,14 @@ import { revalidatePath } from 'next/cache';
 import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { eventMembers, teamMembers } from '@/db/schema';
+import { eventMembers, events, teamMembers, venues } from '@/db/schema';
+import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
+import { formatDate, formatTime } from '@/lib/time';
 import { assertEventManager } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
+import { buildBriefings, resolveBaseUrl } from '@/server/services/notify';
+import { readConfig, sendTemplate } from '@/server/services/whatsapp';
 
 import { fail, ok, type ActionState } from './types';
 
@@ -102,4 +106,109 @@ export async function resetBriefingsAction(
     revalidatePath(`${base}/events/${eventId}/notify`);
   }
   return ok();
+}
+
+/**
+ * Sends the briefing to everyone through the official WhatsApp Cloud API.
+ *
+ * One request per member rather than a broadcast: WhatsApp has no "send to a
+ * list" call for business-initiated messages, and each person's message
+ * carries their own gate, their own hours and their own private link anyway.
+ * A failure is recorded per person and the run continues — a roster of ninety
+ * always has one wrong number, and the other eighty-nine still have to be
+ * told.
+ *
+ * Only the people who still need telling are included: whoever has already
+ * been briefed and has not been moved since is skipped, so pressing the button
+ * twice does not message the whole team twice.
+ */
+export async function sendBriefingsViaApiAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t, locale } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  let user;
+  try {
+    user = await assertEventManager(eventId);
+  } catch {
+    return fail(t.errors.forbidden);
+  }
+
+  const config = readConfig();
+  if (!config) return fail(t.notify.apiNotConfigured);
+
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return fail(t.errors.notFound);
+  const venue = event.venueId
+    ? await db.query.venues.findFirst({ where: eq(venues.id, event.venueId) })
+    : null;
+
+  const baseUrl = await resolveBaseUrl();
+  const briefings = await buildBriefings({
+    eventId,
+    event: {
+      name: event.name,
+      date: event.date,
+      teamArrivalTime: event.teamArrivalTime,
+      boardToken: event.boardToken,
+      hasMap: Boolean(event.mapImageUrl ?? venue?.mapImageUrl),
+      venue: { name: venue?.name ?? '', locationUrl: venue?.locationUrl ?? null },
+    },
+    baseUrl,
+    t,
+    locale,
+  });
+
+  const queue = briefings.filter(
+    (row) => row.whatsapp && (!row.notifiedAt || row.stale),
+  );
+  if (queue.length === 0) return ok(t.notify.allDone);
+
+  const sent: string[] = [];
+  const failures: string[] = [];
+
+  for (const row of queue) {
+    const to = row.whatsapp;
+    if (!to) continue;
+    const result = await sendTemplate(config, to, [
+      row.name,
+      event.name,
+      formatDate(event.date, locale),
+      row.place ?? t.notify.reserveShort,
+      formatTime(row.arrivalTime ?? event.teamArrivalTime, locale),
+      row.memberUrl,
+    ]);
+    if (result.ok) sent.push(row.eventMemberId);
+    else failures.push(`${row.name}: ${result.error ?? ''}`.trim());
+  }
+
+  if (sent.length > 0) {
+    await db
+      .update(eventMembers)
+      .set({ notifiedAt: new Date(), notifiedById: user.id, updatedAt: new Date() })
+      .where(and(eq(eventMembers.eventId, eventId), inArray(eventMembers.id, sent)));
+  }
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'ANNOUNCE',
+    entity: 'EVENT_MEMBER',
+    entityId: null,
+    entityLabel: `${sent.length}`,
+    // Numbers and names only — never the token, never the message bodies.
+    newValues: { sent: sent.length, failed: failures.length, via: 'cloud-api' },
+    summary: `${t.notify.apiSent}: ${sent.length}`,
+  });
+
+  revalidatePath(`/admin/events/${eventId}/notify`);
+
+  if (failures.length > 0) {
+    return fail(
+      `${format(t.notify.apiPartial, { sent: String(sent.length), failed: String(failures.length) })} — ${failures.slice(0, 5).join(' · ')}`,
+    );
+  }
+  return ok(format(t.notify.apiAllSent, { n: String(sent.length) }));
 }

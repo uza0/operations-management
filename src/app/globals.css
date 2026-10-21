@@ -12,10 +12,157 @@
   size-adjust: 100%;
 }
 
+/* ---------------------------------------------------------------------------
+   The two themes.
+
+   Colours are bare RGB channels in variables, and tailwind.config.ts reads
+   them, so every `bg-ink-950` / `text-ink-100` in the app paints whichever
+   theme is active without a single component knowing which one that is.
+
+   The scale is semantic, not literal: ink-950 means "the page" and ink-100
+   means "the text on it" in BOTH themes. Light mode therefore runs the ramp
+   the other way round rather than inventing a second set of class names.
+
+   Dark is the default here because the stadium work happens at night; the
+   light values below take over when the device asks for them, and an explicit
+   choice from the toggle beats both.
+   --------------------------------------------------------------------------- */
 :root {
   --font-ui: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', 'IBM Plex Sans Arabic Fallback',
     system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
   color-scheme: dark;
+
+  --ink-950: 8 11 17;
+  --ink-900: 13 17 23;
+  --ink-850: 17 22 31;
+  --ink-800: 22 28 39;
+  --ink-750: 28 36 49;
+  --ink-700: 35 44 59;
+  --ink-600: 47 58 76;
+  --ink-500: 68 82 106;
+  --ink-400: 100 116 139;
+  --ink-300: 148 163 184;
+  --ink-200: 203 213 225;
+  --ink-100: 232 237 244;
+
+  --brand-50: 236 253 246;
+  --brand-100: 209 250 229;
+  --brand-300: 110 231 183;
+  --brand-400: 52 211 153;
+  --brand-500: 16 185 129;
+  --brand-600: 5 150 105;
+  --brand-700: 4 120 87;
+  --brand-900: 6 78 59;
+
+  --ok: 22 163 74;
+  --ok-soft: 15 42 28;
+  --ok-text: 74 222 128;
+  --warn: 217 119 6;
+  --warn-soft: 43 31 10;
+  --warn-text: 251 191 36;
+  --crit: 220 38 38;
+  --crit-soft: 43 17 20;
+  --crit-text: 248 113 113;
+  --info: 37 99 235;
+  --info-soft: 15 28 51;
+  --info-text: 96 165 250;
+
+  --shadow-panel: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+    0 12px 32px -18px rgba(0, 0, 0, 0.9);
+  --focus-ring: #34d399;
+  --scrollbar-thumb: #2f3a4c;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  /* The page and the panels. Not pure white: a sheet of paper under stadium
+     floodlights is the reference, and pure white glares. */
+  --ink-950: 246 247 249;
+  --ink-900: 255 255 255;
+  --ink-850: 242 244 247;
+  --ink-800: 230 233 239;
+  --ink-750: 221 225 233;
+  --ink-700: 207 213 224;
+  --ink-600: 170 179 194;
+  --ink-500: 100 112 128;
+  --ink-400: 85 96 111;
+  --ink-300: 61 70 83;
+  --ink-200: 39 48 60;
+  --ink-100: 18 24 32;
+
+  /* The accent darkens, because the same green that reads on black is
+     illegible on white. */
+  --brand-50: 236 253 246;
+  --brand-100: 209 250 229;
+  --brand-300: 4 120 87;
+  --brand-400: 5 150 105;
+  --brand-500: 5 150 105;
+  --brand-600: 4 120 87;
+  --brand-700: 6 95 70;
+  --brand-900: 6 78 59;
+
+  /* Status text darkens for the same reason; the soft fills become tints. */
+  --ok: 22 163 74;
+  --ok-soft: 220 252 231;
+  --ok-text: 21 128 61;
+  --warn: 217 119 6;
+  --warn-soft: 254 243 199;
+  --warn-text: 161 98 7;
+  --crit: 220 38 38;
+  --crit-soft: 254 226 226;
+  --crit-text: 185 28 28;
+  --info: 37 99 235;
+  --info-soft: 219 234 254;
+  --info-text: 29 78 216;
+
+  --shadow-panel: 0 1px 2px 0 rgba(15, 23, 42, 0.04),
+    0 8px 24px -16px rgba(15, 23, 42, 0.25);
+  --focus-ring: #059669;
+  --scrollbar-thumb: #aab3c2;
+}
+
+/*
+ * No explicit choice: follow the device. `:root:not([data-theme])` keeps a
+ * chosen dark theme dark on a phone set to light.
+ */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    color-scheme: light;
+
+    --ink-950: 246 247 249;
+    --ink-900: 255 255 255;
+    --ink-850: 242 244 247;
+    --ink-800: 230 233 239;
+    --ink-750: 221 225 233;
+    --ink-700: 207 213 224;
+    --ink-600: 170 179 194;
+    --ink-500: 100 112 128;
+    --ink-400: 85 96 111;
+    --ink-300: 61 70 83;
+    --ink-200: 39 48 60;
+    --ink-100: 18 24 32;
+
+    --brand-300: 4 120 87;
+    --brand-400: 5 150 105;
+    --brand-500: 5 150 105;
+    --brand-600: 4 120 87;
+    --brand-700: 6 95 70;
+
+    --ok-soft: 220 252 231;
+    --ok-text: 21 128 61;
+    --warn-soft: 254 243 199;
+    --warn-text: 161 98 7;
+    --crit-soft: 254 226 226;
+    --crit-text: 185 28 28;
+    --info-soft: 219 234 254;
+    --info-text: 29 78 216;
+
+    --shadow-panel: 0 1px 2px 0 rgba(15, 23, 42, 0.04),
+      0 8px 24px -16px rgba(15, 23, 42, 0.25);
+    --focus-ring: #059669;
+    --scrollbar-thumb: #aab3c2;
+  }
 }
 
 @layer base {
@@ -30,7 +177,7 @@
 
   /* Visible, high-contrast focus for keyboard users (spec §35). */
   :focus-visible {
-    outline: 2px solid #34d399;
+    outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
     border-radius: 6px;
   }
@@ -56,14 +203,14 @@
   /* Slim scrollbars that match the operational surface. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: #2f3a4c transparent;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
   }
   *::-webkit-scrollbar {
     width: 10px;
     height: 10px;
   }
   *::-webkit-scrollbar-thumb {
-    background: #2f3a4c;
+    background: var(--scrollbar-thumb);
     border-radius: 99px;
     border: 3px solid transparent;
     background-clip: content-box;
