@@ -70,13 +70,25 @@ export default async function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
 
         {/*
-          The webfont is attached after first paint by AppRuntime, not linked
-          here: a stylesheet in <head> blocks rendering until it resolves, and
-          on a weak stadium connection that is a blank screen. These hints let
-          the connection warm up in the meantime.
+          The house font is served from this origin, so there is no third
+          party to warm a connection to. It is preloaded instead: the Arabic
+          regular and bold are what the first screen is set in, and fetching
+          them alongside the HTML saves a round trip on a weak connection.
         */}
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link
+          rel="preload"
+          href="/fonts/nsa-arabic-400.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin=""
+        />
+        <link
+          rel="preload"
+          href="/fonts/nsa-arabic-700.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin=""
+        />
       </head>
       <body>
         <a href="#main" className="skip-link">

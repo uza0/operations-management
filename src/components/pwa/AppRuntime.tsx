@@ -2,20 +2,12 @@
 
 import { useEffect, useState } from 'react';
 
-const FONT_HREF =
-  'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap';
-
 /**
  * Client bootstrap, mounted once in the root layout.
  *
  *  1. Marks the document hydrated, so it is visible from the outside when the
  *     page became interactive.
- *  2. Loads the Arabic webfont *after* first paint. A stylesheet in <head>
- *     blocks rendering until it resolves, and at a stadium — patchy signal,
- *     possibly a captive portal — that can mean staring at a blank screen
- *     waiting for a font. The fallback stack renders immediately and the
- *     webfont swaps in when it arrives, or never, and the page still works.
- *  3. Registers the service worker in production, and offers a reload when a
+ *  2. Registers the service worker in production, and offers a reload when a
  *     new build is waiting rather than swapping the app out mid-shift.
  */
 export function AppRuntime() {
@@ -25,14 +17,13 @@ export function AppRuntime() {
     document.documentElement.dataset.hydrated = 'true';
   }, []);
 
-  useEffect(() => {
-    if (document.querySelector(`link[href="${FONT_HREF}"]`)) return;
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = FONT_HREF;
-    link.crossOrigin = 'anonymous';
-    document.head.appendChild(link);
-  }, []);
+  /*
+   * The webfont used to be attached here, after first paint, to keep a
+   * blocking <link> out of <head> on a patchy stadium connection. The house
+   * font is now served from this origin with `font-display: swap`, which gets
+   * the same first paint without the round trip to a third party — and
+   * without a captive portal being able to hold the typography hostage.
+   */
 
   useEffect(() => {
     if (process.env.NODE_ENV !== 'production') return;
