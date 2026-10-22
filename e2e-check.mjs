@@ -142,6 +142,62 @@ check('member portal shows the task', memberText.includes('مسح التذاكر
 check('member portal shows the change notice', memberText.includes('تم تحديث تكليفك'));
 check('member portal shows leaders', memberText.includes('أحمد الربيعي'));
 
+/*
+ * What the page is FOR, asserted as a layout and not just as content.
+ *
+ * The three facts a promoter needs before they have left the house — which
+ * event, where it is, and what they are on it — used to be scattered across a
+ * 15px top bar and a list halfway down the page. These checks pin them to the
+ * top of the document, so a future tidy-up cannot quietly bury them again.
+ */
+const portalHead = await member.evaluate(() => {
+  const h1 = document.querySelector('main h1');
+  const main = document.querySelector('main');
+  // Everything above the first alert — i.e. what is visible on arrival.
+  const firstAlert = main.querySelector('[role="alert"]');
+  const head = [];
+  for (const el of main.querySelectorAll('section')) {
+    if (firstAlert && el.contains(firstAlert)) break;
+    head.push(el.textContent);
+  }
+  return {
+    h1: h1 ? h1.textContent.trim() : null,
+    h1Size: h1 ? parseFloat(getComputedStyle(h1).fontSize) : 0,
+    head: head.join(' '),
+  };
+});
+check('the event name is the page heading', portalHead.h1 === 'الزوراء × الشرطة', String(portalHead.h1));
+check('the event name is set in field-readable type', portalHead.h1Size >= 24, `${portalHead.h1Size}px`);
+check('the venue is above the fold', portalHead.head.includes('ملعب الزوراء'), '');
+check('kick-off is above the fold', portalHead.head.includes('بدء الفعالية'), '');
+check('the promoter sees their position', portalHead.head.includes('بروموتر'), '');
+check('the promoter sees their employee code', /TZ-\d+/.test(portalHead.head), '');
+
+/*
+ * Motion is part of the house style now, so the two rules that keep it from
+ * becoming a liability are checked like anything else: the screen animates on
+ * arrival, and every animation collapses for anyone who has asked their device
+ * for less motion.
+ */
+const motion = await member.evaluate(() => {
+  const el = document.querySelector('main .stagger > *');
+  return el ? getComputedStyle(el).animationName : null;
+});
+check('the screen arrives rather than appears', motion === 'rise', String(motion));
+
+const calmCtx = await browser.newContext({
+  viewport: { width: 390, height: 844 }, reducedMotion: 'reduce',
+});
+const calmPage = await calmCtx.newPage();
+await calmPage.goto(`${BASE}/member/${amir.token}`);
+await calmPage.waitForLoadState('networkidle');
+const calmDuration = await calmPage.evaluate(() => {
+  const el = document.querySelector('main .stagger > *');
+  return el ? getComputedStyle(el).animationDuration : null;
+});
+check('reduced motion is honoured', parseFloat(calmDuration) <= 0.001, String(calmDuration));
+await calmCtx.close();
+
 /* ---- 13-14: urgent announcement reaches the member --------------------- */
 await admin.goto(`${BASE}/admin/events/${eventId}/announcements`);
 await admin.waitForLoadState('networkidle');

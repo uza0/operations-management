@@ -43,6 +43,9 @@ export async function getMemberPortal(token: string) {
       isReserve: eventMembers.isReserve,
       eventRole: eventMembers.eventRole,
       memberName: teamMembers.fullName,
+      /* Shown on the member's own card: at a gate it is what a supervisor
+         asks for, and it is the one identifier safe to print there. */
+      memberCode: teamMembers.employeeCode,
       eventId: events.id,
       eventName: events.name,
       eventType: events.type,

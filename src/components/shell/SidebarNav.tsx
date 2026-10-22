@@ -66,7 +66,7 @@ function NavList({ sections, onNavigate }: { sections: NavSection[]; onNavigate?
                     href={item.href}
                     onClick={onNavigate}
                     aria-current={active ? 'page' : undefined}
-                    className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-[14px] font-medium transition-colors ${
+                    className={`press flex items-center gap-2.5 rounded-full px-3 py-2.5 text-[14px] font-medium transition-colors ${
                       active
                         ? 'bg-brand-50 text-brand-900 shadow-[inset_0_0_0_1px_rgb(var(--brand-600)/0.28)]'
                         : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100'

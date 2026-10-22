@@ -5,6 +5,7 @@ import { LocaleSwitcher } from '@/components/ui/client';
 import { ThemeToggle } from '@/components/pwa/ThemeToggle';
 import { getLocale } from '@/lib/i18n/server';
 import { IconAlert } from '@/components/ui/icons';
+import { BrandMark } from '@/components/ui/BrandMark';
 import { InstallPrompt } from '@/components/pwa/InstallPrompt';
 import { OfflineBanner } from '@/components/pwa/OfflineBanner';
 
@@ -12,17 +13,18 @@ import { OfflineBanner } from '@/components/pwa/OfflineBanner';
  * A deliberately separate shell from the admin app: single column, large
  * targets, no sidebar, nothing to navigate. Built for a phone held in one hand
  * at a stadium gate (spec §34 / §37).
+ *
+ * The bar carries the product, not the event. It used to carry both the
+ * greeting and the event name and type and date, squeezed into three lines of
+ * 12–15px beside two icon buttons — which made the most important fact on the
+ * page (which match, where) the smallest thing on it. The event now has a card
+ * of its own below, with room to be read at arm's length, and the bar is left
+ * to do the one job a sticky bar is good at: staying out of the way.
  */
 export async function MemberShell({
-  title,
-  subtitle,
-  memberName,
   children,
 }: {
-  t: unknown;
-  title: string;
-  subtitle: string;
-  memberName: string;
+  t?: unknown;
   children: ReactNode;
 }) {
   const locale = await getLocale();
@@ -32,17 +34,16 @@ export async function MemberShell({
     <div className="min-h-screen bg-ink-950">
       <OfflineBanner t={t} />
 
-      <header className="sticky top-0 z-30 border-b border-ink-800 bg-ink-950/95 backdrop-blur pt-[env(safe-area-inset-top)]">
-        <div className="mx-auto flex w-full max-w-[560px] items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <p className="truncate text-[13px] text-ink-400">
-              {t.member.welcome}، <span className="font-semibold text-ink-100">{memberName}</span>
-            </p>
-            <p className="truncate text-[15px] font-bold text-ink-100">{title}</p>
-            <p className="truncate text-[12px] text-ink-500">{subtitle}</p>
+      <header className="sticky top-0 z-30 border-b border-ink-700 bg-ink-950/95 backdrop-blur pt-[env(safe-area-inset-top)]">
+        <div className="mx-auto flex w-full max-w-[560px] items-center justify-between gap-3 px-4 py-2.5">
+          <div className="flex min-w-0 items-center gap-2.5">
+            <BrandMark size={28} className="shrink-0 text-brand-600" />
+            <span className="truncate text-[14px] font-bold text-ink-100">{t.app.name}</span>
           </div>
-          <ThemeToggle t={t} />
-          <LocaleSwitcher locale={locale} labels={{ ar: 'العربية', en: 'English' }} />
+          <div className="flex shrink-0 items-center gap-1">
+            <ThemeToggle t={t} />
+            <LocaleSwitcher locale={locale} labels={{ ar: 'العربية', en: 'English' }} />
+          </div>
         </div>
       </header>
 

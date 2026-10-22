@@ -113,7 +113,7 @@ export async function AppShell({
 
         <main
           id="main"
-          className="mx-auto w-full max-w-[1400px] flex-1 px-3 py-4 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-7 lg:pb-7"
+          className="rise mx-auto w-full max-w-[1400px] flex-1 px-3 py-4 pb-[calc(4.75rem+env(safe-area-inset-bottom))] sm:px-6 sm:py-7 lg:pb-7"
         >
           {children}
         </main>

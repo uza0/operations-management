@@ -3,13 +3,14 @@ import type { Metadata } from 'next';
 
 import { getT } from '@/lib/i18n/server';
 import { getMemberPortal } from '@/server/services/member';
-import { formatClock, formatDate, formatTime } from '@/lib/time';
+import { formatDate, formatTime } from '@/lib/time';
 import { format } from '@/lib/i18n';
 import { Badge, attendanceTone, priorityTone } from '@/components/ui/status';
 
 import { FeedbackForm } from './FeedbackForm';
 import {
   IconAlert,
+  IconCalendar,
   IconClock,
   IconMap,
   IconMegaphone,
@@ -35,13 +36,44 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
+/** One labelled fact in a stacked list. */
+function Fact({
+  icon,
+  label,
+  children,
+}: {
+  icon?: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 px-4 py-3">
+      <span className="flex shrink-0 items-center gap-2 text-[13px] text-ink-400">
+        {icon}
+        {label}
+      </span>
+      <span className="min-w-0 text-end text-[14px] font-semibold text-ink-100">
+        {children}
+      </span>
+    </div>
+  );
+}
+
 /**
  * The member portal (spec §4 / §19 / §37).
  *
- * Mobile-first and built around six questions, in this order: where do I go,
- * when do I arrive, what is my task, who is my leader, what are the latest
- * instructions, how do I report a problem. The three answers that matter in
- * the field are set in large type at the top, not behind a menu.
+ * Mobile-first, and ordered by the questions a promoter actually asks, in the
+ * order they ask them: which event is this and where is it, who am I on it,
+ * what has changed since I last looked, where do I stand and what do I do,
+ * who do I report to, how do I get there, what are the instructions, and how
+ * do I report a problem.
+ *
+ * The event used to live in the top bar, in 15px type between a greeting and a
+ * subtitle, while the venue and kick-off sat in a list halfway down the page —
+ * so the two facts a person needs while they are still deciding which bus to
+ * take were the two smallest and most scattered things on the screen. They are
+ * now one card, first, in type that reads at arm's length. The bar carries
+ * only the product.
  */
 export default async function MemberPortalPage({
   params,
@@ -67,359 +99,416 @@ export default async function MemberPortalPage({
   const urgent = data.announcements.filter((a) => a.priority === 'URGENT');
   const rest = data.announcements.filter((a) => a.priority !== 'URGENT');
 
+  /*
+   * What this person is, in one phrase. Everyone in the field is a promoter;
+   * a specific role replaces that title rather than sitting beside it, because
+   * two job titles on one badge is how a gate leader ends up unsure whether
+   * they are running the gate.
+   */
+  const positionLabel =
+    membership.eventRole && membership.eventRole in t.enums.eventRole
+      ? t.enums.eventRole[membership.eventRole as EventRole]
+      : assignment?.isGateLeader
+        ? t.gate.gateLeader
+        : t.team.promoter;
+
   return (
-    <MemberShell
-      t={t}
-      title={membership.eventName}
-      subtitle={`${t.enums.eventType[membership.eventType as EventType]} · ${formatDate(
-        membership.eventDate,
-        locale,
-      )}`}
-      memberName={membership.memberName}
-    >
-      {/* Urgent first — an operations instruction beats layout tidiness. */}
-      {urgent.length > 0 ? (
-        <section className="space-y-2" aria-label={t.member.announcements}>
-          {urgent.map((row) => (
-            <div
-              key={row.id}
-              className="rounded-card border border-crit/60 bg-crit/12 p-4"
-              role="alert"
-            >
-              <div className="mb-1 flex items-center gap-2">
-                <IconAlert width={17} height={17} className="text-crit-text" />
-                <span className="text-[12px] font-bold uppercase tracking-wide text-crit-text">
-                  {t.enums.priority.URGENT}
-                </span>
-              </div>
-              <p className="text-[15px] font-semibold text-ink-100">{row.title}</p>
-              <p className="mt-1 whitespace-pre-line text-[14px] leading-6 text-ink-200">
-                {row.message}
+    <MemberShell>
+      <div className="stagger space-y-4">
+        {/* 1 — which event, and where ---------------------------------- */}
+        <section className="rounded-card border border-ink-700 bg-ink-900 shadow-panel">
+          <div className="p-5">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge tone="brand">
+                {t.enums.eventType[membership.eventType as EventType]}
+              </Badge>
+              {membership.isReserve ? (
+                <Badge tone="warn">{t.eventTeam.reserve}</Badge>
+              ) : null}
+            </div>
+
+            <h1 className="mt-2.5 text-[27px] font-extrabold leading-[1.15] text-ink-100">
+              {membership.eventName}
+            </h1>
+
+            <p className="mt-2 flex items-start gap-2 text-[15px] font-semibold text-ink-200">
+              <IconPin width={17} height={17} className="mt-0.5 shrink-0 text-brand-600" />
+              <span className="min-w-0">
+                {membership.venueName}
+                {membership.venueAddress ? (
+                  <span className="mt-0.5 block text-[12.5px] font-normal text-ink-500">
+                    {membership.venueAddress}
+                  </span>
+                ) : null}
+              </span>
+            </p>
+          </div>
+
+          {/* The two numbers that decide when to leave the house. */}
+          <div className="grid grid-cols-2 divide-x divide-ink-700 border-t border-ink-700 rtl:divide-x-reverse">
+            <div className="px-4 py-3">
+              <p className="flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
+                <IconCalendar width={13} height={13} />
+                {t.member.date}
+              </p>
+              <p className="mt-1 text-[14px] font-semibold text-ink-100">
+                {formatDate(membership.eventDate, locale)}
               </p>
             </div>
-          ))}
-        </section>
-      ) : null}
+            <div className="px-4 py-3">
+              <p className="flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
+                <IconClock width={13} height={13} />
+                {t.event.kickoff}
+              </p>
+              <p className="nums mt-1 text-[14px] font-semibold text-ink-100">
+                {formatTime(membership.eventStart, locale)}
+              </p>
+            </div>
+          </div>
 
-      {data.lastChange?.fromLocation && data.lastChange.toLocation ? (
-        <div className="rounded-card border border-warn/50 bg-warn/10 px-4 py-3">
-          <p className="text-[13px] font-semibold text-warn-text">
-            {t.member.assignmentChanged}
-          </p>
-          <p className="mt-0.5 text-[13px] text-ink-200">
-            {format(t.member.assignmentChangedHint, {
-              from: data.lastChange.fromLocation,
-              to: data.lastChange.toLocation,
-            })}
-          </p>
-        </div>
-      ) : null}
-
-      {/* Before the show, when they are somewhere else first ------------- */}
-      {data.mainGate ? (
-        <section className="rounded-card border border-warn/40 bg-warn/10 p-4">
-          <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-warn-text">
-            {t.mainGate.memberTitle}
-          </p>
-          <p className="mt-1 text-[20px] font-bold leading-tight text-ink-100">
-            {data.mainGate.name}
-          </p>
-          <p className="nums mt-1 text-[15px] font-semibold text-ink-100">
-            {formatTime(data.mainGate.startTime, locale)} –{' '}
-            {formatTime(data.mainGate.endTime, locale)}
-          </p>
-          <p className="mt-1 text-[13.5px] text-ink-200">
-            {t.enums.task[data.mainGate.task]}
-          </p>
-          <p className="mt-2 text-[12.5px] leading-5 text-ink-400">
-            {t.mainGate.memberHint}
-          </p>
-          {data.mainGate.notes ? (
-            <p className="mt-1 text-[12.5px] leading-5 text-ink-400">{data.mainGate.notes}</p>
+          {membership.venueLocationUrl ? (
+            <div className="border-t border-ink-700 p-3">
+              <a
+                href={membership.venueLocationUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="btn-primary w-full justify-center py-3 text-[15px]"
+              >
+                <IconPin width={18} height={18} />
+                {t.member.openInMaps}
+              </a>
+            </div>
           ) : null}
         </section>
-      ) : null}
 
-      {/* The three answers, in field-readable type ----------------------- */}
-      {assignment ? (
-        <section className="space-y-3">
-          <div className="rounded-card border border-brand-500/35 bg-brand-500/10 p-5">
-            <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-brand-300">
-              {t.member.yourLocation}
+        {/* 2 — who I am on this event ---------------------------------- */}
+        <section className="flex items-center gap-3 rounded-card border border-ink-700 bg-ink-850 px-4 py-3.5">
+          <span
+            aria-hidden
+            className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-600 text-[16px] font-extrabold text-white"
+          >
+            {membership.memberName.trim().charAt(0)}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-[16px] font-bold text-ink-100">
+              {membership.memberName}
             </p>
-            <p className="mt-1 text-[34px] font-bold leading-tight text-ink-100">
-              {locationName}
+            <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] text-ink-400">
+              <span className="font-semibold text-brand-900">{positionLabel}</span>
+              <span aria-hidden className="text-ink-600">·</span>
+              <span className="nums">{membership.memberCode}</span>
             </p>
-            {/* Being responsible for other people is the one thing a member
-                must not have to work out from the roster. */}
-            {membership.eventRole && membership.eventRole in t.enums.eventRole ? (
-              <span className="mt-2 inline-flex">
-                <Badge tone="brand">
-                  <IconTarget width={13} height={13} />
-                  {t.enums.eventRole[membership.eventRole as EventRole]}
-                </Badge>
-              </span>
-            ) : assignment.isGateLeader ? (
-              <span className="mt-2 inline-flex">
-                <Badge tone="brand">
-                  <IconTarget width={13} height={13} />
-                  {t.gate.gateLeader}
-                </Badge>
-              </span>
-            ) : null}
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="panel p-4">
-              <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
-                {t.member.yourArrival}
-              </p>
-              <p className="nums mt-1 text-[26px] font-bold leading-tight text-ink-100">
-                {formatTime(assignment.arrivalTime, locale)}
-              </p>
-            </div>
-            <div className="panel p-4">
-              <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
-                {t.member.shift}
-              </p>
-              <p className="nums mt-1 text-[17px] font-semibold leading-tight text-ink-100">
-                {formatTime(assignment.shiftStart, locale)}
-                <br />
-                {formatTime(assignment.shiftEnd, locale)}
-              </p>
-            </div>
-          </div>
-
-          <div className="panel p-5">
-            <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
-              {t.member.yourTask}
-            </p>
-            <p className="mt-1 text-[22px] font-bold leading-tight text-ink-100">
-              {t.enums.task[assignment.task as Task]}
-            </p>
-            {assignment.notes ? (
-              <p className="mt-2 text-[13.5px] leading-6 text-ink-300">
-                {assignment.notes}
-              </p>
-            ) : null}
           </div>
         </section>
-      ) : (
-        <div className="panel p-6 text-center">
-          <p className="text-[16px] font-semibold text-ink-100">{t.member.noAssignment}</p>
-          <p className="mt-1.5 text-[13.5px] leading-6 text-ink-400">
-            {t.member.noAssignmentHint}
-          </p>
-        </div>
-      )}
 
-      {/* Who to report to ------------------------------------------------ */}
-      <section className="panel divide-y divide-ink-800">
-        {data.gateLeaderName ? (
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <span className="flex items-center gap-2 text-[13px] text-ink-400">
-              <IconUsers width={16} height={16} className="text-ink-500" />
-              {t.member.yourGateLeader}
-            </span>
-            <span className="text-[14px] font-semibold text-ink-100">
-              {data.gateLeaderName}
-            </span>
-          </div>
-        ) : null}
-        {data.teamLeaderName ? (
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <span className="flex items-center gap-2 text-[13px] text-ink-400">
-              <IconTarget width={16} height={16} className="text-ink-500" />
-              {t.member.yourTeamLeader}
-            </span>
-            <span className="text-[14px] font-semibold text-ink-100">
-              {data.teamLeaderName}
-            </span>
-          </div>
-        ) : null}
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <span className="flex items-center gap-2 text-[13px] text-ink-400">
-            <IconPin width={16} height={16} className="text-ink-500" />
-            {t.member.venue}
-          </span>
-          <span className="text-end text-[14px] font-semibold text-ink-100">
-            {membership.venueName}
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-3 px-4 py-3">
-          <span className="flex items-center gap-2 text-[13px] text-ink-400">
-            <IconClock width={16} height={16} className="text-ink-500" />
-            {t.event.kickoff}
-          </span>
-          <span className="nums text-[14px] font-semibold text-ink-100">
-            {formatTime(membership.eventStart, locale)}
-          </span>
-        </div>
-        {data.attendance ? (
-          <div className="flex items-center justify-between gap-3 px-4 py-3">
-            <span className="text-[13px] text-ink-400">{t.member.attendanceStatus}</span>
-            <span className="flex items-center gap-2">
-              {data.attendance.checkInTime ? (
-                <span className="nums text-[12.5px] text-ink-400">
-                  {formatTime(data.attendance.checkInTime, locale)}
-                </span>
-              ) : null}
-              <Badge tone={attendanceTone[data.attendance.status as AttendanceStatus]}>
-                {t.enums.attendanceStatus[data.attendance.status as AttendanceStatus]}
-              </Badge>
-            </span>
-          </div>
-        ) : null}
-      </section>
-
-      {/* Getting there ---------------------------------------------------
-        *
-        * Two different questions, and a member standing outside needs both:
-        * where the venue is on a real map, and where inside it their own post
-        * is. The second used to be the only one offered, and it disappeared
-        * entirely when nobody had uploaded a venue photo — so now the section
-        * is always here and says plainly which of the two is missing.
-        */}
-      <section className="space-y-2">
-        <h2 className="mb-1 flex items-center gap-2 text-[15px] font-semibold text-ink-100">
-          <IconMap width={17} height={17} className="text-ink-500" />
-          {t.member.gettingThere}
-        </h2>
-
-        {membership.venueLocationUrl ? (
-          <a
-            href={membership.venueLocationUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="btn-primary w-full justify-center py-3.5 text-[15px]"
-          >
-            <IconPin width={18} height={18} />
-            {t.member.openInMaps}
-          </a>
-        ) : null}
-
-        {data.mapImageUrl ? (
-          <Link
-            href={`/member/${token}/map`}
-            className="btn-secondary w-full justify-center py-3.5 text-[15px]"
-          >
-            <IconMap width={18} height={18} />
-            {t.member.viewMap}
-          </Link>
-        ) : (
-          <p className="panel px-4 py-4 text-center text-[13px] leading-6 text-ink-500">
-            {t.member.noVenueMapYet}
-          </p>
-        )}
-
-        {membership.venueAddress ? (
-          <p className="px-1 text-center text-[12.5px] text-ink-500">
-            {membership.venueAddress}
-          </p>
-        ) : null}
-      </section>
-
-      {/* Announcements --------------------------------------------------- */}
-      <section>
-        <h2 className="mb-2 flex items-center gap-2 text-[15px] font-semibold text-ink-100">
-          <IconMegaphone width={17} height={17} className="text-ink-500" />
-          {t.member.announcements}
-        </h2>
-        {rest.length === 0 && urgent.length === 0 ? (
-          <p className="panel px-4 py-5 text-center text-[13.5px] text-ink-500">
-            {t.member.noAnnouncements}
-          </p>
-        ) : (
-          <ul className="space-y-2">
-            {rest.map((row) => (
-              <li key={row.id} className="panel p-4">
-                <div className="mb-1 flex items-start justify-between gap-2">
-                  <p className="text-[14.5px] font-semibold text-ink-100">{row.title}</p>
-                  <Badge tone={priorityTone[row.priority as Priority]}>
-                    {t.enums.priority[row.priority as Priority]}
-                  </Badge>
+        {/* 3 — anything that changed since they last looked ------------- */}
+        {urgent.length > 0 ? (
+          <section className="space-y-2" aria-label={t.member.announcements}>
+            {urgent.map((row) => (
+              <div
+                key={row.id}
+                className="rounded-card border border-crit/60 bg-crit/12 p-4"
+                role="alert"
+              >
+                <div className="mb-1 flex items-center gap-2">
+                  <IconAlert width={17} height={17} className="text-crit-text" />
+                  <span className="text-[12px] font-bold uppercase tracking-wide text-crit-text">
+                    {t.enums.priority.URGENT}
+                  </span>
                 </div>
-                <p className="whitespace-pre-line text-[13.5px] leading-6 text-ink-300">
+                <p className="text-[15px] font-semibold text-ink-100">{row.title}</p>
+                <p className="mt-1 whitespace-pre-line text-[14px] leading-6 text-ink-200">
                   {row.message}
                 </p>
-              </li>
+              </div>
             ))}
-          </ul>
-        )}
-      </section>
-
-      {/* Timeline -------------------------------------------------------- */}
-      {data.timeline.length > 0 ? (
-        <section>
-          <h2 className="mb-2 flex items-center gap-2 text-[15px] font-semibold text-ink-100">
-            <IconClock width={17} height={17} className="text-ink-500" />
-            {t.member.timeline}
-          </h2>
-          <ol className="panel divide-y divide-ink-800">
-            {data.timeline.map((item) => (
-              <li key={item.id} className="flex items-center gap-3 px-4 py-2.5">
-                <span className="nums w-[66px] shrink-0 text-[13px] text-ink-400">
-                  {formatTime(item.scheduledTime, locale)}
-                </span>
-                <span className="flex-1 truncate text-[13.5px] text-ink-200">
-                  {item.title}
-                </span>
-                {item.status === 'ACTIVE' ? (
-                  <Badge tone="ok" pulse>
-                    {t.enums.timelineStatus[item.status as TimelineStatus]}
-                  </Badge>
-                ) : null}
-              </li>
-            ))}
-          </ol>
-        </section>
-      ) : null}
-
-      {/* Report an issue -------------------------------------------------- */}
-      <section>
-        <h2 className="mb-2 flex items-center gap-2 text-[15px] font-semibold text-ink-100">
-          <IconAlert width={17} height={17} className="text-ink-500" />
-          {t.member.reportIssue}
-        </h2>
-        <MemberIssueForm t={t} token={token} />
-
-        {data.myIssues.length > 0 ? (
-          <ul className="mt-3 space-y-2">
-            {data.myIssues.map((row) => (
-              <li key={row.id} className="panel px-4 py-3">
-                <div className="flex items-start justify-between gap-2">
-                  <p className="text-[13.5px] font-medium text-ink-100">
-                    {t.enums.issueType[row.type as IssueType]}
-                  </p>
-                  <Badge
-                    tone={
-                      row.status === 'RESOLVED' || row.status === 'CLOSED'
-                        ? 'ok'
-                        : row.status === 'OPEN'
-                          ? 'crit'
-                          : 'info'
-                    }
-                  >
-                    {t.enums.issueStatus[row.status as IssueStatus]}
-                  </Badge>
-                </div>
-                <p className="mt-1 text-[12.5px] leading-5 text-ink-400">
-                  {row.description}
-                </p>
-              </li>
-            ))}
-          </ul>
+          </section>
         ) : null}
-      </section>
 
-      {/* Asked last, and only once the evening is actually over. */}
-      {membership.eventStatus === 'COMPLETED' || membership.eventStatus === 'ARCHIVED' ? (
-        <FeedbackForm t={t} token={token} existing={data.myFeedback} />
-      ) : null}
+        {data.lastChange?.fromLocation && data.lastChange.toLocation ? (
+          <div className="rounded-card border border-warn/50 bg-warn/10 px-4 py-3">
+            <p className="text-[13px] font-semibold text-warn-text">
+              {t.member.assignmentChanged}
+            </p>
+            <p className="mt-0.5 text-[13px] text-ink-200">
+              {format(t.member.assignmentChangedHint, {
+                from: data.lastChange.fromLocation,
+                to: data.lastChange.toLocation,
+              })}
+            </p>
+          </div>
+        ) : null}
 
-      <p className="pb-2 text-center text-[11.5px] text-ink-600">
-        {t.member.savedOffline}
-      </p>
+        {/* 4 — the earlier shift, when there is one --------------------- */}
+        {data.mainGate ? (
+          <section className="rounded-card border border-warn/40 bg-warn/10 p-4">
+            <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-warn-text">
+              {t.mainGate.memberTitle}
+            </p>
+            <p className="mt-1 text-[20px] font-bold leading-tight text-ink-100">
+              {data.mainGate.name}
+            </p>
+            <p className="nums mt-1 text-[15px] font-semibold text-ink-100">
+              {formatTime(data.mainGate.startTime, locale)} –{' '}
+              {formatTime(data.mainGate.endTime, locale)}
+            </p>
+            <p className="mt-1 text-[13.5px] text-ink-200">
+              {t.enums.task[data.mainGate.task]}
+            </p>
+            <p className="mt-2 text-[12.5px] leading-5 text-ink-400">
+              {t.mainGate.memberHint}
+            </p>
+            {data.mainGate.notes ? (
+              <p className="mt-1 text-[12.5px] leading-5 text-ink-400">
+                {data.mainGate.notes}
+              </p>
+            ) : null}
+          </section>
+        ) : null}
+
+        {/* 5 — where I stand and what I do ----------------------------- */}
+        {assignment ? (
+          <section>
+            <h2 className="mb-2 flex items-center gap-2 px-1 text-[15px] font-bold text-ink-100">
+              <IconTarget width={17} height={17} className="text-brand-600" />
+              {t.member.onDuty}
+            </h2>
+
+            <div className="overflow-hidden rounded-card border border-brand-600/35 bg-brand-50">
+              <div className="p-5">
+                <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-brand-900">
+                  {t.member.yourLocation}
+                </p>
+                <p className="mt-1 text-[34px] font-extrabold leading-[1.1] text-ink-100">
+                  {locationName}
+                </p>
+                <p className="mt-2 text-[12px] font-bold uppercase tracking-[0.12em] text-brand-900">
+                  {t.member.yourTask}
+                </p>
+                <p className="mt-0.5 text-[20px] font-bold leading-tight text-ink-100">
+                  {t.enums.task[assignment.task as Task]}
+                </p>
+                {assignment.notes ? (
+                  <p className="mt-2 text-[13.5px] leading-6 text-ink-300">
+                    {assignment.notes}
+                  </p>
+                ) : null}
+              </div>
+
+              {/*
+               * Arrival and shift belong together: the first is a single
+               * instant and the one thing a promoter is held to, the second is
+               * the span it opens. Splitting them into two cards made them
+               * look like unrelated facts, and the arrival time repeated as
+               * the start of the shift looked like a bug.
+               */}
+              <div className="grid grid-cols-2 divide-x divide-brand-600/20 border-t border-brand-600/20 bg-ink-900 rtl:divide-x-reverse">
+                <div className="px-4 py-3">
+                  <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
+                    {t.member.yourArrival}
+                  </p>
+                  <p className="nums mt-1 text-[24px] font-extrabold leading-tight text-ink-100">
+                    {formatTime(assignment.arrivalTime, locale)}
+                  </p>
+                </div>
+                <div className="px-4 py-3">
+                  <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
+                    {t.member.yourShift}
+                  </p>
+                  <p className="nums mt-1 text-[15px] font-semibold leading-tight text-ink-100">
+                    {formatTime(assignment.shiftStart, locale)} –{' '}
+                    {formatTime(assignment.shiftEnd, locale)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        ) : (
+          <div className="panel p-6 text-center">
+            <p className="text-[16px] font-semibold text-ink-100">{t.member.noAssignment}</p>
+            <p className="mt-1.5 text-[13.5px] leading-6 text-ink-400">
+              {t.member.noAssignmentHint}
+            </p>
+          </div>
+        )}
+
+        {/* 6 — who I report to ------------------------------------------ */}
+        <section>
+          <h2 className="mb-2 flex items-center gap-2 px-1 text-[15px] font-bold text-ink-100">
+            <IconUsers width={17} height={17} className="text-ink-500" />
+            {t.member.reportTo}
+          </h2>
+          <div className="panel divide-y divide-ink-700">
+            <Fact
+              icon={<IconUsers width={16} height={16} className="text-ink-500" />}
+              label={t.member.yourGateLeader}
+            >
+              {data.gateLeaderName ?? (
+                <span className="font-normal text-ink-500">{t.member.noLeaderYet}</span>
+              )}
+            </Fact>
+            <Fact
+              icon={<IconTarget width={16} height={16} className="text-ink-500" />}
+              label={t.member.yourTeamLeader}
+            >
+              {data.teamLeaderName ?? (
+                <span className="font-normal text-ink-500">{t.member.noLeaderYet}</span>
+              )}
+            </Fact>
+            {data.attendance ? (
+              <Fact
+                icon={<IconClock width={16} height={16} className="text-ink-500" />}
+                label={t.member.attendanceStatus}
+              >
+                <span className="inline-flex items-center gap-2">
+                  {data.attendance.checkInTime ? (
+                    <span className="nums text-[12.5px] font-normal text-ink-400">
+                      {formatTime(data.attendance.checkInTime, locale)}
+                    </span>
+                  ) : null}
+                  <Badge tone={attendanceTone[data.attendance.status as AttendanceStatus]}>
+                    {t.enums.attendanceStatus[data.attendance.status as AttendanceStatus]}
+                  </Badge>
+                </span>
+              </Fact>
+            ) : null}
+          </div>
+        </section>
+
+        {/* 7 — the map of the place itself ------------------------------
+          *
+          * The venue's own location went up into the event card, because it is
+          * needed before leaving home. What is left here is the other map: the
+          * plan of the site showing where this post actually is, which is only
+          * useful once you have arrived.
+          */}
+        <section>
+          <h2 className="mb-2 flex items-center gap-2 px-1 text-[15px] font-bold text-ink-100">
+            <IconMap width={17} height={17} className="text-ink-500" />
+            {t.member.gettingThere}
+          </h2>
+          {data.mapImageUrl ? (
+            <Link
+              href={`/member/${token}/map`}
+              className="btn-secondary w-full justify-center py-3.5 text-[15px]"
+            >
+              <IconMap width={18} height={18} />
+              {t.member.viewMap}
+            </Link>
+          ) : (
+            <p className="panel px-4 py-4 text-center text-[13px] leading-6 text-ink-500">
+              {t.member.noVenueMapYet}
+            </p>
+          )}
+        </section>
+
+        {/* 8 — instructions --------------------------------------------- */}
+        <section>
+          <h2 className="mb-2 flex items-center gap-2 px-1 text-[15px] font-bold text-ink-100">
+            <IconMegaphone width={17} height={17} className="text-ink-500" />
+            {t.member.announcements}
+          </h2>
+          {rest.length === 0 && urgent.length === 0 ? (
+            <p className="panel px-4 py-5 text-center text-[13.5px] text-ink-500">
+              {t.member.noAnnouncements}
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {rest.map((row) => (
+                <li key={row.id} className="panel p-4">
+                  <div className="mb-1 flex items-start justify-between gap-2">
+                    <p className="text-[14.5px] font-semibold text-ink-100">{row.title}</p>
+                    <Badge tone={priorityTone[row.priority as Priority]}>
+                      {t.enums.priority[row.priority as Priority]}
+                    </Badge>
+                  </div>
+                  <p className="whitespace-pre-line text-[13.5px] leading-6 text-ink-300">
+                    {row.message}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* 9 — the evening's running order ------------------------------ */}
+        {data.timeline.length > 0 ? (
+          <section>
+            <h2 className="mb-2 flex items-center gap-2 px-1 text-[15px] font-bold text-ink-100">
+              <IconClock width={17} height={17} className="text-ink-500" />
+              {t.member.timeline}
+            </h2>
+            <ol className="panel divide-y divide-ink-700">
+              {data.timeline.map((item) => (
+                <li
+                  key={item.id}
+                  className={`flex items-center gap-3 px-4 py-2.5 ${
+                    item.status === 'ACTIVE' ? 'bg-ok-soft' : ''
+                  }`}
+                >
+                  <span className="nums w-[66px] shrink-0 text-[13px] text-ink-400">
+                    {formatTime(item.scheduledTime, locale)}
+                  </span>
+                  <span className="flex-1 truncate text-[13.5px] text-ink-200">
+                    {item.title}
+                  </span>
+                  {item.status === 'ACTIVE' ? (
+                    <Badge tone="ok" pulse>
+                      {t.enums.timelineStatus[item.status as TimelineStatus]}
+                    </Badge>
+                  ) : null}
+                </li>
+              ))}
+            </ol>
+          </section>
+        ) : null}
+
+        {/* 10 — reporting a problem ------------------------------------- */}
+        <section>
+          <h2 className="mb-2 flex items-center gap-2 px-1 text-[15px] font-bold text-ink-100">
+            <IconAlert width={17} height={17} className="text-ink-500" />
+            {t.member.reportIssue}
+          </h2>
+          <MemberIssueForm t={t} token={token} />
+
+          {data.myIssues.length > 0 ? (
+            <ul className="mt-3 space-y-2">
+              {data.myIssues.map((row) => (
+                <li key={row.id} className="panel px-4 py-3">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-[13.5px] font-medium text-ink-100">
+                      {t.enums.issueType[row.type as IssueType]}
+                    </p>
+                    <Badge
+                      tone={
+                        row.status === 'RESOLVED' || row.status === 'CLOSED'
+                          ? 'ok'
+                          : row.status === 'OPEN'
+                            ? 'crit'
+                            : 'info'
+                      }
+                    >
+                      {t.enums.issueStatus[row.status as IssueStatus]}
+                    </Badge>
+                  </div>
+                  <p className="mt-1 text-[12.5px] leading-5 text-ink-400">
+                    {row.description}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </section>
+
+        {/* Asked last, and only once the evening is actually over. */}
+        {membership.eventStatus === 'COMPLETED' || membership.eventStatus === 'ARCHIVED' ? (
+          <FeedbackForm t={t} token={token} existing={data.myFeedback} />
+        ) : null}
+
+        <p className="pb-2 text-center text-[11.5px] text-ink-600">
+          {t.member.savedOffline}
+        </p>
+      </div>
     </MemberShell>
   );
 }

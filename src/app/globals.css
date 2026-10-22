@@ -278,9 +278,123 @@
   }
 }
 
+/* ===========================================================================
+   MOTION
+
+   One easing curve and three durations, and nothing else. A house style is as
+   much about what moves as what it looks like, and the quickest way to make an
+   operations tool feel cheap is to let every component invent its own timing.
+
+   The curve is a settle, not a bounce: fast out of the gate, slow into place,
+   never overshooting. Things arrive by moving a few pixels in the direction
+   they came from and fading in — enough for the eye to follow, little enough
+   that a supervisor refreshing a board forty times a night never waits on it.
+
+   Everything here is switched off entirely for anyone who has asked their
+   device for less motion; see the reduced-motion block below, which is not an
+   afterthought but the reason the animations are all plain CSS.
+   =========================================================================== */
+:root {
+  --ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+  --dur-state: 140ms; /* a hover, a press — faster than thought */
+  --dur-enter: 280ms; /* one element arriving */
+  --dur-scene: 620ms; /* a whole screen arriving */
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* The sign-in backdrop: two brand washes breathing against each other. Very
+   slow and very low-contrast on purpose — it should register as depth, not as
+   something happening. */
+@keyframes drift {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    transform: translate3d(2%, -2%, 0) scale(1.08);
+  }
+}
+
+@keyframes driftAlt {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1.06);
+  }
+  50% {
+    transform: translate3d(-3%, 2%, 0) scale(1);
+  }
+}
+
+/* A ring opening outwards from the mark while the session is being created. */
+@keyframes halo {
+  from {
+    opacity: 0.55;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.4);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
 @layer base {
   html {
     -webkit-text-size-adjust: 100%;
+  }
+
+  /*
+   * Asked for less motion, given less motion — all of it, including the
+   * decorative sign-in backdrop. Durations are collapsed rather than removed
+   * so that anything keyed off `animationend` still fires.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 
   body {
@@ -337,6 +451,71 @@
 }
 
 @layer components {
+  /* ---- motion utilities -------------------------------------------------
+   *
+   * Four classes cover everything the interface needs. They are deliberately
+   * not components: a card does not become "an animated card", it is a card
+   * that happens to arrive.
+   */
+
+  /** One element arriving. */
+  .rise {
+    animation: rise var(--dur-enter) var(--ease-settle) both;
+  }
+
+  /** A screen arriving: children follow one another in, ~55ms apart.
+   *  Capped at eight — past that the last card is late rather than staged. */
+  .stagger > * {
+    animation: rise var(--dur-enter) var(--ease-settle) both;
+  }
+  .stagger > *:nth-child(1) { animation-delay: 30ms; }
+  .stagger > *:nth-child(2) { animation-delay: 85ms; }
+  .stagger > *:nth-child(3) { animation-delay: 140ms; }
+  .stagger > *:nth-child(4) { animation-delay: 195ms; }
+  .stagger > *:nth-child(5) { animation-delay: 250ms; }
+  .stagger > *:nth-child(6) { animation-delay: 300ms; }
+  .stagger > *:nth-child(7) { animation-delay: 345ms; }
+  .stagger > *:nth-child(n + 8) { animation-delay: 385ms; }
+
+  /** Anything you can press answers the finger before the server does. */
+  .press {
+    transition: transform var(--dur-state) var(--ease-soft);
+  }
+  .press:active {
+    transform: scale(0.975);
+  }
+
+  /** A card that is a link or a target: it comes forward under the pointer. */
+  .lift {
+    transition:
+      transform var(--dur-state) var(--ease-soft),
+      box-shadow var(--dur-state) var(--ease-soft),
+      border-color var(--dur-state) var(--ease-soft);
+  }
+  @media (hover: hover) {
+    .lift:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-raised);
+      border-color: rgb(var(--ink-600));
+    }
+  }
+  .lift:active {
+    transform: translateY(0) scale(0.995);
+  }
+
+  /** Content that is still loading, rather than content that is empty. */
+  .skeleton {
+    background-image: linear-gradient(
+      90deg,
+      rgb(var(--ink-800)) 25%,
+      rgb(var(--ink-750)) 37%,
+      rgb(var(--ink-800)) 63%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+    border-radius: 8px;
+  }
+
   .panel {
     @apply rounded-card border border-ink-700 bg-ink-900 shadow-panel;
   }
@@ -354,6 +533,10 @@
       placeholder:text-ink-400 transition-colors
       hover:border-ink-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/25
       disabled:cursor-not-allowed disabled:opacity-50;
+    transition:
+      border-color var(--dur-state) var(--ease-soft),
+      box-shadow var(--dur-enter) var(--ease-settle),
+      background-color var(--dur-state) var(--ease-soft);
   }
 
   select.field {
@@ -370,8 +553,19 @@
 
   .btn {
     @apply inline-flex select-none items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[14px]
-      font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-55;
+      font-bold disabled:cursor-not-allowed disabled:opacity-55;
     min-height: 42px;
+    /* Colour on the house curve, and a press that answers the finger in 140ms
+       whether or not the server ever answers at all. */
+    transition:
+      background-color var(--dur-state) var(--ease-soft),
+      border-color var(--dur-state) var(--ease-soft),
+      color var(--dur-state) var(--ease-soft),
+      transform var(--dur-state) var(--ease-soft),
+      opacity var(--dur-state) var(--ease-soft);
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
   }
 
   .btn-primary {
@@ -431,6 +625,10 @@
 
   .chip {
     @apply inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-medium;
+    transition:
+      background-color var(--dur-state) var(--ease-soft),
+      border-color var(--dur-state) var(--ease-soft),
+      color var(--dur-state) var(--ease-soft);
   }
 
   .table-wrap {
@@ -447,6 +645,10 @@
 
   .op-table tbody td {
     @apply border-b border-ink-800 px-3 py-3 align-middle;
+  }
+
+  .op-table tbody tr {
+    transition: background-color var(--dur-state) var(--ease-soft);
   }
 
   .op-table tbody tr:hover {

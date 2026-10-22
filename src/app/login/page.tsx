@@ -49,12 +49,30 @@ export default async function LoginPage({
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
+      {/*
+        The backdrop: two brand washes breathing against each other on
+        half-minute cycles, out of phase so the light never settles and never
+        arrives anywhere. Each is its own layer because two gradients in one
+        background cannot be animated apart, and the whole thing is decoration
+        — `aria-hidden`, and held still entirely for anyone who has asked their
+        device for less motion.
+      */}
       <div
         aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.16]"
+        className="pointer-events-none absolute inset-0 opacity-[0.17] will-change-transform"
         style={{
           backgroundImage:
-            'radial-gradient(circle at 18% 12%, #e4584a 0, transparent 46%), radial-gradient(circle at 84% 82%, #921f15 0, transparent 44%)',
+            'radial-gradient(circle at 18% 12%, #e4584a 0, transparent 46%)',
+          animation: 'drift 26s var(--ease-soft) infinite',
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.15] will-change-transform"
+        style={{
+          backgroundImage:
+            'radial-gradient(circle at 84% 82%, #921f15 0, transparent 44%)',
+          animation: 'driftAlt 34s var(--ease-soft) infinite',
         }}
       />
       <div
@@ -67,7 +85,7 @@ export default async function LoginPage({
         }}
       />
 
-      <div className="relative w-full max-w-[420px]">
+      <div className="stagger relative w-full max-w-[420px]">
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <BrandMark size={44} className="text-brand-600" />

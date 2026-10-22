@@ -8,6 +8,8 @@ import { FormError } from '@/components/ui/states';
 import { SubmitButton } from '@/components/ui/client';
 import type { Dictionary } from '@/lib/i18n';
 
+import { SignInVeil } from './SignInVeil';
+
 export function LoginForm({ t, next }: { t: Dictionary; next: string }) {
   const [state, action] = useActionState(loginAction, idle);
 
@@ -64,6 +66,8 @@ export function LoginForm({ t, next }: { t: Dictionary; next: string }) {
       >
         {ready ? t.auth.signIn : t.common.loading}
       </SubmitButton>
+
+      <SignInVeil label={t.auth.signingIn} />
     </form>
   );
 }

@@ -36,7 +36,7 @@ export function EventCard({
   return (
     <Link
       href={href}
-      className="panel group block p-4 transition-colors hover:border-brand-500/45 hover:bg-ink-850/70"
+      className="panel lift group block p-4 hover:border-brand-600/45 hover:bg-ink-850"
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
