@@ -62,11 +62,20 @@ const config: Config = {
           text: 'rgb(var(--info-text) / <alpha-value>)',
         },
       },
+      /*
+       * Ticket Zone's geometry, named by what it holds rather than by size:
+       * a pill for anything you press, `control` for anything you type into,
+       * `card` for anything that holds content. Using the names instead of
+       * `rounded-lg` is what stops the radii drifting apart again.
+       */
       borderRadius: {
-        card: '14px',
+        card: '16px',
+        control: '12px',
       },
       boxShadow: {
         panel: 'var(--shadow-panel)',
+        raised: 'var(--shadow-raised)',
+        float: 'var(--shadow-float)',
       },
       keyframes: {
         pulseSoft: {

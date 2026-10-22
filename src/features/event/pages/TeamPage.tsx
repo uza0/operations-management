@@ -73,7 +73,7 @@ export async function EventTeamPage({ eventId }: { eventId: string }) {
       qrDataUrl: await QRCode.toDataURL(`${baseUrl}/member/${row.token}`, {
         margin: 1,
         width: 320,
-        color: { dark: '#0b0f16', light: '#ffffff' },
+        color: { dark: '#1b1917', light: '#ffffff' },
       }),
     })),
   );

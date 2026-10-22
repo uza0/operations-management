@@ -2,14 +2,113 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ===========================================================================
+   TICKET ZONE — the house identity.
+
+   Read off ticket.zone's own computed styles, not copied from a screenshot.
+   See src/lib/brand.ts for the provenance of every value and for the two
+   decisions that make this an identity rather than a colour swap: the
+   neutrals are WARM (stone, not slate), and the geometry is fixed — pill for
+   anything you press, 12px for anything you type into, 16px for anything that
+   holds content.
+   =========================================================================== */
+
 /* ---------------------------------------------------------------------------
-   Typography — Arabic-first. IBM Plex Sans Arabic covers Arabic and Latin in
-   one family, so the interface keeps one voice in both directions.
+   Type. Ticket Zone's stack is Thmanyah Sans → Noto Sans Arabic → Noto Sans.
+   Thmanyah Sans is licensed and not shipped; the system runs on the second
+   family in their own stack. Self-hosted, so the interface never waits on a
+   third-party font server and never leaks a request to one.
    --------------------------------------------------------------------------- */
 @font-face {
-  font-family: 'IBM Plex Sans Arabic Fallback';
-  src: local('Segoe UI'), local('Tahoma'), local('Arial');
-  size-adjust: 100%;
+  font-family: 'Noto Sans Arabic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/nsa-arabic-400.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+08A0-08FF, U+FB50-FDFF,
+    U+FE70-FEFF, U+10E60-10E7E, U+1EC70-1ECBF, U+1ED00-1ED4F, U+1EE00-1EEFF;
+}
+@font-face {
+  font-family: 'Noto Sans Arabic';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/nsa-arabic-500.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+08A0-08FF, U+FB50-FDFF,
+    U+FE70-FEFF, U+10E60-10E7E, U+1EC70-1ECBF, U+1ED00-1ED4F, U+1EE00-1EEFF;
+}
+@font-face {
+  font-family: 'Noto Sans Arabic';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/nsa-arabic-600.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+08A0-08FF, U+FB50-FDFF,
+    U+FE70-FEFF, U+10E60-10E7E, U+1EC70-1ECBF, U+1ED00-1ED4F, U+1EE00-1EEFF;
+}
+@font-face {
+  font-family: 'Noto Sans Arabic';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/nsa-arabic-700.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+08A0-08FF, U+FB50-FDFF,
+    U+FE70-FEFF, U+10E60-10E7E, U+1EC70-1ECBF, U+1ED00-1ED4F, U+1EE00-1EEFF;
+}
+@font-face {
+  font-family: 'Noto Sans Arabic';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/fonts/nsa-arabic-800.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+08A0-08FF, U+FB50-FDFF,
+    U+FE70-FEFF, U+10E60-10E7E, U+1EC70-1ECBF, U+1ED00-1ED4F, U+1EE00-1EEFF;
+}
+/* Latin — the same family, so Arabic and English keep one voice. */
+@font-face {
+  font-family: 'Noto Sans Arabic';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/nsa-latin-400.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+2000-206F, U+2070-209F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215;
+}
+@font-face {
+  font-family: 'Noto Sans Arabic';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url('/fonts/nsa-latin-500.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+2000-206F, U+2070-209F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215;
+}
+@font-face {
+  font-family: 'Noto Sans Arabic';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/nsa-latin-600.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+2000-206F, U+2070-209F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215;
+}
+@font-face {
+  font-family: 'Noto Sans Arabic';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/nsa-latin-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+2000-206F, U+2070-209F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215;
+}
+@font-face {
+  font-family: 'Noto Sans Arabic';
+  font-style: normal;
+  font-weight: 800;
+  font-display: swap;
+  src: url('/fonts/nsa-latin-800.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+2000-206F, U+2070-209F,
+    U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215;
 }
 
 /* ---------------------------------------------------------------------------
@@ -20,148 +119,162 @@
    theme is active without a single component knowing which one that is.
 
    The scale is semantic, not literal: ink-950 means "the page" and ink-100
-   means "the text on it" in BOTH themes. Light mode therefore runs the ramp
-   the other way round rather than inventing a second set of class names.
+   means "the text on it" in BOTH themes.
 
-   Dark is the default here because the stadium work happens at night; the
-   light values below take over when the device asks for them, and an explicit
-   choice from the toggle beats both.
+   LIGHT IS THE DEFAULT, because Ticket Zone is a light brand. Dark is a real
+   second skin, not an afterthought — the stadium work happens at night — and
+   it is built from the same warm ramp read backwards, which is why their own
+   near-blacks (#1B1917, #0A0908) are already in it.
    --------------------------------------------------------------------------- */
 :root {
-  --font-ui: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', 'IBM Plex Sans Arabic Fallback',
-    system-ui, -apple-system, 'Segoe UI', Tahoma, sans-serif;
+  --font-ui: 'Noto Sans Arabic', 'Noto Sans', system-ui, -apple-system, 'Segoe UI', Tahoma,
+    sans-serif;
+  color-scheme: light;
+
+  /* page → text, in Ticket Zone's warm stone */
+  --ink-950: 255 255 255; /* #FFFFFF  the page */
+  --ink-900: 255 255 255; /* #FFFFFF  panels sit on the page, parted by a rule */
+  --ink-850: 250 250 249; /* #FAFAF9  inset / striped surface */
+  --ink-800: 240 239 237; /* DERIVED  pressed / hover surface */
+  --ink-750: 232 229 226; /* #E8E5E2  hairline-strength fill */
+  --ink-700: 232 229 226; /* #E8E5E2  the hairline itself */
+  --ink-600: 214 210 205; /* #D6D2CD  strong hairline, input border */
+  --ink-500: 121 115 107; /* #79736B  muted text */
+  --ink-400: 121 115 107; /* #79736B  label text */
+  --ink-300: 69 65 59;    /* #45413B  secondary text */
+  --ink-200: 42 39 36;    /* #2A2724  near-primary text */
+  --ink-100: 27 25 23;    /* #1B1917  primary text */
+
+  /* the brand red */
+  --brand-50: 255 241 239;  /* #FFF1EF */
+  --brand-100: 255 225 221; /* DERIVED */
+  --brand-300: 201 60 48;   /* #C93C30  pressed */
+  --brand-400: 232 74 61;   /* #E84A3D  core token */
+  --brand-500: 228 88 74;   /* #E4584A  button fill */
+  --brand-600: 228 88 74;   /* #E4584A  button fill */
+  --brand-700: 201 60 48;   /* #C93C30  hover on light */
+  --brand-900: 146 31 21;   /* #921F15  brand text on light */
+
+  /*
+   * Status. Warm-shifted to live with the brand red, and kept clearly apart
+   * from it: the red that means "the brand" and the red that means "something
+   * is wrong" must never be mistaken for one another, so critical is a deeper,
+   * cooler red (#B91C1C) than #E4584A and always arrives with an icon.
+   */
+  --ok: 21 128 61;
+  --ok-soft: 220 252 231;
+  --ok-text: 22 101 52;
+  --warn: 180 83 9;
+  --warn-soft: 254 243 199;
+  --warn-text: 146 64 14;
+  --crit: 185 28 28;
+  --crit-soft: 254 226 226;
+  --crit-text: 153 27 27;
+  --info: 30 90 130;
+  --info-soft: 233 238 243;
+  --info-text: 30 74 106;
+
+  /* Ticket Zone's own elevation ladder, read off their cards. */
+  --shadow-panel: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-raised: 0 2px 4px 0 rgba(15, 14, 13, 0.04), 0 4px 8px 0 rgba(15, 14, 13, 0.08);
+  --shadow-float: 0 4px 8px 0 rgba(15, 14, 13, 0.04), 0 8px 16px 0 rgba(15, 14, 13, 0.1);
+  --focus-ring: #e4584a;
+  --scrollbar-thumb: #d6d2cd;
+}
+
+/* The same ramp read the other way. Their near-blacks become the surfaces. */
+:root[data-theme='dark'] {
   color-scheme: dark;
 
-  --ink-950: 8 11 17;
-  --ink-900: 13 17 23;
-  --ink-850: 17 22 31;
-  --ink-800: 22 28 39;
-  --ink-750: 28 36 49;
-  --ink-700: 35 44 59;
-  --ink-600: 47 58 76;
-  --ink-500: 68 82 106;
-  --ink-400: 100 116 139;
-  --ink-300: 148 163 184;
-  --ink-200: 203 213 225;
-  --ink-100: 232 237 244;
+  --ink-950: 10 9 8;      /* #0A0908  the page */
+  --ink-900: 27 25 23;    /* #1B1917  panels */
+  --ink-850: 33 31 28;    /* DERIVED  inset surface */
+  --ink-800: 42 39 36;    /* #2A2724  raised surface */
+  --ink-750: 52 48 44;    /* DERIVED  hover */
+  --ink-700: 61 57 52;    /* DERIVED  hairline */
+  --ink-600: 79 74 68;    /* DERIVED  input border */
+  --ink-500: 121 115 107; /* #79736B  muted text */
+  --ink-400: 150 143 134; /* DERIVED  label text */
+  --ink-300: 186 180 172; /* DERIVED  secondary text */
+  --ink-200: 214 210 205; /* #D6D2CD */
+  --ink-100: 240 238 235; /* DERIVED  primary text */
 
-  --brand-50: 236 253 246;
-  --brand-100: 209 250 229;
-  --brand-300: 110 231 183;
-  --brand-400: 52 211 153;
-  --brand-500: 16 185 129;
-  --brand-600: 5 150 105;
-  --brand-700: 4 120 87;
-  --brand-900: 6 78 59;
+  /* The same red, lifted so it still reads at AA on a near-black page. */
+  --brand-50: 44 21 18;
+  --brand-100: 61 27 23;
+  --brand-300: 255 138 128;
+  --brand-400: 255 122 111;
+  --brand-500: 255 92 79;  /* #FF5C4F — the site's own hover red */
+  --brand-600: 228 88 74;  /* #E4584A */
+  --brand-700: 201 60 48;
+  --brand-900: 255 170 162;
 
   --ok: 22 163 74;
-  --ok-soft: 15 42 28;
-  --ok-text: 74 222 128;
+  --ok-soft: 16 38 24;
+  --ok-text: 134 239 172;
   --warn: 217 119 6;
   --warn-soft: 43 31 10;
-  --warn-text: 251 191 36;
+  --warn-text: 253 211 109;
   --crit: 220 38 38;
-  --crit-soft: 43 17 20;
-  --crit-text: 248 113 113;
-  --info: 37 99 235;
-  --info-soft: 15 28 51;
-  --info-text: 96 165 250;
+  --crit-soft: 48 20 18;
+  --crit-text: 252 165 165;
+  --info: 56 135 183;
+  --info-soft: 24 29 34;
+  --info-text: 158 198 226;
 
   --shadow-panel: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
     0 12px 32px -18px rgba(0, 0, 0, 0.9);
-  --focus-ring: #34d399;
-  --scrollbar-thumb: #2f3a4c;
-}
-
-:root[data-theme='light'] {
-  color-scheme: light;
-
-  /* The page and the panels. Not pure white: a sheet of paper under stadium
-     floodlights is the reference, and pure white glares. */
-  --ink-950: 246 247 249;
-  --ink-900: 255 255 255;
-  --ink-850: 242 244 247;
-  --ink-800: 230 233 239;
-  --ink-750: 221 225 233;
-  --ink-700: 207 213 224;
-  --ink-600: 170 179 194;
-  --ink-500: 100 112 128;
-  --ink-400: 85 96 111;
-  --ink-300: 61 70 83;
-  --ink-200: 39 48 60;
-  --ink-100: 18 24 32;
-
-  /* The accent darkens, because the same green that reads on black is
-     illegible on white. */
-  --brand-50: 236 253 246;
-  --brand-100: 209 250 229;
-  --brand-300: 4 120 87;
-  --brand-400: 5 150 105;
-  --brand-500: 5 150 105;
-  --brand-600: 4 120 87;
-  --brand-700: 6 95 70;
-  --brand-900: 6 78 59;
-
-  /* Status text darkens for the same reason; the soft fills become tints. */
-  --ok: 22 163 74;
-  --ok-soft: 220 252 231;
-  --ok-text: 21 128 61;
-  --warn: 217 119 6;
-  --warn-soft: 254 243 199;
-  --warn-text: 161 98 7;
-  --crit: 220 38 38;
-  --crit-soft: 254 226 226;
-  --crit-text: 185 28 28;
-  --info: 37 99 235;
-  --info-soft: 219 234 254;
-  --info-text: 29 78 216;
-
-  --shadow-panel: 0 1px 2px 0 rgba(15, 23, 42, 0.04),
-    0 8px 24px -16px rgba(15, 23, 42, 0.25);
-  --focus-ring: #059669;
-  --scrollbar-thumb: #aab3c2;
+  --shadow-raised: 0 2px 4px 0 rgba(0, 0, 0, 0.4), 0 4px 8px 0 rgba(0, 0, 0, 0.35);
+  --shadow-float: 0 4px 8px 0 rgba(0, 0, 0, 0.45), 0 8px 16px 0 rgba(0, 0, 0, 0.4);
+  --focus-ring: #ff5c4f;
+  --scrollbar-thumb: #4f4a44;
 }
 
 /*
  * No explicit choice: follow the device. `:root:not([data-theme])` keeps a
- * chosen dark theme dark on a phone set to light.
+ * chosen light theme light on a phone set to dark.
  */
-@media (prefers-color-scheme: light) {
+@media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    color-scheme: light;
+    color-scheme: dark;
 
-    --ink-950: 246 247 249;
-    --ink-900: 255 255 255;
-    --ink-850: 242 244 247;
-    --ink-800: 230 233 239;
-    --ink-750: 221 225 233;
-    --ink-700: 207 213 224;
-    --ink-600: 170 179 194;
-    --ink-500: 100 112 128;
-    --ink-400: 85 96 111;
-    --ink-300: 61 70 83;
-    --ink-200: 39 48 60;
-    --ink-100: 18 24 32;
+    --ink-950: 10 9 8;
+    --ink-900: 27 25 23;
+    --ink-850: 33 31 28;
+    --ink-800: 42 39 36;
+    --ink-750: 52 48 44;
+    --ink-700: 61 57 52;
+    --ink-600: 79 74 68;
+    --ink-500: 121 115 107;
+    --ink-400: 150 143 134;
+    --ink-300: 186 180 172;
+    --ink-200: 214 210 205;
+    --ink-100: 240 238 235;
 
-    --brand-300: 4 120 87;
-    --brand-400: 5 150 105;
-    --brand-500: 5 150 105;
-    --brand-600: 4 120 87;
-    --brand-700: 6 95 70;
+    --brand-50: 44 21 18;
+    --brand-100: 61 27 23;
+    --brand-300: 255 138 128;
+    --brand-400: 255 122 111;
+    --brand-500: 255 92 79;
+    --brand-600: 228 88 74;
+    --brand-700: 201 60 48;
+    --brand-900: 255 170 162;
 
-    --ok-soft: 220 252 231;
-    --ok-text: 21 128 61;
-    --warn-soft: 254 243 199;
-    --warn-text: 161 98 7;
-    --crit-soft: 254 226 226;
-    --crit-text: 185 28 28;
-    --info-soft: 219 234 254;
-    --info-text: 29 78 216;
+    --ok-soft: 16 38 24;
+    --ok-text: 134 239 172;
+    --warn-soft: 43 31 10;
+    --warn-text: 253 211 109;
+    --crit-soft: 48 20 18;
+    --crit-text: 252 165 165;
+    --info-soft: 24 29 34;
+    --info-text: 158 198 226;
 
-    --shadow-panel: 0 1px 2px 0 rgba(15, 23, 42, 0.04),
-      0 8px 24px -16px rgba(15, 23, 42, 0.25);
-    --focus-ring: #059669;
-    --scrollbar-thumb: #aab3c2;
+    --shadow-panel: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
+      0 12px 32px -18px rgba(0, 0, 0, 0.9);
+    --shadow-raised: 0 2px 4px 0 rgba(0, 0, 0, 0.4), 0 4px 8px 0 rgba(0, 0, 0, 0.35);
+    --shadow-float: 0 4px 8px 0 rgba(0, 0, 0, 0.45), 0 8px 16px 0 rgba(0, 0, 0, 0.4);
+    --focus-ring: #ff5c4f;
+    --scrollbar-thumb: #4f4a44;
   }
 }
 
@@ -179,11 +292,17 @@
   :focus-visible {
     outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
-    border-radius: 6px;
+    border-radius: 8px;
+  }
+  button:focus-visible,
+  a:focus-visible,
+  .btn:focus-visible,
+  .chip:focus-visible {
+    border-radius: 9999px;
   }
 
   ::selection {
-    background: rgba(16, 185, 129, 0.3);
+    background: rgba(228, 88, 74, 0.22);
   }
 
   /* Numbers stay latin and LTR even inside RTL text. */
@@ -219,7 +338,7 @@
 
 @layer components {
   .panel {
-    @apply rounded-card border border-ink-700/70 bg-ink-900/70 shadow-panel;
+    @apply rounded-card border border-ink-700 bg-ink-900 shadow-panel;
   }
 
   .panel-head {
@@ -231,15 +350,15 @@
   }
 
   .field {
-    @apply w-full rounded-lg border border-ink-600 bg-ink-850 px-3 py-2.5 text-[15px] text-ink-100
+    @apply w-full rounded-control border border-ink-600 bg-ink-850 px-3 py-2.5 text-[15px] text-ink-100
       placeholder:text-ink-400 transition-colors
-      hover:border-ink-500 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500/30
+      hover:border-ink-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/25
       disabled:cursor-not-allowed disabled:opacity-50;
   }
 
   select.field {
     @apply cursor-pointer appearance-none bg-[length:16px] bg-no-repeat pe-9;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2379736b' stroke-width='2.5' stroke-linecap='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   }
 
   :dir(rtl) select.field {
@@ -250,17 +369,26 @@
   }
 
   .btn {
-    @apply inline-flex select-none items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-[14px]
-      font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-55;
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-full px-5 py-2.5 text-[14px]
+      font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-55;
     min-height: 42px;
   }
 
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-500;
+    @apply btn bg-brand-600 text-white hover:bg-brand-700;
+  }
+
+  /*
+   * The second-loudest button on a Ticket Zone page is not grey — it is an
+   * outlined pill in the ink colour. That pairing (solid red / outlined ink)
+   * is the house button system, so it is reproduced exactly.
+   */
+  .btn-outline {
+    @apply btn border border-ink-100 bg-transparent text-ink-100 hover:bg-ink-100 hover:text-ink-950;
   }
 
   .btn-secondary {
-    @apply btn border border-ink-600 bg-ink-800 text-ink-100 hover:border-ink-500 hover:bg-ink-750;
+    @apply btn border border-ink-600 bg-ink-900 text-ink-100 hover:border-ink-500 hover:bg-ink-850;
   }
 
   .btn-ghost {
@@ -272,7 +400,7 @@
   }
 
   .btn-sm {
-    @apply px-3 py-1.5 text-[13px];
+    @apply px-4 py-1.5 text-[13px];
     min-height: 36px;
   }
 
@@ -331,7 +459,7 @@
    * the page's scroll width past the viewport.
    */
   .skip-link {
-    @apply fixed z-[60] rounded-lg bg-brand-600 px-4 py-2 text-[14px] font-semibold text-white;
+    @apply fixed z-[60] rounded-full bg-brand-600 px-5 py-2 text-[14px] font-bold text-white;
     inset-inline-start: 0.5rem;
     top: -6rem;
     transition: top 0.15s ease;
@@ -362,7 +490,7 @@
     }
 
     .op-table-stack tr {
-      @apply mb-2.5 rounded-xl border border-ink-700 bg-ink-850/50 p-1;
+      @apply mb-2.5 rounded-card border border-ink-700 bg-ink-850 p-1;
     }
 
     .op-table-stack tr:last-child {
@@ -408,19 +536,19 @@
   }
   body {
     background: #fff !important;
-    color: #0b0f16 !important;
+    color: #1B1917 !important;
   }
   .no-print {
     display: none !important;
   }
   .panel {
-    border-color: #cbd5e1 !important;
+    border-color: #D6D2CD !important;
     background: #fff !important;
     box-shadow: none !important;
     break-inside: avoid;
   }
   .print-text {
-    color: #0b0f16 !important;
+    color: #1B1917 !important;
   }
 }
 
@@ -621,7 +749,7 @@
     background: transparent !important;
     box-shadow: none !important;
     text-shadow: none !important;
-    color: #0b0f16 !important;
+    color: #1B1917 !important;
   }
 
   html,
@@ -657,45 +785,47 @@
   }
 
   .report-masthead {
-    border-bottom: 2px solid #0b0f16 !important;
+    border-bottom: 2px solid #e4584a !important;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
   .report-h2 {
-    border-bottom-color: #94a3b8 !important;
+    border-bottom-color: #A8A29E !important;
   }
   .report-h2-num {
-    background: #e2e8f0 !important;
-    border: 1px solid #94a3b8 !important;
+    background: #E8E5E2 !important;
+    border: 1px solid #A8A29E !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
   .report-fact,
   .report-table td {
-    border-color: #cbd5e1 !important;
+    border-color: #D6D2CD !important;
   }
   .report-table th {
-    border-bottom-color: #64748b !important;
+    border-bottom-color: #79736B !important;
   }
   .report-hint,
   .report-fact-label,
   .report-signature-meta {
-    color: #475569 !important;
+    color: #57534E !important;
   }
 
   .report-bar {
-    border-color: #475569 !important;
+    border-color: #57534E !important;
   }
   .report-bar-fill {
-    background: #334155 !important;
+    background: #44403C !important;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
   .report-signature-line {
-    border-bottom-color: #0b0f16 !important;
+    border-bottom-color: #1B1917 !important;
   }
 
   /* The notes box is a form control on screen and plain prose on paper. */
   .report-doc textarea {
-    border: 1px solid #cbd5e1 !important;
+    border: 1px solid #D6D2CD !important;
     resize: none !important;
     height: auto !important;
     min-height: 22mm;
@@ -703,7 +833,7 @@
 
   /* Status pills lose their fill but must stay legible. */
   .chip {
-    border-color: #64748b !important;
+    border-color: #79736B !important;
   }
 
   /* On paper there is room again, so timestamps and labels stay on one line. */
@@ -713,19 +843,19 @@
 
   .sheet-block,
   .sheet-lane {
-    border-color: #cbd5e1 !important;
+    border-color: #D6D2CD !important;
     break-inside: avoid;
   }
   .sheet-block-head {
-    border-bottom-color: #64748b !important;
+    border-bottom-color: #79736B !important;
   }
   .sheet-lane-head,
   .sheet-idx::before,
   .sheet-none {
-    color: #475569 !important;
+    color: #57534E !important;
   }
   .sheet-role {
-    color: #475569 !important;
+    color: #57534E !important;
   }
   .sheet-grid {
     display: grid !important;

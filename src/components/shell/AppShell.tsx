@@ -5,6 +5,7 @@ import { logoutAction } from '@/server/actions/auth';
 import { getT } from '@/lib/i18n/server';
 import type { SessionUser } from '@/server/auth/session';
 import { IconLogout } from '@/components/ui/icons';
+import { BrandMark } from '@/components/ui/BrandMark';
 import { LocaleSwitcher } from '@/components/ui/client';
 import { ThemeToggle } from '@/components/pwa/ThemeToggle';
 import { InstallPrompt } from '@/components/pwa/InstallPrompt';
@@ -45,12 +46,7 @@ export async function AppShell({
       <aside className="app-chrome sticky top-0 hidden h-screen w-[248px] shrink-0 flex-col border-e border-ink-800 bg-ink-900/60 lg:flex">
         <div className="border-b border-ink-800 px-4 py-4">
           <Link href={homeHref} className="flex items-center gap-2.5">
-            <span
-              aria-hidden
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-brand-600 text-[15px] font-bold text-white"
-            >
-              OM
-            </span>
+            <BrandMark size={36} className="shrink-0 text-brand-600" />
             <span className="min-w-0">
               <span className="block truncate text-[14.5px] font-bold text-ink-100">
                 {t.app.name}

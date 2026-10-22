@@ -1022,7 +1022,7 @@ await themePage.waitForLoadState('networkidle');
 const lightBg = await themePage.evaluate(
   () => getComputedStyle(document.body).backgroundColor,
 );
-check('a device set to light gets the light theme', lightBg === 'rgb(246, 247, 249)', lightBg);
+check('a device set to light gets the light theme', lightBg === 'rgb(255, 255, 255)', lightBg);
 
 // An explicit choice beats the device: dark stays dark on a light phone.
 await themePage.evaluate(() => {
@@ -1033,7 +1033,7 @@ await themePage.waitForLoadState('networkidle');
 const forcedDark = await themePage.evaluate(
   () => getComputedStyle(document.body).backgroundColor,
 );
-check('a chosen theme overrides the device', forcedDark === 'rgb(8, 11, 17)', forcedDark);
+check('a chosen theme overrides the device', forcedDark === 'rgb(10, 9, 8)', forcedDark);
 
 // And the choice is applied before paint, not after hydration.
 const attrBeforeHydration = await themePage.evaluate(
@@ -1042,12 +1042,43 @@ const attrBeforeHydration = await themePage.evaluate(
 check('the chosen theme is applied without a flash', attrBeforeHydration === 'dark',
   String(attrBeforeHydration));
 
+/*
+ * The house identity, asserted.
+ *
+ * Colour and radius drift one component at a time and nobody notices until the
+ * whole thing looks generic again, so the four values that carry the Ticket
+ * Zone identity are checked the same way a feature is: the brand red on the
+ * primary action, the warm ink on text, the pill on anything you press, and
+ * the house font actually arriving rather than falling back to Tahoma.
+ */
+const brandCtx = await browser.newContext({ colorScheme: 'light' });
+const brandPage = await brandCtx.newPage();
+await brandPage.goto(`${BASE}/login`);
+await brandPage.waitForSelector('button[type=submit]:not([disabled])');
+const identity = await brandPage.evaluate(() => {
+  const btn = document.querySelector('.btn-primary') || document.querySelector('button[type=submit]');
+  const s = getComputedStyle(btn);
+  return {
+    btnBg: s.backgroundColor,
+    btnRadius: s.borderTopLeftRadius,
+    ink: getComputedStyle(document.body).color,
+    font: getComputedStyle(document.body).fontFamily,
+    fontLoaded: document.fonts.check('700 16px "Noto Sans Arabic"'),
+  };
+});
+check('the primary action wears the Ticket Zone red', identity.btnBg === 'rgb(228, 88, 74)', identity.btnBg);
+check('anything you press is a pill', parseInt(identity.btnRadius, 10) >= 999, identity.btnRadius);
+check('text sits on the warm ink, not a cool grey', identity.ink === 'rgb(27, 25, 23)', identity.ink);
+check('the house font is the first family', identity.font.startsWith('"Noto Sans Arabic"') || identity.font.startsWith('Noto Sans Arabic'), identity.font);
+check('the house font actually loaded', identity.fontLoaded === true, String(identity.fontLoaded));
+await brandCtx.close();
+
 const darkCtx = await browser.newContext({ colorScheme: 'dark' });
 const darkPage = await darkCtx.newPage();
 await darkPage.goto(`${BASE}/login`);
 await darkPage.waitForLoadState('networkidle');
 const darkBg = await darkPage.evaluate(() => getComputedStyle(document.body).backgroundColor);
-check('a device set to dark stays dark', darkBg === 'rgb(8, 11, 17)', darkBg);
+check('a device set to dark stays dark', darkBg === 'rgb(10, 9, 8)', darkBg);
 await themeCtx.close();
 await darkCtx.close();
 

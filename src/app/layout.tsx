@@ -34,8 +34,8 @@ export const viewport: Viewport = {
   initialScale: 1,
   /* The browser chrome matches whichever theme the device asks for. */
   themeColor: [
-    { media: '(prefers-color-scheme: dark)', color: '#080b11' },
-    { media: '(prefers-color-scheme: light)', color: '#f6f7f9' },
+    { media: '(prefers-color-scheme: dark)', color: '#0a0908' },
+    { media: '(prefers-color-scheme: light)', color: '#ffffff' },
   ],
   /** Lets the app paint under the notch; safe-area padding is in globals.css. */
   viewportFit: 'cover',

@@ -1,3 +1,5 @@
+import { MARKER_COLORS } from './brand';
+
 /**
  * Authoritative value lists for every "enum" column in the schema.
  * SQLite has no enum type, so these constants + zod validation are what keep
@@ -189,19 +191,19 @@ export type MarkerType = (typeof MARKER_TYPES)[number];
 
 /** Short glyph + accent per marker type. Never colour alone (spec §35). */
 export const MARKER_STYLE: Record<MarkerType, { glyph: string; color: string }> = {
-  GATE: { glyph: 'G', color: '#10b981' },
-  WORKING_POINT: { glyph: 'W', color: '#3b82f6' },
-  VIP_ENTRANCE: { glyph: 'V', color: '#a855f7' },
-  SCANNER: { glyph: 'S', color: '#06b6d4' },
-  WRISTBAND: { glyph: 'B', color: '#f59e0b' },
-  TEAM_LEADER: { glyph: 'TL', color: '#f43f5e' },
-  GATE_LEADER: { glyph: 'GL', color: '#fb923c' },
-  TEAM_MEMBER: { glyph: 'M', color: '#94a3b8' },
-  INFORMATION: { glyph: 'i', color: '#38bdf8' },
-  EMERGENCY: { glyph: '+', color: '#ef4444' },
-  STAFF_ENTRANCE: { glyph: 'ST', color: '#84cc16' },
-  PLAYER_ENTRANCE: { glyph: 'P', color: '#14b8a6' },
-  OTHER: { glyph: '•', color: '#64748b' },
+  GATE: { glyph: 'G', color: MARKER_COLORS.GATE },
+  WORKING_POINT: { glyph: 'W', color: MARKER_COLORS.WORKING_POINT },
+  VIP_ENTRANCE: { glyph: 'V', color: MARKER_COLORS.VIP_ENTRANCE },
+  SCANNER: { glyph: 'S', color: MARKER_COLORS.SCANNER },
+  WRISTBAND: { glyph: 'B', color: MARKER_COLORS.WRISTBAND },
+  TEAM_LEADER: { glyph: 'TL', color: MARKER_COLORS.TEAM_LEADER },
+  GATE_LEADER: { glyph: 'GL', color: MARKER_COLORS.GATE_LEADER },
+  TEAM_MEMBER: { glyph: 'M', color: MARKER_COLORS.TEAM_MEMBER },
+  INFORMATION: { glyph: 'i', color: MARKER_COLORS.INFORMATION },
+  EMERGENCY: { glyph: '+', color: MARKER_COLORS.EMERGENCY },
+  STAFF_ENTRANCE: { glyph: 'ST', color: MARKER_COLORS.STAFF_ENTRANCE },
+  PLAYER_ENTRANCE: { glyph: 'P', color: MARKER_COLORS.PLAYER_ENTRANCE },
+  OTHER: { glyph: '•', color: MARKER_COLORS.OTHER },
 };
 
 export const AUDIT_ACTIONS = [

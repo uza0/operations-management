@@ -4,6 +4,7 @@ import { getT } from '@/lib/i18n/server';
 import { currentUser, homeFor } from '@/server/auth/rbac';
 import { LocaleSwitcher } from '@/components/ui/client';
 import { IconInfo } from '@/components/ui/icons';
+import { BrandMark } from '@/components/ui/BrandMark';
 
 import { LoginForm } from './LoginForm';
 
@@ -53,7 +54,7 @@ export default async function LoginPage({
         className="pointer-events-none absolute inset-0 opacity-[0.16]"
         style={{
           backgroundImage:
-            'radial-gradient(circle at 20% 15%, #10b981 0, transparent 42%), radial-gradient(circle at 82% 78%, #2563eb 0, transparent 45%)',
+            'radial-gradient(circle at 18% 12%, #e4584a 0, transparent 46%), radial-gradient(circle at 84% 82%, #921f15 0, transparent 44%)',
         }}
       />
       <div
@@ -69,12 +70,7 @@ export default async function LoginPage({
       <div className="relative w-full max-w-[420px]">
         <div className="mb-6 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span
-              aria-hidden
-              className="grid h-11 w-11 place-items-center rounded-xl bg-brand-600 text-[17px] font-bold text-white"
-            >
-              OM
-            </span>
+            <BrandMark size={44} className="text-brand-600" />
             <div>
               <p className="text-[17px] font-bold leading-tight text-ink-100">{t.app.name}</p>
               <p className="text-[12px] text-ink-400">{t.app.tagline}</p>

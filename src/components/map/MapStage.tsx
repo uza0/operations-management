@@ -279,7 +279,7 @@ export function MapStage({
                   <Circle
                     radius={radius}
                     fill={style.color}
-                    stroke={selected ? '#ffffff' : 'rgba(8,11,17,0.85)'}
+                    stroke={selected ? '#ffffff' : 'rgba(10,9,8,0.85)'}
                     strokeWidth={selected ? 3 : 2}
                     shadowColor="black"
                     shadowBlur={selected ? 10 : 4}
@@ -289,7 +289,7 @@ export function MapStage({
                     text={style.glyph}
                     fontSize={marker.highlight ? 14 : 12}
                     fontStyle="bold"
-                    fill="#06110c"
+                    fill="#1b1917"
                     width={radius * 2}
                     height={radius * 2}
                     offsetX={radius}
@@ -310,7 +310,7 @@ export function MapStage({
                       text={marker.badge ? `${marker.name}  ·  ${marker.badge}` : marker.name}
                       fontSize={13}
                       fontStyle="600"
-                      fill="#e8edf4"
+                      fill="#f0eeeb"
                       y={radius + 5}
                       offsetX={66}
                       width={132}
@@ -319,7 +319,7 @@ export function MapStage({
                       // labels are clipped rather than allowed to collide.
                       wrap="none"
                       ellipsis
-                      shadowColor="#05070b"
+                      shadowColor="#0a0908"
                       shadowBlur={6}
                       shadowOpacity={1}
                       listening={false}
