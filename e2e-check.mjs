@@ -36,6 +36,14 @@ async function login(ctx, username, password) {
   await page.fill('#username', username);
   await page.fill('#password', password);
   await page.click('button[type=submit]');
+  /*
+   * Wait for the destination, not for the network to go quiet. Sign-in is a
+   * server action that answers with a redirect, and now that the areas behind
+   * it stream a loading shell first, "no requests in flight" can be true while
+   * the browser is still on /login — which made this helper, and therefore the
+   * whole suite, intermittently wrong about whether sign-in worked.
+   */
+  await page.waitForURL((url) => !url.pathname.startsWith('/login'), { timeout: 20000 });
   await page.waitForLoadState('networkidle');
   return page;
 }

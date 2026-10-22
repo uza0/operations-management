@@ -50,8 +50,17 @@ export function ErrorState({
   );
 }
 
+/**
+ * The shape of content that has not arrived yet.
+ *
+ * A sheen travelling across the block rather than the whole block fading in
+ * and out: a pulse reads as something broken blinking at you, while a sweep
+ * reads as work in progress, which is what it is. The gradient and the timing
+ * live in `.skeleton` in globals.css so every placeholder in the app sweeps
+ * together instead of each one keeping its own beat.
+ */
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div className={`animate-pulseSoft rounded-lg bg-ink-800 ${className}`} />;
+  return <div className={`skeleton ${className}`} aria-hidden />;
 }
 
 export function LoadingState({ label }: { label: string }) {
