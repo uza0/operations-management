@@ -282,7 +282,7 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
                         : ''}
                     </td>
                     <td className="nums">
-                      {line.days}
+                      {line.amount}
                       {line.note ? (
                         <span className="block text-[11px] text-ink-500">{line.note}</span>
                       ) : null}
@@ -291,7 +291,7 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
                 ))}
               </ReportTable>
               <p className="report-hint">
-                {format(t.credit.eventTotal, { n: data.totalCreditDays })}
+                {format(t.credit.eventTotal, { n: data.totalPay })}
               </p>
             </>
           ) : null}

@@ -9,6 +9,7 @@ import { Badge, attendanceTone } from '@/components/ui/status';
 import { IconCheckCircle } from '@/components/ui/icons';
 import { formatDate, formatTime } from '@/lib/time';
 import type { AttendanceStatus, Task } from '@/lib/constants';
+import { formatAmount, formatMoney } from '@/lib/money';
 
 /**
  * One person's record.
@@ -32,16 +33,16 @@ export async function MemberLedgerPage({ memberId }: { memberId: string }) {
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatTile
-          label={t.credit.totalDays}
-          value={ledger.totalDays}
+          label={t.credit.totalAmount}
+          value={formatMoney(ledger.totalAmount, locale)}
           hint={t.credit.day}
-          tone={ledger.totalDays > 0 ? 'ok' : 'neutral'}
+          tone={ledger.totalAmount > 0 ? 'ok' : 'neutral'}
         />
         <StatTile
-          label={t.credit.pendingDays}
-          value={ledger.pendingDays}
+          label={t.credit.pendingAmount}
+          value={formatMoney(ledger.pendingAmount, locale)}
           hint={t.credit.pendingHint}
-          tone={ledger.pendingDays > 0 ? 'info' : 'neutral'}
+          tone={ledger.pendingAmount > 0 ? 'info' : 'neutral'}
         />
         <StatTile label={t.credit.eventsWorked} value={ledger.eventsWorked} />
         <StatTile
@@ -118,10 +119,10 @@ export async function MemberLedgerPage({ memberId }: { memberId: string }) {
                     <td data-label={t.credit.days}>
                       <span
                         className={`nums font-semibold ${
-                          line.days > 0 ? 'text-ink-100' : 'text-ink-500'
+                          line.amount > 0 ? 'text-ink-100' : 'text-ink-500'
                         }`}
                       >
-                        {line.days}
+                        {formatAmount(line.amount)}
                       </span>
                       {line.note ? (
                         <span className="block max-w-[220px] text-[11.5px] leading-4 text-ink-500">

@@ -419,6 +419,32 @@
     background: rgba(228, 88, 74, 0.22);
   }
 
+  /*
+   * Date and time fields.
+   *
+   * A native date input is a row of segments the browser lays out itself, and
+   * inside an RTL document Chrome reverses the whole placeholder string: what
+   * should read "سنة/شهر/يوم" comes out "موي/رهش/ةنس" — not a translation
+   * problem, the characters in reverse. A date is a number pattern rather than
+   * prose, so the control is given its own direction and then aligned to the
+   * side the rest of the form starts from, which keeps it both readable and in
+   * line with every other field.
+   */
+  input[type='date'],
+  input[type='time'],
+  input[type='datetime-local'],
+  input[type='month'],
+  input[type='week'] {
+    direction: ltr;
+  }
+  :dir(rtl) input[type='date'],
+  :dir(rtl) input[type='time'],
+  :dir(rtl) input[type='datetime-local'],
+  :dir(rtl) input[type='month'],
+  :dir(rtl) input[type='week'] {
+    text-align: right;
+  }
+
   /* Numbers stay latin and LTR even inside RTL text. */
   .nums {
     font-variant-numeric: tabular-nums;

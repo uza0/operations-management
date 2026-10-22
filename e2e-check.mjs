@@ -283,23 +283,29 @@ check('report names who attended', report.includes('أسماء الحضور')
   && report.includes('أمير عبد الله') && report.includes('TZ-'));
 
 /*
- * Credit follows a rule rather than a copy of a number: an absent member earns
- * nothing, and a figure entered by hand overrides the event's default. This
- * checks the arithmetic end to end, through the screen the supervisor uses.
+ * Pay follows a rule rather than a copy of a number: everyone who worked earns
+ * the event's rate, an absent member earns nothing, and a figure entered by
+ * hand beats both — which is how the handful of people on their own rate get
+ * it. This checks the arithmetic end to end, through the screen the supervisor
+ * actually uses.
  */
+const eventRate = await db.prepare('select pay_default from events where id=?').get(eventId);
+check('an event pays 30,000 a head unless it is changed',
+  Number(eventRate?.pay_default) === 30000, String(eventRate?.pay_default));
+
 await admin.goto(`${BASE}/admin/events/${eventId}/attendance`);
 await admin.waitForLoadState('networkidle');
 await admin.click('button:has-text("تعديل السجل")');
-await admin.waitForSelector('input[name=creditDays]');
-await admin.fill('input[name=creditDays]', '2');
-await admin.fill('input[name=creditNote]', 'حضر قبل يوم لترتيب القاعة');
-await admin.click('button:has-text("حفظ الرصيد")');
+await admin.waitForSelector('input[name=payAmount]');
+await admin.fill('input[name=payAmount]', '45000');
+await admin.fill('input[name=creditNote]', 'قائد بوابة');
+await admin.click('button:has-text("حفظ المبلغ")');
 await admin.waitForTimeout(2500);
 
 const credited = await db.prepare(
-  'select credit_days, credit_note from event_members where credit_days is not null and event_id=?',
+  'select pay_amount, credit_note from event_members where pay_amount is not null and event_id=?',
 ).get(eventId);
-check('a member can be credited more than the default', Number(credited?.credit_days) === 2,
+check('one person can be put on their own rate', Number(credited?.pay_amount) === 45000,
   String(credited?.credit_note ?? ''));
 
 // The times are the supervisor's to correct, and an empty box clears them.
@@ -321,8 +327,12 @@ check('attendance times can be edited', times?.check_out_time === '22:40',
 await admin.goto(`${BASE}/admin/credits`);
 await admin.waitForLoadState('networkidle');
 const payroll = await admin.textContent('main');
-check('payroll report lists members and their days', payroll.includes('تقرير أرصدة الفريق')
-  && payroll.includes('الرصيد المعتمد') && payroll.includes('TZ-'));
+check('payroll report lists members and what they are owed',
+  payroll.includes('تقرير مستحقات الفريق')
+  && payroll.includes('المستحق المعتمد') && payroll.includes('TZ-'));
+// Figures are grouped, because a six-digit payroll line read wrong is a wrong
+// payment: 30000 and 300000 differ by a glance, "30,000" and "300,000" do not.
+check('amounts are shown grouped', /\d{1,3},\d{3}/.test(payroll), '');
 
 const someone = await db.prepare(
   'select team_member_id from event_members where event_id=? limit 1').get(eventId);
@@ -330,7 +340,7 @@ await admin.goto(`${BASE}/admin/team/${someone.team_member_id}`);
 await admin.waitForLoadState('networkidle');
 const ledgerText = await admin.textContent('main');
 check('member ledger shows the events behind the balance',
-  ledgerText.includes('الرصيد المعتمد') && ledgerText.includes('الزوراء'));
+  ledgerText.includes('المستحق المعتمد') && ledgerText.includes('الزوراء'));
 
 const xlsx = await admin.request.get(`${BASE}/api/credits/export`);
 const xlsxBody = await xlsx.body();

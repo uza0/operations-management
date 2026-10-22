@@ -151,7 +151,7 @@ export async function cloneEventPlan(
             notifiedAt: null,
             notifiedById: null,
             // Credit is a decision about one day's work, not a standing rate.
-            creditDays: null,
+            payAmount: null,
             creditNote: null,
             // Who leads the team, and who runs each gate, is part of the plan
             // being copied — it is the same people doing the same jobs again.

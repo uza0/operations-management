@@ -18,6 +18,7 @@ import {
   WORKING_POINT_TYPES,
 } from './constants';
 import { DATE_RE, TIME_RE } from './time';
+import { MAX_EVENT_PAY } from './money';
 
 const time = z.string().regex(TIME_RE, 'invalidTime');
 const date = z.string().regex(DATE_RE, 'invalidDate');
@@ -137,36 +138,37 @@ export const attendanceTimesSchema = z.object({
 });
 
 /**
- * Days credited to one person for one event. Quarter-day steps cover the
- * half shifts that actually occur; the cap is there so a typo cannot put a
- * month's pay on one line.
+ * What one person is owed for one event, in dinars.
+ *
+ * Whole dinars only — nothing here is priced in fils — and capped, so that a
+ * finger slipping on the keypad cannot put a year's payroll on one line and
+ * have it quietly totalled into the month's report.
  */
+const dinars = (value: unknown) =>
+  typeof value === 'number' &&
+  Number.isFinite(value) &&
+  Number.isInteger(value) &&
+  value >= 0 &&
+  value <= MAX_EVENT_PAY;
+
 export const creditSchema = z.object({
   eventMemberId: z.string().min(1),
-  creditDays: z
+  payAmount: z
     .string()
     .trim()
-    .transform((value) => (value === '' ? null : Number(value)))
+    // A figure typed as "30,000" is the same figure.
+    .transform((value) => (value === '' ? null : Number(value.replace(/[,\s]/g, ''))))
     .nullable()
-    .refine(
-      (value) =>
-        value === null ||
-        (Number.isFinite(value) && value >= 0 && value <= 31 && (value * 4) % 1 === 0),
-      'invalidCredit',
-    ),
+    .refine((value) => value === null || dinars(value), 'invalidCredit'),
   creditNote: z.string().trim().max(160).optional().nullable(),
 });
 
 export const eventCreditSchema = z.object({
-  creditDaysDefault: z
+  payDefault: z
     .string()
     .trim()
-    .transform((value) => Number(value))
-    .refine(
-      (value) =>
-        Number.isFinite(value) && value >= 0 && value <= 31 && (value * 4) % 1 === 0,
-      'invalidCredit',
-    ),
+    .transform((value) => Number(value.replace(/[,\s]/g, '')))
+    .refine(dinars, 'invalidCredit'),
 });
 
 export const announcementSchema = z.object({

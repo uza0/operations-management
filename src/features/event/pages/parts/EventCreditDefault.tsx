@@ -8,25 +8,26 @@ import { idle } from '@/server/actions/types';
 import { FormError } from '@/components/ui/states';
 import { SubmitButton } from '@/components/ui/client';
 import { format, type Dictionary } from '@/lib/i18n';
+import { formatAmount } from '@/lib/money';
 
 /**
  * What this event is worth, per person, before anyone is singled out.
  *
  * It sits on the attendance screen rather than in the event's settings because
- * this is where the supervisor is when the question comes up — an event that
- * needed the team in the day before is worth two days, and they are looking at
- * the very list of people it applies to.
+ * this is where the supervisor is when the question comes up — a bigger night
+ * pays more than the usual 30,000, and they are looking at the very list of
+ * people it applies to.
  */
 export function EventCreditDefault({
   t,
   eventId,
   value,
-  totalDays,
+  totalPay,
 }: {
   t: Dictionary;
   eventId: string;
   value: number;
-  totalDays: number;
+  totalPay: number;
 }) {
   const router = useRouter();
   const [state, action] = useActionState(setEventCreditDefaultAction, idle);
@@ -39,15 +40,17 @@ export function EventCreditDefault({
     <div className="panel mb-4 p-4">
       <form action={action} className="flex flex-wrap items-end gap-3">
         <input type="hidden" name="eventId" value={eventId} />
-        <label className="block w-[140px]">
-          <span className="label">{t.credit.eventDefault}</span>
+        <label className="block w-[170px]">
+          <span className="label">
+            {t.credit.eventDefault} <span className="text-ink-500">({t.credit.currency})</span>
+          </span>
           <input
             type="number"
-            name="creditDaysDefault"
-            step="0.25"
+            name="payDefault"
+            step="500"
             min="0"
-            max="31"
-            inputMode="decimal"
+            max="10000000"
+            inputMode="numeric"
             className="field nums"
             defaultValue={value}
           />
@@ -56,7 +59,7 @@ export function EventCreditDefault({
         <p className="min-w-[200px] flex-1 text-[12.5px] leading-5 text-ink-500">
           {t.credit.eventDefaultHint}
           <span className="mt-1 block text-ink-300">
-            {format(t.credit.eventTotal, { n: totalDays })}
+            {format(t.credit.eventTotal, { n: `${formatAmount(totalPay)} ${t.credit.currency}` })}
           </span>
         </p>
       </form>

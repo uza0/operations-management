@@ -275,7 +275,7 @@ export async function setMemberCreditAction(
 
   const parsed = creditSchema.safeParse({
     eventMemberId: str(form, 'eventMemberId') ?? '',
-    creditDays: String(form.get('creditDays') ?? ''),
+    payAmount: String(form.get('payAmount') ?? ''),
     creditNote: str(form, 'creditNote'),
   });
   if (!parsed.success) return fail(errorFor(t, firstIssueKey(parsed.error)));
@@ -284,7 +284,7 @@ export async function setMemberCreditAction(
     .select({
       id: eventMembers.id,
       eventId: eventMembers.eventId,
-      creditDays: eventMembers.creditDays,
+      payAmount: eventMembers.payAmount,
       name: teamMembers.fullName,
     })
     .from(eventMembers)
@@ -296,7 +296,7 @@ export async function setMemberCreditAction(
   await db
     .update(eventMembers)
     .set({
-      creditDays: parsed.data.creditDays,
+      payAmount: parsed.data.payAmount,
       creditNote: parsed.data.creditNote ?? null,
       updatedAt: new Date(),
     })
@@ -310,10 +310,10 @@ export async function setMemberCreditAction(
     entity: 'EVENT_MEMBER',
     entityId: parsed.data.eventMemberId,
     entityLabel: member.name,
-    oldValues: { creditDays: member.creditDays },
-    newValues: { creditDays: parsed.data.creditDays, creditNote: parsed.data.creditNote },
+    oldValues: { payAmount: member.payAmount },
+    newValues: { payAmount: parsed.data.payAmount, creditNote: parsed.data.creditNote },
     reason: parsed.data.creditNote ?? null,
-    summary: `${member.name}: ${parsed.data.creditDays ?? t.credit.eventDefault}`,
+    summary: `${member.name}: ${parsed.data.payAmount ?? t.credit.eventDefault}`,
   });
 
   revalidateEvent(eventId, 'attendance', 'reports', 'team');
@@ -333,13 +333,13 @@ export async function setEventCreditDefaultAction(
   if (!user) return fail(t.errors.forbidden);
 
   const parsed = eventCreditSchema.safeParse({
-    creditDaysDefault: String(form.get('creditDaysDefault') ?? ''),
+    payDefault: String(form.get('payDefault') ?? ''),
   });
   if (!parsed.success) return fail(errorFor(t, firstIssueKey(parsed.error)));
 
   await db
     .update(events)
-    .set({ creditDaysDefault: parsed.data.creditDaysDefault, updatedAt: new Date() })
+    .set({ payDefault: parsed.data.payDefault, updatedAt: new Date() })
     .where(eq(events.id, eventId));
 
   await recordAudit({
@@ -351,8 +351,8 @@ export async function setEventCreditDefaultAction(
     entityId: eventId,
     entityLabel: null,
     oldValues: null,
-    newValues: { creditDaysDefault: parsed.data.creditDaysDefault },
-    summary: `${t.credit.eventDefault}: ${parsed.data.creditDaysDefault}`,
+    newValues: { payDefault: parsed.data.payDefault },
+    summary: `${t.credit.eventDefault}: ${parsed.data.payDefault}`,
   });
 
   revalidateEvent(eventId, 'attendance', 'reports');

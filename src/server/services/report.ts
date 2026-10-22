@@ -19,6 +19,7 @@ import {
 } from '@/db/schema';
 import { getStaffedLocations } from '@/server/services/staffing';
 import { creditFor } from '@/server/services/credit';
+import { DEFAULT_EVENT_PAY } from '@/lib/money';
 import type { AttendanceStatus, IssueStatus, IssueType } from '@/lib/constants';
 import { toMinutes } from '@/lib/time';
 import { compareNames } from '@/lib/sort';
@@ -60,7 +61,7 @@ export type RosterLine = {
   checkInTime: string | null;
   checkOutTime: string | null;
   isReserve: boolean;
-  days: number;
+  amount: number;
   note: string | null;
 };
 
@@ -73,8 +74,8 @@ export type ReportData = {
    * can, and it is the same list payroll is paid against.
    */
   roster: RosterLine[];
-  creditDaysDefault: number;
-  totalCreditDays: number;
+  payDefault: number;
+  totalPay: number;
   locations: LocationLine[];
   understaffed: LocationLine[];
   fullyStaffed: number;
@@ -174,7 +175,7 @@ export async function buildReport(eventId: string): Promise<ReportData> {
         id: eventMembers.id,
         isReserve: eventMembers.isReserve,
         notifiedAt: eventMembers.notifiedAt,
-        creditDays: eventMembers.creditDays,
+        payAmount: eventMembers.payAmount,
         creditNote: eventMembers.creditNote,
         name: teamMembers.fullName,
         employeeCode: teamMembers.employeeCode,
@@ -227,7 +228,7 @@ export async function buildReport(eventId: string): Promise<ReportData> {
       .from(workingPoints)
       .where(eq(workingPoints.eventId, eventId)),
     db
-      .select({ creditDaysDefault: events.creditDaysDefault })
+      .select({ payDefault: events.payDefault })
       .from(events)
       .where(eq(events.id, eventId))
       .get(),
@@ -353,7 +354,7 @@ export async function buildReport(eventId: string): Promise<ReportData> {
   for (const a of active) taskMap.set(a.task, (taskMap.get(a.task) ?? 0) + 1);
 
   /* ---- the roster, by name ---------------------------------------------- */
-  const creditDaysDefault = eventRow?.creditDaysDefault ?? 1;
+  const payDefault = eventRow?.payDefault ?? DEFAULT_EVENT_PAY;
   const timesByMember = new Map(
     attendanceRows.map((row) => [row.eventMemberId, row] as const),
   );
@@ -375,10 +376,10 @@ export async function buildReport(eventId: string): Promise<ReportData> {
         checkInTime: times?.checkInTime ?? null,
         checkOutTime: times?.checkOutTime ?? null,
         isReserve: member.isReserve,
-        days: creditFor({
+        amount: creditFor({
           status,
-          creditDays: member.creditDays,
-          eventDefault: creditDaysDefault,
+          payAmount: member.payAmount,
+          eventDefault: payDefault,
         }),
         note: member.creditNote,
       };
@@ -396,8 +397,8 @@ export async function buildReport(eventId: string): Promise<ReportData> {
 
   return {
     roster,
-    creditDaysDefault,
-    totalCreditDays: roster.reduce((sum, line) => sum + line.days, 0),
+    payDefault,
+    totalPay: roster.reduce((sum, line) => sum + line.amount, 0),
     team: {
       total,
       reserve: memberRows.filter((m) => m.isReserve).length,

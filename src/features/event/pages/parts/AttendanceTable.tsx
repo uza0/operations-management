@@ -17,6 +17,7 @@ import { IconCheckCircle, IconSearch } from '@/components/ui/icons';
 import { ATTENDANCE_STATUSES, type AttendanceStatus } from '@/lib/constants';
 import { formatTime } from '@/lib/time';
 import { format, type Dictionary } from '@/lib/i18n';
+import { formatAmount } from '@/lib/money';
 
 export type AttendanceRow = {
   eventMemberId: string;
@@ -31,10 +32,10 @@ export type AttendanceRow = {
   recordedBy: string | null;
   notes: string | null;
   /** This person's own figure, or null to follow the event's default. */
-  creditDays: number | null;
+  payAmount: number | null;
   creditNote: string | null;
   /** What they will actually be credited, once the rule is applied. */
-  effectiveDays: number;
+  effectiveAmount: number;
 };
 
 const QUICK: AttendanceStatus[] = ['PRESENT', 'LATE', 'ABSENT', 'EXCUSED'];
@@ -194,14 +195,14 @@ function EditRecord({
                 <span className="label">{t.credit.daysForThisPerson}</span>
                 <input
                   type="number"
-                  name="creditDays"
-                  step="0.25"
+                  name="payAmount"
+                  step="500"
                   min="0"
-                  max="31"
+                  max="10000000"
                   inputMode="decimal"
                   className="field nums"
                   placeholder={String(eventDefault)}
-                  defaultValue={row.creditDays ?? ''}
+                  defaultValue={row.payAmount ?? ''}
                 />
               </label>
               <label className="block">
@@ -313,7 +314,9 @@ export function AttendanceTable({
                   <th>{t.common.status}</th>
                   <th>{t.attendance.checkIn}</th>
                   <th>{t.attendance.checkOut}</th>
-                  <th>{t.credit.days}</th>
+                  <th>
+                    {t.credit.days} <span className="text-ink-500">({t.credit.currency})</span>
+                  </th>
                   {canRecord ? <th className="text-end">{t.common.actions}</th> : null}
                 </tr>
               </thead>
@@ -357,13 +360,13 @@ export function AttendanceTable({
                     <td data-label={t.credit.days}>
                       <span
                         className={`nums font-medium ${
-                          row.effectiveDays > 0 ? 'text-ink-100' : 'text-ink-500'
+                          row.effectiveAmount > 0 ? 'text-ink-100' : 'text-ink-500'
                         }`}
                       >
-                        {row.effectiveDays}
+                        {formatAmount(row.effectiveAmount)}
                       </span>
                       {/* A figure someone set by hand says so, and why. */}
-                      {row.creditDays !== null ? (
+                      {row.payAmount !== null ? (
                         <span className="ms-2 text-[11.5px] text-ink-500">
                           {row.creditNote || t.credit.manual}
                         </span>

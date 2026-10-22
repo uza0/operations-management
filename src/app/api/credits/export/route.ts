@@ -36,7 +36,7 @@ export async function GET(request: Request) {
       t.common.status,
       t.attendance.checkIn,
       t.attendance.checkOut,
-      t.credit.days,
+      `${t.credit.days} (${t.credit.currency})`,
       t.credit.note,
     ],
   ];
@@ -54,7 +54,7 @@ export async function GET(request: Request) {
         t.enums.attendanceStatus[line.status],
         line.checkInTime ?? '',
         line.checkOutTime ?? '',
-        line.days,
+        line.amount,
         line.note ?? '',
       ]);
     }
@@ -64,13 +64,13 @@ export async function GET(request: Request) {
       ledger.name,
       ledger.employeeCode,
       ledger.phone ?? '',
-      t.credit.totalDays,
+      t.credit.totalAmount,
       '',
       '',
       '',
       '',
       '',
-      ledger.totalDays,
+      ledger.totalAmount,
       '',
     ]);
   }

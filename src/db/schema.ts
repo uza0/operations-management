@@ -175,6 +175,18 @@ export const events = sqliteTable(
      */
     creditDaysDefault: real('credit_days_default').notNull().default(1),
     /**
+     * What this event pays one promoter, in Iraqi dinars — the baseline every
+     * member starts from, which an individual can be moved off.
+     *
+     * This replaces `credit_days_default` above: the company pays per event,
+     * not per day, so the figure that matters at the end of a month is a sum
+     * of money rather than a count of days. The old column is left in place
+     * because migrations here only ever add, never drop, and because the day
+     * figures already recorded against past events are the only record of
+     * what those events were reckoned at; nothing reads it any more.
+     */
+    payDefault: real('pay_default').notNull().default(30000),
+    /**
      * Opens the read-only distribution sheet to anyone holding the link.
      *
      * The sheet is the printed gate roster in web form: names, gates and
@@ -223,6 +235,16 @@ export const eventMembers = sqliteTable(
      * src/server/services/credit.ts.
      */
     creditDays: real('credit_days'),
+    /**
+     * What this event pays THIS person, when it is not the event's default.
+     * Null — the ordinary case — follows the event, so raising an event's
+     * figure later still moves everyone who was never singled out, and the
+     * handful of people on their own rate keep it.
+     *
+     * Absence is handled by the rule, not by this column: see
+     * src/server/services/credit.ts.
+     */
+    payAmount: real('pay_amount'),
     /** Why this person is off the default — it appears in the payroll report. */
     creditNote: text('credit_note'),
     /**

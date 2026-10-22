@@ -32,7 +32,7 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
       status: attendance.status,
       checkInTime: attendance.checkInTime,
       checkOutTime: attendance.checkOutTime,
-      creditDays: eventMembers.creditDays,
+      payAmount: eventMembers.payAmount,
       creditNote: eventMembers.creditNote,
       notes: attendance.notes,
       recordedBy: users.name,
@@ -70,12 +70,12 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
       checkOutTime: r.checkOutTime,
       recordedBy: r.recordedBy,
       notes: r.notes,
-      creditDays: r.creditDays,
+      payAmount: r.payAmount,
       creditNote: r.creditNote,
-      effectiveDays: creditFor({
+      effectiveAmount: creditFor({
         status: (r.status ?? 'PENDING') as AttendanceStatus,
-        creditDays: r.creditDays,
-        eventDefault: event.creditDaysDefault,
+        payAmount: r.payAmount,
+        eventDefault: event.payDefault,
       }),
     }))
     .sort(byName);
@@ -86,7 +86,7 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
   }, {});
 
   // What the event currently owes in total, at today's figures.
-  const totalDays = data.reduce((sum, row) => sum + row.effectiveDays, 0);
+  const totalPay = data.reduce((sum, row) => sum + row.effectiveAmount, 0);
 
   const rate =
     data.length > 0
@@ -134,8 +134,8 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
         <EventCreditDefault
           t={t}
           eventId={eventId}
-          value={event.creditDaysDefault}
-          totalDays={totalDays}
+          value={event.payDefault}
+          totalPay={totalPay}
         />
       ) : null}
 
@@ -146,7 +146,7 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
         rows={data}
         canRecord
         canManage={scope.canManage}
-        eventDefault={event.creditDaysDefault}
+        eventDefault={event.payDefault}
       />
     </>
   );

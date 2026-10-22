@@ -7,6 +7,7 @@ import { formatDate, isValidDate } from '@/lib/time';
 import { format } from '@/lib/i18n';
 
 import { RangeForm } from './RangeForm';
+import { formatAmount, formatMoney } from '@/lib/money';
 
 /**
  * The sheet the company actually pays from.
@@ -33,10 +34,10 @@ export async function PayrollPage({
   };
 
   const ledgers = await payrollLedger(range);
-  const withDays = ledgers.filter((l) => l.totalDays > 0);
-  const grandTotal = withDays.reduce((sum, l) => sum + l.totalDays, 0);
+  const owed = ledgers.filter((l) => l.totalAmount > 0);
+  const grandTotal = owed.reduce((sum, l) => sum + l.totalAmount, 0);
   const eventsCounted = new Set(
-    ledgers.flatMap((l) => l.lines.filter((line) => line.closed && line.days > 0))
+    ledgers.flatMap((l) => l.lines.filter((line) => line.closed && line.amount > 0))
       .map((line) => line.eventId),
   ).size;
 
@@ -66,11 +67,11 @@ export async function PayrollPage({
       <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         <StatTile
           label={t.credit.grandTotal}
-          value={grandTotal}
+          value={formatMoney(grandTotal, locale)}
           hint={rangeLabel}
           tone={grandTotal > 0 ? 'ok' : 'neutral'}
         />
-        <StatTile label={t.credit.peopleWithDays} value={withDays.length} />
+        <StatTile label={t.credit.peopleWithDays} value={owed.length} />
         <StatTile label={t.credit.eventsCounted} value={eventsCounted} />
       </div>
 
@@ -81,8 +82,8 @@ export async function PayrollPage({
               <tr>
                 <th>{t.team.fullName}</th>
                 <th>{t.team.employeeCode}</th>
-                <th>{t.credit.totalDays}</th>
-                <th>{t.credit.pendingDays}</th>
+                <th>{t.credit.totalAmount}</th>
+                <th>{t.credit.pendingAmount}</th>
                 <th>{t.credit.eventsColumn}</th>
               </tr>
             </thead>
@@ -100,35 +101,35 @@ export async function PayrollPage({
                   <td data-label={t.team.employeeCode} className="nums text-ink-300">
                     {ledger.employeeCode}
                   </td>
-                  <td data-label={t.credit.totalDays}>
+                  <td data-label={t.credit.totalAmount}>
                     <span
                       className={`nums font-semibold ${
-                        ledger.totalDays > 0 ? 'text-ink-100' : 'text-ink-500'
+                        ledger.totalAmount > 0 ? 'text-ink-100' : 'text-ink-500'
                       }`}
                     >
-                      {ledger.totalDays}
+                      {formatAmount(ledger.totalAmount)}
                     </span>
                   </td>
-                  <td data-label={t.credit.pendingDays} className="nums text-ink-400">
-                    {ledger.pendingDays || '—'}
+                  <td data-label={t.credit.pendingAmount} className="nums text-ink-400">
+                    {ledger.pendingAmount ? formatAmount(ledger.pendingAmount) : '—'}
                   </td>
                   <td data-label={t.credit.eventsColumn} className="text-ink-300">
                     {/*
                       The events behind the number, written out rather than
                       counted, so the total can be checked line by line.
                     */}
-                    {ledger.lines.filter((l) => l.closed && l.days > 0).length === 0 ? (
+                    {ledger.lines.filter((l) => l.closed && l.amount > 0).length === 0 ? (
                       <span className="text-ink-500">{t.credit.noneInRange}</span>
                     ) : (
                       <ul className="space-y-0.5 text-[12.5px]">
                         {ledger.lines
-                          .filter((l) => l.closed && l.days > 0)
+                          .filter((l) => l.closed && l.amount > 0)
                           .map((line) => (
                             <li key={line.eventId}>
                               {line.eventName}
                               <span className="nums text-ink-500">
                                 {' '}
-                                · {formatDate(line.eventDate, locale)} · {line.days}
+                                · {formatDate(line.eventDate, locale)} · {formatAmount(line.amount)}
                               </span>
                               {line.note ? (
                                 <span className="text-ink-500"> · {line.note}</span>

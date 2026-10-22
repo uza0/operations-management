@@ -16,20 +16,22 @@ import {
 import type { AttendanceStatus } from '@/lib/constants';
 
 /**
- * Work credit — what a person is owed for an event, in days.
+ * Work credit — what a person is owed for an event, in Iraqi dinars.
  *
- * The company pays by the day worked, so the number that matters at the end of
- * a month is not "how many events" but "how many days". Those are not the same
- * thing: a concert whose team comes in the morning before to lay out the
- * seating, then works the night itself, is two days for those people and one
- * for everyone else.
+ * The company pays by the event, not by the hour or the day: a promoter who
+ * works an evening earns that event's rate, and the number that matters at the
+ * end of a month is the sum of those rates. Most people are on the same rate,
+ * and a handful are not — a gate leader, someone who also came the day before
+ * to lay out the hall — so the rate lives in two places and only two:
  *
- * So credit has exactly one rule, written here and nowhere else:
+ *   • the event carries the figure everyone starts from (30,000 by default)
+ *   • a person can be put on their own figure for that event
  *
- *   • someone who worked the event earns the event's default (normally 1)
+ * Credit then has exactly one rule, written here and nowhere else:
+ *
+ *   • someone who worked the event earns the event's rate
  *   • someone marked absent earns nothing, excused or not
- *   • a number entered against a person wins over both — that is how the
- *     early set-up crew gets its extra day, and how a half shift gets a half
+ *   • a figure entered against a person wins over both
  *
  * "Worked" means present or late. Lateness is a timekeeping fact that belongs
  * in the report; it is not a pay cut the system applies on its own.
@@ -41,11 +43,11 @@ export const WORKED_STATUSES: AttendanceStatus[] = ['PRESENT', 'LATE'];
 export function creditFor(input: {
   status: AttendanceStatus | null;
   /** The person's own figure, or null to follow the event. */
-  creditDays: number | null;
+  payAmount: number | null;
   eventDefault: number;
 }): number {
-  if (input.creditDays !== null && input.creditDays !== undefined) {
-    return input.creditDays;
+  if (input.payAmount !== null && input.payAmount !== undefined) {
+    return input.payAmount;
   }
   return input.status && WORKED_STATUSES.includes(input.status)
     ? input.eventDefault
@@ -54,7 +56,7 @@ export function creditFor(input: {
 
 /**
  * Credit is only final once the event is over. A LIVE event's attendance is
- * still being written, so its days are shown but never folded into a balance
+ * still being written, so its figure is shown but never folded into a balance
  * the accounts department is meant to pay against.
  */
 export const CLOSED_STATUSES = ['COMPLETED', 'ARCHIVED'];
@@ -70,7 +72,7 @@ export type LedgerLine = {
   status: AttendanceStatus;
   checkInTime: string | null;
   checkOutTime: string | null;
-  days: number;
+  amount: number;
   note: string | null;
   /** False while the event is still open — counted separately. */
   closed: boolean;
@@ -83,10 +85,10 @@ export type MemberLedger = {
   phone: string | null;
   active: boolean;
   lines: LedgerLine[];
-  /** Days from events that are over — the figure payroll uses. */
-  totalDays: number;
-  /** Days from events still running, shown apart so nothing is paid early. */
-  pendingDays: number;
+  /** From events that are over — the figure payroll pays against. */
+  totalAmount: number;
+  /** From events still running, kept apart so nothing is paid early. */
+  pendingAmount: number;
   eventsWorked: number;
 };
 
@@ -108,10 +110,10 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
       eventName: events.name,
       eventDate: events.date,
       eventStatus: events.status,
-      eventDefault: events.creditDaysDefault,
+      eventDefault: events.payDefault,
       venueName: venues.name,
       memberStatus: eventMembers.status,
-      creditDays: eventMembers.creditDays,
+      payAmount: eventMembers.payAmount,
       creditNote: eventMembers.creditNote,
       status: attendance.status,
       checkInTime: attendance.checkInTime,
@@ -150,9 +152,9 @@ function toLine(row: Awaited<ReturnType<typeof ledgerRows>>[number]): LedgerLine
     status,
     checkInTime: row.checkInTime,
     checkOutTime: row.checkOutTime,
-    days: creditFor({
+    amount: creditFor({
       status,
-      creditDays: row.creditDays,
+      payAmount: row.payAmount,
       eventDefault: row.eventDefault,
     }),
     note: row.creditNote,
@@ -172,9 +174,9 @@ function summarise(
     phone: person.phone,
     active: person.active,
     lines: sorted,
-    totalDays: sorted.filter((l) => l.closed).reduce((sum, l) => sum + l.days, 0),
-    pendingDays: sorted.filter((l) => !l.closed).reduce((sum, l) => sum + l.days, 0),
-    eventsWorked: sorted.filter((l) => l.closed && l.days > 0).length,
+    totalAmount: sorted.filter((l) => l.closed).reduce((sum, l) => sum + l.amount, 0),
+    pendingAmount: sorted.filter((l) => !l.closed).reduce((sum, l) => sum + l.amount, 0),
+    eventsWorked: sorted.filter((l) => l.closed && l.amount > 0).length,
   };
 }
 
@@ -213,6 +215,6 @@ export async function payrollLedger(range?: Range): Promise<MemberLedger[]> {
   return people
     .map((person) => summarise(person, byMember.get(person.id) ?? []))
     .sort(
-      (a, b) => b.totalDays - a.totalDays || a.employeeCode.localeCompare(b.employeeCode),
+      (a, b) => b.totalAmount - a.totalAmount || a.employeeCode.localeCompare(b.employeeCode),
     );
 }
