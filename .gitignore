@@ -24,3 +24,6 @@ tsconfig.tsbuildinfo
 *.zip
 signing.keystore
 signing-key-info.txt
+
+# Claude transfer archives — never belong in the repo
+*.tgz
