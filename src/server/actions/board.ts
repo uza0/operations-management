@@ -21,7 +21,7 @@ import { recordAudit } from '@/server/services/audit';
 import { parseLanes } from '@/server/services/board';
 
 import { saveAssignmentAction } from './assignments';
-import { fail, ok, type ActionState } from './types';
+import { fail, idle, ok, type ActionState } from './types';
 
 /**
  * The board's own actions.
@@ -423,4 +423,138 @@ export async function rotateBoardLinkAction(
   revalidateBoard(eventId);
   revalidatePath(`/admin/events/${eventId}/notify`);
   return ok();
+}
+
+/* ===========================================================================
+   Doing the same thing to several people at once.
+
+   Distributing ninety promoters one tap at a time is the part of this job that
+   actually takes the evening, and most of those taps are the same decision
+   repeated: these eight go to gate 3, these five come back off the board.
+   So the board can hold a selection, and these three actions are what it does
+   with one.
+
+   They are loops over the single-person actions above rather than a second,
+   faster path into the database. That is deliberate: a batch move has to leave
+   exactly the same trail as a careful one — the same conflict handling, the
+   same reassignment record per person, the same audit line per person — and
+   the only thing a batch is allowed to save is the round trips. One request,
+   the same history.
+
+   A batch stops at the first failure and says how far it got, rather than
+   reporting a single failure as if nothing happened or pressing on and leaving
+   the supervisor to work out which of eight names moved.
+   =========================================================================== */
+
+/** Ids from a repeated `eventMemberIds` field, de-duplicated, capped. */
+function idsFrom(form: FormData): string[] {
+  const seen = new Set<string>();
+  for (const value of form.getAll('eventMemberIds')) {
+    const id = String(value).trim();
+    if (id) seen.add(id);
+  }
+  // A board holds a few hundred people at most; anything past that is a bug
+  // or an attempt to make one request do a day's work.
+  return [...seen].slice(0, 300);
+}
+
+async function runEach(
+  ids: string[],
+  build: (id: string) => FormData,
+  run: (prev: ActionState, form: FormData) => Promise<ActionState>,
+  t: { errors: { notFound: string } },
+): Promise<ActionState> {
+  if (ids.length === 0) return fail(t.errors.notFound);
+  let done = 0;
+  for (const id of ids) {
+    const result = await run(idle, build(id));
+    if (result.status === 'error' || result.status === 'conflict') {
+      return done === 0
+        ? result
+        : fail(`${result.message} (${done}/${ids.length})`);
+    }
+    done += 1;
+  }
+  return ok();
+}
+
+/** Puts every selected member into one lane. */
+export async function placeManyOnLaneAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  const lane = str(form, 'lane') ?? '';
+  if (!(await assertEventManager(eventId).catch(() => null))) {
+    return fail(t.errors.forbidden);
+  }
+  return runEach(
+    idsFrom(form),
+    (id) => {
+      const body = new FormData();
+      body.set('eventId', eventId);
+      body.set('eventMemberId', id);
+      body.set('lane', lane);
+      return body;
+    },
+    placeOnLaneAction,
+    t,
+  );
+}
+
+/** Takes every selected member off the board. */
+export async function clearManyFromBoardAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  if (!(await assertEventManager(eventId).catch(() => null))) {
+    return fail(t.errors.forbidden);
+  }
+  return runEach(
+    idsFrom(form),
+    (id) => {
+      const body = new FormData();
+      body.set('eventId', eventId);
+      body.set('eventMemberId', id);
+      return body;
+    },
+    clearFromBoardAction,
+    t,
+  );
+}
+
+/**
+ * Gives every selected member the same role.
+ *
+ * The exclusive roles stay exclusive: team leader and gate leader move to the
+ * last person in the selection rather than being held by several at once,
+ * because `setMemberRoleAction` takes the role off whoever had it. Handing an
+ * exclusive role to a selection is therefore a slightly odd thing to do, and
+ * the dialog says so rather than quietly picking a winner.
+ */
+export async function setManyMemberRolesAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  const role = str(form, 'role') ?? '';
+  if (!(await assertEventManager(eventId).catch(() => null))) {
+    return fail(t.errors.forbidden);
+  }
+  return runEach(
+    idsFrom(form),
+    (id) => {
+      const body = new FormData();
+      body.set('eventId', eventId);
+      body.set('eventMemberId', id);
+      body.set('role', role);
+      return body;
+    },
+    setMemberRoleAction,
+    t,
+  );
 }

@@ -21,7 +21,7 @@ import {
 } from '@/components/ui/client';
 import { IconPlus, IconQr, IconRefresh, IconSearch, IconUsers } from '@/components/ui/icons';
 import { EVENT_MEMBER_STATUSES, type EventMemberStatus } from '@/lib/constants';
-import type { Dictionary } from '@/lib/i18n';
+import { format, type Dictionary } from '@/lib/i18n';
 import { byStatusThenName } from '@/lib/sort';
 
 export type EventTeamRow = {
@@ -60,6 +60,16 @@ function AddMembers({
     }
   }, [state, router, onDone]);
 
+  /*
+   * The ticks are state rather than plain form fields now, because "select
+   * all" has to be able to set them and because the header count has to know.
+   * Hidden-while-filtered is deliberately NOT how this works: a person ticked,
+   * then filtered out by a later search, stays ticked and is still added —
+   * losing a choice because the search box was typed in afterwards is how
+   * someone silently goes missing from an event.
+   */
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     if (!q) return people;
@@ -92,17 +102,65 @@ function AddMembers({
         />
       </div>
 
+      {/*
+        Select all, over whatever the search has left. Adding a whole roster to
+        an event is the normal first move of setting one up — the exception is
+        leaving someone out, not putting everyone in — and ticking ninety-odd
+        boxes to express "everyone" is work the screen should be doing.
+      */}
+      <div className="flex items-center justify-between gap-3 px-1">
+        <label className="press flex min-h-[44px] cursor-pointer items-center gap-2.5 text-[13.5px] font-semibold text-ink-200 sm:min-h-0">
+          <input
+            type="checkbox"
+            className="h-4.5 w-4.5 accent-brand-500"
+            checked={filtered.length > 0 && filtered.every((p) => picked.has(p.id))}
+            ref={(el) => {
+              // The in-between state: some of this list is ticked, not all.
+              if (el) {
+                const mine = filtered.filter((p) => picked.has(p.id)).length;
+                el.indeterminate = mine > 0 && mine < filtered.length;
+              }
+            }}
+            onChange={(e) =>
+              setPicked((current) => {
+                const next = new Set(current);
+                for (const person of filtered) {
+                  if (e.target.checked) next.add(person.id);
+                  else next.delete(person.id);
+                }
+                return next;
+              })
+            }
+          />
+          {t.board.selectAll}
+        </label>
+        {picked.size > 0 ? (
+          <span className="nums text-[12.5px] text-ink-500">
+            {format(t.board.selectedCount, { n: picked.size })}
+          </span>
+        ) : null}
+      </div>
+
       <div className="max-h-[320px] space-y-1 overflow-y-auto rounded-lg border border-ink-700 p-2">
         {filtered.map((person) => (
           <label
             key={person.id}
-            className="flex cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 hover:bg-ink-850"
+            className="flex min-h-[44px] cursor-pointer items-center gap-3 rounded-lg px-2.5 py-2 hover:bg-ink-850 sm:min-h-0"
           >
             <input
               type="checkbox"
               name="memberIds"
               value={person.id}
               className="h-4.5 w-4.5 accent-brand-500"
+              checked={picked.has(person.id)}
+              onChange={(e) =>
+                setPicked((current) => {
+                  const next = new Set(current);
+                  if (e.target.checked) next.add(person.id);
+                  else next.delete(person.id);
+                  return next;
+                })
+              }
             />
             <span className="flex-1 text-[14px] text-ink-100">{person.name}</span>
             <span className="nums text-[12px] text-ink-500">{person.employeeCode}</span>

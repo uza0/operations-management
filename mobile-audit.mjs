@@ -43,6 +43,17 @@ for(const [name,url] of pages){
           && getComputedStyle(el).display === 'inline'
           && parent && parent.textContent.trim().length > el.textContent.trim().length + 10;
         if (inlineInSentence) return false;
+        /*
+         * A checkbox drawn at 18px inside a label the whole height of a row is
+         * not an 18px target: tapping anywhere on that label toggles it, so the
+         * label is what the finger has to hit. Judge it by the label, the way a
+         * person actually uses it — but only when there really is one, and only
+         * when it is big enough.
+         */
+        if (el.tagName === 'INPUT') {
+          const label = el.closest('label');
+          if (label && label.getBoundingClientRect().height >= 40) return false;
+        }
         return true;
       }).length,
   }));

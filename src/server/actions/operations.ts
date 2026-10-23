@@ -34,7 +34,7 @@ import type { AttendanceStatus, IssueStatus, Priority } from '@/lib/constants';
 import { assertEventManager, currentUser, resolveEventScope } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
 
-import { fail, ok, type ActionState } from './types';
+import { fail, idle, ok, type ActionState } from './types';
 
 function revalidateEvent(eventId: string, ...sections: string[]) {
   for (const base of ['/admin', '/leader']) {
@@ -682,4 +682,49 @@ export async function listEventLocations(eventId: string) {
       .where(eq(workingPoints.eventId, eventId)),
   ]);
   return { gates: gateRows, workingPoints: wpRows };
+}
+
+/**
+ * The same attendance mark for everyone selected.
+ *
+ * At the end of a night a supervisor is not deciding twenty-six times; they
+ * are deciding once — "everyone at gate 3 was here" — and then clicking
+ * twenty-six times to say so. This is that one decision.
+ *
+ * A loop over the single-person action rather than a faster path into the
+ * table: the per-person audit line is what makes attendance defensible later,
+ * and a batch that skips it would be a batch nobody could check. It stops at
+ * the first refusal and says how far it got.
+ */
+export async function recordAttendanceManyAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  const status = str(form, 'status') ?? '';
+
+  const ids = [
+    ...new Set(
+      form
+        .getAll('eventMemberIds')
+        .map((value) => String(value).trim())
+        .filter(Boolean),
+    ),
+  ].slice(0, 300);
+  if (ids.length === 0) return fail(t.errors.notFound);
+
+  let done = 0;
+  for (const id of ids) {
+    const body = new FormData();
+    body.set('eventId', eventId);
+    body.set('eventMemberId', id);
+    body.set('status', status);
+    const result = await recordAttendanceAction(idle, body);
+    if (result.status === 'error' || result.status === 'conflict') {
+      return done === 0 ? result : fail(`${result.message} (${done}/${ids.length})`);
+    }
+    done += 1;
+  }
+  return ok();
 }

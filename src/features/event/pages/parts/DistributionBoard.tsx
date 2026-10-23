@@ -5,8 +5,11 @@ import { useRouter } from 'next/navigation';
 
 import {
   clearFromBoardAction,
+  clearManyFromBoardAction,
+  placeManyOnLaneAction,
   placeOnLaneAction,
   setLanesAction,
+  setManyMemberRolesAction,
   setMemberRoleAction,
 } from '@/server/actions/board';
 import { idle } from '@/server/actions/types';
@@ -29,6 +32,14 @@ import { byName } from '@/lib/sort';
  * Every placement is written to the server immediately — there is no "save the
  * board" button, because a board that can be half-saved is a board nobody
  * trusts at five o'clock on a match day.
+ *
+ * A tap selects rather than replaces a selection, so the same gesture that
+ * moves one person moves eight. Most of distributing a ninety-strong team is
+ * the same decision repeated — these go to gate 3, these come back off — and
+ * doing it one name at a time is the part of the evening that actually takes
+ * the evening. Every section and the unassigned list carry a "select all" that
+ * respects the search box, so filtering to "أساور" and selecting all of them
+ * is one gesture rather than eleven.
  */
 
 type Props = {
@@ -45,6 +56,7 @@ function Chip({
   onRemove,
   onRole,
   draggable,
+  dragIds,
   t,
 }: {
   person: BoardPerson;
@@ -54,13 +66,15 @@ function Chip({
   onRemove?: () => void;
   onRole?: () => void;
   draggable: boolean;
+  /** What this chip drags: itself, or the whole selection it belongs to. */
+  dragIds: () => string[];
   t: Dictionary;
 }) {
   return (
     <div
       draggable={draggable}
       onDragStart={(e) => {
-        e.dataTransfer.setData('text/plain', person.eventMemberId);
+        e.dataTransfer.setData('text/plain', dragIds().join(','));
         e.dataTransfer.effectAllowed = 'move';
       }}
       className={`group mb-1.5 flex items-center gap-1.5 rounded-lg border px-1.5 py-1.5 transition ${
@@ -119,10 +133,72 @@ function Chip({
   );
 }
 
+/**
+ * "Select all" for one list.
+ *
+ * It mirrors a checkbox rather than being one, because the thing it toggles is
+ * a set of names held in React state and not a form field, and because it has
+ * a third state a checkbox cannot show: some of this list is selected, the
+ * rest is not. Clicking it selects everything that is currently visible —
+ * which, in the pool, means everything the search box has left — and clicking
+ * it again takes just those back out, leaving any other section's selection
+ * alone.
+ */
+function SelectAll({
+  t,
+  ids,
+  selected,
+  onToggle,
+}: {
+  t: Dictionary;
+  ids: string[];
+  selected: Set<string>;
+  onToggle: (ids: string[], select: boolean) => void;
+}) {
+  if (ids.length === 0) return null;
+  const mine = ids.filter((id) => selected.has(id)).length;
+  const all = mine === ids.length;
+  const some = mine > 0 && !all;
+
+  return (
+    <button
+      type="button"
+      onClick={() => onToggle(ids, !all)}
+      aria-pressed={all}
+      className={`press inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors sm:min-h-[26px] ${
+        mine > 0
+          ? 'border-brand-600/50 bg-brand-50 text-brand-900'
+          : 'border-ink-700 text-ink-500 hover:border-ink-500 hover:text-ink-300'
+      }`}
+    >
+      <span
+        aria-hidden
+        className={`grid h-3.5 w-3.5 shrink-0 place-items-center rounded-[4px] border text-[9px] leading-none ${
+          all
+            ? 'border-brand-600 bg-brand-600 text-white'
+            : some
+              ? 'border-brand-600 bg-brand-600/20 text-brand-900'
+              : 'border-ink-600'
+        }`}
+      >
+        {all ? '✓' : some ? '–' : ''}
+      </span>
+      {t.board.selectAll}
+    </button>
+  );
+}
+
 export function DistributionBoard({ t, data, canManage }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
-  const [selected, setSelected] = useState<string | null>(null);
+  /*
+   * A set, not a single id. Everything downstream asks the same question it
+   * asked before — "is this chip selected" — so the chips, the drop targets
+   * and the drag handler did not have to learn a new idea; only the answer
+   * changed from an equality test to a lookup.
+   */
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
+  const [roleForMany, setRoleForMany] = useState(false);
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
@@ -138,30 +214,36 @@ export function DistributionBoard({ t, data, canManage }: Props) {
    */
   const [board, moveOptimistic] = useOptimistic(
     data,
-    (state, move: { eventMemberId: string; lane: string | null }) => {
-      let person: BoardPerson | undefined;
+    (state, move: { ids: string[]; lane: string | null }) => {
+      const moving = new Set(move.ids);
+      const taken: BoardPerson[] = [];
+
       const locations = state.locations.map((location) => ({
         ...location,
         lanes: location.lanes.map((lane) => {
-          const found = lane.people.find((p) => p.eventMemberId === move.eventMemberId);
-          if (found) person = found;
-          return { ...lane, people: lane.people.filter((p) => p !== found) };
+          const stay: BoardPerson[] = [];
+          for (const person of lane.people) {
+            if (moving.has(person.eventMemberId)) taken.push(person);
+            else stay.push(person);
+          }
+          return { ...lane, people: stay };
         }),
       }));
-      let pool = state.pool.filter((p) => {
-        if (p.eventMemberId !== move.eventMemberId) return true;
-        person = p;
-        return false;
-      });
-      if (!person) return state;
+
+      let pool: BoardPerson[] = [];
+      for (const person of state.pool) {
+        if (moving.has(person.eventMemberId)) taken.push(person);
+        else pool.push(person);
+      }
+      if (taken.length === 0) return state;
 
       if (move.lane) {
         for (const location of locations) {
           const lane = location.lanes.find((l) => l.key === move.lane);
-          if (lane) lane.people = [...lane.people, person];
+          if (lane) lane.people = [...lane.people, ...taken];
         }
       } else {
-        pool = [...pool, person].sort(byName);
+        pool = [...pool, ...taken].sort(byName);
       }
 
       for (const location of locations) {
@@ -185,26 +267,71 @@ export function DistributionBoard({ t, data, canManage }: Props) {
     );
   }, [board.pool, query]);
 
-  function place(eventMemberId: string, lane: string | null) {
-    if (!canManage) return;
+  const toggleOne = (id: string) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const toggleMany = (ids: string[], select: boolean) =>
+    setSelected((current) => {
+      const next = new Set(current);
+      for (const id of ids) {
+        if (select) next.add(id);
+        else next.delete(id);
+      }
+      return next;
+    });
+
+  const clearSelection = () => setSelected(new Set());
+
+  /**
+   * Move one or many.
+   *
+   * One name still goes through the single-person action, because that is the
+   * overwhelmingly common case and it is the cheaper request; more than one
+   * goes through the batch, which is the same work in one round trip instead
+   * of eight. Either way the optimistic board moves everyone at once, so the
+   * screen never shows a batch arriving a name at a time.
+   */
+  function place(ids: string[], lane: string | null) {
+    if (!canManage || ids.length === 0) return;
     setError(null);
-    setSelected(null);
+    clearSelection();
+
     const body = new FormData();
     body.set('eventId', board.event.id);
-    body.set('eventMemberId', eventMemberId);
     if (lane) body.set('lane', lane);
+    if (ids.length === 1) body.set('eventMemberId', ids[0]);
+    else for (const id of ids) body.append('eventMemberIds', id);
 
     startTransition(async () => {
-      moveOptimistic({ eventMemberId, lane });
+      moveOptimistic({ ids, lane });
+      const single = ids.length === 1;
       const result = lane
-        ? await placeOnLaneAction(idle, body)
-        : await clearFromBoardAction(idle, body);
+        ? single
+          ? await placeOnLaneAction(idle, body)
+          : await placeManyOnLaneAction(idle, body)
+        : single
+          ? await clearFromBoardAction(idle, body)
+          : await clearManyFromBoardAction(idle, body);
       if (result.status === 'error' || result.status === 'conflict') {
         setError(result.message);
       }
       router.refresh();
     });
   }
+
+  /**
+   * What a drag carries.
+   *
+   * Dragging a chip that is part of a selection drags the whole selection —
+   * anything else would quietly contradict what the screen is showing. A chip
+   * outside the selection drags only itself, and leaves the selection alone.
+   */
+  const dragPayload = (id: string) => (selected.has(id) ? [...selected] : [id]);
 
   const laneDropProps = (key: string) => ({
     onDragOver: (e: React.DragEvent) => {
@@ -216,8 +343,9 @@ export function DistributionBoard({ t, data, canManage }: Props) {
     onDrop: (e: React.DragEvent) => {
       e.preventDefault();
       setDropTarget(null);
-      const id = e.dataTransfer.getData('text/plain');
-      if (id) place(id, key === 'POOL' ? null : key);
+      const payload = e.dataTransfer.getData('text/plain');
+      const ids = payload ? payload.split(',').filter(Boolean) : [];
+      if (ids.length > 0) place(ids, key === 'POOL' ? null : key);
     },
   });
 
@@ -265,7 +393,19 @@ export function DistributionBoard({ t, data, canManage }: Props) {
           }`}
           {...laneDropProps('POOL')}
         >
-          <h2 className="mb-1 text-[15px] font-semibold text-ink-100">{t.board.poolTitle}</h2>
+          <div className="mb-1 flex items-center gap-2">
+            <h2 className="min-w-0 flex-1 text-[15px] font-semibold text-ink-100">
+              {t.board.poolTitle}
+            </h2>
+            {canManage ? (
+              <SelectAll
+                t={t}
+                ids={shown.map((p) => p.eventMemberId)}
+                selected={selected}
+                onToggle={toggleMany}
+              />
+            ) : null}
+          </div>
           <p className="mb-2.5 text-[12px] leading-5 text-ink-500">{t.board.poolHint}</p>
           <div className="relative mb-2.5">
             <IconSearch
@@ -292,14 +432,11 @@ export function DistributionBoard({ t, data, canManage }: Props) {
                   key={person.eventMemberId}
                   person={person}
                   index={i}
-                  selected={selected === person.eventMemberId}
-                  onSelect={() =>
-                    setSelected((current) =>
-                      current === person.eventMemberId ? null : person.eventMemberId,
-                    )
-                  }
+                  selected={selected.has(person.eventMemberId)}
+                  onSelect={() => toggleOne(person.eventMemberId)}
                   onRole={canManage ? () => setRoleFor(person) : undefined}
                   draggable={canManage}
+                  dragIds={() => dragPayload(person.eventMemberId)}
                   t={t}
                 />
               ))
@@ -343,12 +480,21 @@ export function DistributionBoard({ t, data, canManage }: Props) {
                     <div
                       key={lane.key}
                       {...laneDropProps(lane.key)}
-                      onClick={() => selected && place(selected, lane.key)}
+                      onClick={(e) => {
+                        /*
+                         * The lane is the drop target, so a tap anywhere in it
+                         * places the selection — but the chips inside it carry
+                         * their own buttons, and a tap on one of those is not
+                         * a tap on the lane.
+                         */
+                        if ((e.target as HTMLElement).closest('button')) return;
+                        if (selected.size > 0) place([...selected], lane.key);
+                      }}
                       className={`rounded-lg border border-dashed p-2 transition ${
                         dropTarget === lane.key
                           ? 'border-brand-500 bg-brand-500/10'
-                          : selected
-                            ? 'border-brand-500/50 bg-ink-900/40'
+                          : selected.size > 0
+                            ? 'cursor-pointer border-brand-500/50 bg-ink-900/40'
                             : 'border-ink-700'
                       }`}
                     >
@@ -356,13 +502,21 @@ export function DistributionBoard({ t, data, canManage }: Props) {
                         <span className="rounded bg-ink-800 px-1.5 py-0.5 text-[11px] font-medium text-ink-300">
                           {t.enums.task[lane.task]}
                         </span>
+                        {canManage && lane.people.length > 0 ? (
+                          <SelectAll
+                            t={t}
+                            ids={lane.people.map((p) => p.eventMemberId)}
+                            selected={selected}
+                            onToggle={toggleMany}
+                          />
+                        ) : null}
                         <span className="nums ms-auto text-[11.5px] text-ink-500">
                           {lane.people.length}
                         </span>
                       </div>
                       {lane.people.length === 0 ? (
                         <p className="py-2 text-center text-[11.5px] text-ink-600">
-                          {selected ? t.board.tapToPlace : t.board.dropHere}
+                          {selected.size > 0 ? t.board.tapToPlace : t.board.dropHere}
                         </p>
                       ) : (
                         lane.people.map((person, i) => (
@@ -370,19 +524,35 @@ export function DistributionBoard({ t, data, canManage }: Props) {
                             key={person.eventMemberId}
                             person={person}
                             index={i}
-                            selected={selected === person.eventMemberId}
-                            onSelect={() =>
-                              setSelected((current) =>
-                                current === person.eventMemberId ? null : person.eventMemberId,
-                              )
+                            selected={selected.has(person.eventMemberId)}
+                            onSelect={() => toggleOne(person.eventMemberId)}
+                            onRemove={
+                              canManage ? () => place([person.eventMemberId], null) : undefined
                             }
-                            onRemove={canManage ? () => place(person.eventMemberId, null) : undefined}
                             onRole={canManage ? () => setRoleFor(person) : undefined}
                             draggable={canManage}
+                            dragIds={() => dragPayload(person.eventMemberId)}
                             t={t}
                           />
                         ))
                       )}
+
+                      {/*
+                        A lane that is already full has no empty space left to
+                        tap, and its chips are covered in buttons — so once a
+                        selection exists, every lane grows an unmistakable
+                        target of its own rather than asking the supervisor to
+                        find a gap between two names.
+                      */}
+                      {canManage && selected.size > 0 ? (
+                        <button
+                          type="button"
+                          onClick={() => place([...selected], lane.key)}
+                          className="press mt-1 min-h-[40px] w-full rounded-lg border border-dashed border-brand-600/60 bg-brand-50 py-1.5 text-[11.5px] font-semibold text-brand-900 sm:min-h-[30px]"
+                        >
+                          {format(t.board.placeHere, { n: selected.size })}
+                        </button>
+                      ) : null}
                     </div>
                   ))}
                 </div>
@@ -391,6 +561,69 @@ export function DistributionBoard({ t, data, canManage }: Props) {
           })}
         </section>
       </div>
+
+      {/*
+        The selection bar.
+
+        It only exists while something is selected, and it sits above the
+        thumb rather than at the top of a page the supervisor has scrolled
+        away from — the whole point of a selection is that you are somewhere
+        else on the board by the time you act on it. It says what is selected
+        and what to do next, because "8 selected" with no instruction is a
+        state, not an offer.
+      */}
+      {canManage && selected.size > 0 ? (
+        <div
+          className="no-print fixed inset-x-0 bottom-0 z-40 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] lg:px-6"
+          style={{ animation: 'rise var(--dur-enter) var(--ease-settle) backwards' }}
+        >
+          <div className="mx-auto flex w-full max-w-[1400px] flex-wrap items-center gap-2 rounded-card border border-ink-700 bg-ink-900 p-2.5 shadow-float">
+            <span className="flex items-center gap-2 ps-1">
+              <span className="nums grid h-7 min-w-[1.75rem] place-items-center rounded-full bg-brand-600 px-1.5 text-[13px] font-bold text-white">
+                {selected.size}
+              </span>
+              <span className="hidden text-[12.5px] text-ink-400 sm:inline">
+                {t.board.moveSelected}
+              </span>
+            </span>
+            <span className="ms-auto flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                onClick={() => setRoleForMany(true)}
+              >
+                {t.board.roleSelected}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                onClick={() => place([...selected], null)}
+              >
+                {t.board.returnSelected}
+              </button>
+              <button type="button" className="btn-ghost btn-sm" onClick={clearSelection}>
+                {t.board.clearSelection}
+              </button>
+            </span>
+          </div>
+        </div>
+      ) : null}
+
+      {roleForMany ? (
+        <RoleManyPicker
+          t={t}
+          eventId={board.event.id}
+          ids={[...selected]}
+          onDone={(message) => {
+            setRoleForMany(false);
+            if (message !== undefined) {
+              clearSelection();
+              setNote(message ?? null);
+              router.refresh();
+            }
+          }}
+        />
+      ) : null}
 
       {roleFor ? (
         <RolePicker
@@ -479,6 +712,67 @@ function RolePicker({
   );
 }
 
+/**
+ * The same four jobs, handed to everyone selected.
+ *
+ * It warns about the exclusive roles instead of hiding them: "make these three
+ * section supervisors" is the common case and works exactly as it reads, while
+ * "make these three the team leader" is a thing a person can mean to try once,
+ * and finding out afterwards that only the last one kept it is worse than
+ * being told first.
+ */
+function RoleManyPicker({
+  t,
+  eventId,
+  ids,
+  onDone,
+}: {
+  t: Dictionary;
+  eventId: string;
+  ids: string[];
+  onDone: (message?: string | null) => void;
+}) {
+  const [state, action] = useActionState(setManyMemberRolesAction, idle);
+
+  useEffect(() => {
+    if (state.status === 'success') onDone(state.message ?? null);
+  }, [state, onDone]);
+
+  const options: { value: string; label: string }[] = [
+    { value: '', label: t.board.roleNone },
+    ...EVENT_ROLES.map((role) => ({ value: role, label: t.enums.eventRole[role] })),
+  ];
+
+  return (
+    <Dialog
+      open
+      onClose={() => onDone()}
+      title={format(t.board.roleManyTitle, { n: ids.length })}
+      description={t.board.roleManyExclusive}
+    >
+      <form action={action} className="space-y-2">
+        <input type="hidden" name="eventId" value={eventId} />
+        {ids.map((id) => (
+          <input key={id} type="hidden" name="eventMemberIds" value={id} />
+        ))}
+        <div className="grid gap-1.5">
+          {options.map((option) => (
+            <SubmitButton
+              key={option.value || 'NONE'}
+              name="role"
+              value={option.value}
+              className="btn-ghost btn-sm w-full justify-between"
+            >
+              {option.label}
+            </SubmitButton>
+          ))}
+        </div>
+        <FormError message={state.status === 'error' ? state.message : null} />
+      </form>
+    </Dialog>
+  );
+}
+
 /** Which jobs this location is divided into. */
 function LaneEditor({
   t,
@@ -493,6 +787,13 @@ function LaneEditor({
 }) {
   const [state, action] = useActionState(setLanesAction, idle);
   const current = new Set(location.lanes.map((l) => l.task));
+  /*
+   * Which jobs are ticked, as state rather than as defaultChecked, so that
+   * "all" and "none" have something to set. The form still submits the plain
+   * `lane` checkboxes, so the server side is unchanged.
+   */
+  const [chosen, setChosen] = useState<Set<string>>(() => new Set(current));
+  const allChosen = chosen.size === TASKS.length;
 
   useEffect(() => {
     if (state.status === 'success') onDone();
@@ -503,17 +804,45 @@ function LaneEditor({
       <form action={action} className="space-y-3">
         <input type="hidden" name="eventId" value={eventId} />
         <input type="hidden" name="locationId" value={location.id} />
+        <div className="flex items-center justify-between gap-3 px-0.5">
+          <label className="press flex min-h-[44px] cursor-pointer items-center gap-2.5 text-[13px] font-semibold text-ink-200 sm:min-h-0">
+            <input
+              type="checkbox"
+              className="h-4.5 w-4.5 accent-brand-500"
+              checked={allChosen}
+              ref={(el) => {
+                if (el) el.indeterminate = chosen.size > 0 && !allChosen;
+              }}
+              onChange={(e) =>
+                setChosen(e.target.checked ? new Set(TASKS as readonly string[]) : new Set())
+              }
+            />
+            {t.board.selectAll}
+          </label>
+          <span className="nums text-[12px] text-ink-500">
+            {chosen.size} / {TASKS.length}
+          </span>
+        </div>
+
         <div className="grid gap-1.5 sm:grid-cols-2">
           {TASKS.map((task) => (
             <label
               key={task}
-              className="flex items-center gap-2.5 rounded-lg border border-ink-800 px-2.5 py-2 text-[13.5px] text-ink-200"
+              className="flex min-h-[44px] items-center gap-2.5 rounded-lg border border-ink-800 px-2.5 py-2 text-[13.5px] text-ink-200 sm:min-h-0"
             >
               <input
                 type="checkbox"
                 name="lane"
                 value={task}
-                defaultChecked={current.has(task as Task)}
+                checked={chosen.has(task)}
+                onChange={(e) =>
+                  setChosen((cur) => {
+                    const next = new Set(cur);
+                    if (e.target.checked) next.add(task);
+                    else next.delete(task);
+                    return next;
+                  })
+                }
                 className="h-4.5 w-4.5 accent-brand-500"
               />
               {t.enums.task[task as Task]}

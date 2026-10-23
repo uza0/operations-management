@@ -25,7 +25,7 @@ export function SignInVeil({ label }: { label: string }) {
   return (
     <div
       className="fixed inset-0 z-50 grid place-items-center bg-ink-950/80 backdrop-blur-sm"
-      style={{ animation: 'fade var(--dur-enter) var(--ease-soft) both' }}
+      style={{ animation: 'fade var(--dur-enter) var(--ease-soft) backwards' }}
       role="status"
       aria-live="polite"
     >

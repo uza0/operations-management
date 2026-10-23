@@ -1195,6 +1195,58 @@ if (anyLed) {
   await admin.keyboard.press('Escape');
 }
 
+/*
+ * Selecting several people and doing one thing to them.
+ *
+ * This is the part of distributing a ninety-strong team that actually takes
+ * the evening, so it is checked the way the supervisor uses it: tick a list's
+ * "select all", drop the lot into a section, and confirm the database agrees —
+ * a batch that moves the screen but not the rows is the exact failure that
+ * would go unnoticed until match day.
+ *
+ * It runs last because it empties the board and refills it, and every check
+ * above expects the seeded distribution.
+ */
+const unplaced = async () =>
+  Number(
+    (
+      await db.prepare(
+        `select count(*) as n from event_members em
+           left join assignments a on a.event_member_id = em.id and a.status != 'CANCELLED'
+          where em.event_id = ? and em.status != 'CANCELLED' and a.id is null`,
+      ).get(eventId)
+    ).n,
+  );
+
+await admin.goto(`${BASE}/admin/events/${eventId}/board`);
+await admin.waitForLoadState('networkidle');
+await admin.waitForTimeout(800);
+
+// Take a whole section off the board with its own "select all".
+const laneSelectAll = admin.locator('section article button:has-text("تحديد الكل")').first();
+await laneSelectAll.click();
+await admin.waitForTimeout(400);
+check('selecting a whole section opens the selection bar',
+  (await admin.locator('button:has-text("إرجاع المحدَّدين")').count()) > 0, '');
+
+const beforeReturn = await unplaced();
+await admin.locator('button:has-text("إرجاع المحدَّدين")').click();
+await admin.waitForTimeout(4000);
+const afterReturn = await unplaced();
+check('a whole section goes back to the pool in one go',
+  afterReturn > beforeReturn, `${beforeReturn} → ${afterReturn}`);
+
+// And the pool's "select all" puts every one of them somewhere in one go.
+await admin.reload();
+await admin.waitForLoadState('networkidle');
+await admin.waitForTimeout(800);
+await admin.locator('aside button:has-text("تحديد الكل")').first().click();
+await admin.waitForTimeout(400);
+await admin.locator('section article button:has-text("ضع")').first().click();
+await admin.waitForTimeout(5000);
+const placedAll = await unplaced();
+check('a whole selection is placed in one go', placedAll === 0, `${afterReturn} → ${placedAll}`);
+
 /* ---- RTL / LTR --------------------------------------------------------- */
 // From a known page, so this never depends on where the previous check ended.
 await admin.goto(`${BASE}/admin`);

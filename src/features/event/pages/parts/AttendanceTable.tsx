@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   checkOutAction,
   recordAttendanceAction,
+  recordAttendanceManyAction,
   setAttendanceTimesAction,
   setMemberCreditAction,
 } from '@/server/actions/operations';
@@ -249,8 +250,17 @@ export function AttendanceTable({
   canManage?: boolean;
   eventDefault?: number;
 }) {
+  const router = useRouter();
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  /*
+   * Ticked rows. Kept by id rather than by index so that filtering, which
+   * reorders and shortens the list under them, cannot silently move a tick
+   * from one person to another.
+   */
+  const [picked, setPicked] = useState<Set<string>>(() => new Set());
+  const [bulkPending, setBulkPending] = useState(false);
+  const [bulkError, setBulkError] = useState<string | null>(null);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -262,6 +272,35 @@ export function AttendanceTable({
         (!statusFilter || r.status === statusFilter),
     );
   }, [rows, query, statusFilter]);
+
+  const togglePicked = (id: string) =>
+    setPicked((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+
+  const allShownPicked = filtered.length > 0 && filtered.every((r) => picked.has(r.eventMemberId));
+  const somePicked = filtered.some((r) => picked.has(r.eventMemberId)) && !allShownPicked;
+
+  async function markAll(status: AttendanceStatus) {
+    if (picked.size === 0) return;
+    setBulkError(null);
+    setBulkPending(true);
+    const body = new FormData();
+    body.set('eventId', eventId);
+    body.set('status', status);
+    for (const id of picked) body.append('eventMemberIds', id);
+    const result = await recordAttendanceManyAction(idle, body);
+    setBulkPending(false);
+    if (result.status === 'error' || result.status === 'conflict') {
+      setBulkError(result.message);
+      return;
+    }
+    setPicked(new Set());
+    router.refresh();
+  }
 
   return (
     <>
@@ -297,6 +336,50 @@ export function AttendanceTable({
         </select>
       </div>
 
+      {/*
+        One decision, applied to everyone it covers. The bar appears only when
+        rows are ticked, and it carries the same four marks as a single row so
+        there is nothing new to learn — it is the row's own buttons, aimed at a
+        selection instead of a person.
+      */}
+      {canRecord && picked.size > 0 ? (
+        <div
+          className="mb-3 flex flex-wrap items-center gap-2 rounded-card border border-brand-600/40 bg-brand-50 p-2.5"
+          style={{ animation: 'rise var(--dur-enter) var(--ease-settle) backwards' }}
+        >
+          <span className="nums grid h-7 min-w-[1.75rem] place-items-center rounded-full bg-brand-600 px-1.5 text-[13px] font-bold text-white">
+            {picked.size}
+          </span>
+          <span className="text-[12.5px] text-ink-400">{t.attendance.markSelected}</span>
+          <span className="ms-auto flex flex-wrap items-center gap-1.5">
+            {QUICK.map((status) => (
+              <button
+                key={status}
+                type="button"
+                disabled={bulkPending}
+                onClick={() => markAll(status)}
+                className="btn-secondary btn-sm"
+              >
+                {t.enums.attendanceStatus[status]}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              onClick={() => setPicked(new Set())}
+            >
+              {t.board.clearSelection}
+            </button>
+          </span>
+        </div>
+      ) : null}
+
+      {bulkError ? (
+        <div className="mb-3">
+          <FormError message={bulkError} />
+        </div>
+      ) : null}
+
       <div className="panel">
         {filtered.length === 0 ? (
           <EmptyState
@@ -309,6 +392,31 @@ export function AttendanceTable({
             <table className="op-table op-table-stack">
               <thead>
                 <tr>
+                  {canRecord ? (
+                    <th className="w-9">
+                      <label className="flex min-h-[44px] cursor-pointer items-center sm:min-h-0">
+                      <input
+                        type="checkbox"
+                        className="h-4.5 w-4.5 accent-brand-500"
+                        aria-label={t.board.selectAll}
+                        checked={allShownPicked}
+                        ref={(el) => {
+                          if (el) el.indeterminate = somePicked;
+                        }}
+                        onChange={(e) =>
+                          setPicked((current) => {
+                            const next = new Set(current);
+                            for (const row of filtered) {
+                              if (e.target.checked) next.add(row.eventMemberId);
+                              else next.delete(row.eventMemberId);
+                            }
+                            return next;
+                          })
+                        }
+                      />
+                      </label>
+                    </th>
+                  ) : null}
                   <th>{t.assignment.member}</th>
                   <th>{t.assignment.location}</th>
                   <th>{t.common.status}</th>
@@ -323,6 +431,19 @@ export function AttendanceTable({
               <tbody>
                 {filtered.map((row) => (
                   <tr key={row.eventMemberId}>
+                    {canRecord ? (
+                      <td data-label={t.board.selectAll}>
+                        <label className="flex min-h-[44px] cursor-pointer items-center sm:min-h-0">
+                          <input
+                            type="checkbox"
+                            className="h-4.5 w-4.5 accent-brand-500"
+                            aria-label={row.name}
+                            checked={picked.has(row.eventMemberId)}
+                            onChange={() => togglePicked(row.eventMemberId)}
+                          />
+                        </label>
+                      </td>
+                    ) : null}
                     <td data-label="">
                       <span className="font-medium text-ink-100">{row.name}</span>
                       {row.isReserve ? (

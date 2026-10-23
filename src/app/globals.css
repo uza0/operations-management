@@ -484,15 +484,26 @@
    * that happens to arrive.
    */
 
-  /** One element arriving. */
+  /**
+   * One element arriving.
+   *
+   * `backwards`, never `both`. With `both`, the final keyframe stays applied
+   * as an animation value after the animation ends — the computed transform
+   * reads `matrix(1,0,0,1,0,0)` rather than `none`, which is still a transform,
+   * which makes the element a containing block, which silently breaks every
+   * `position: fixed` descendant: a bar pinned to the bottom of the screen
+   * ends up pinned to the bottom of a four-thousand-pixel page instead.
+   * `backwards` hides the element before it starts and then gets out of the
+   * way entirely, which is all that was ever wanted.
+   */
   .rise {
-    animation: rise var(--dur-enter) var(--ease-settle) both;
+    animation: rise var(--dur-enter) var(--ease-settle) backwards;
   }
 
   /** A screen arriving: children follow one another in, ~55ms apart.
    *  Capped at eight — past that the last card is late rather than staged. */
   .stagger > * {
-    animation: rise var(--dur-enter) var(--ease-settle) both;
+    animation: rise var(--dur-enter) var(--ease-settle) backwards;
   }
   .stagger > *:nth-child(1) { animation-delay: 30ms; }
   .stagger > *:nth-child(2) { animation-delay: 85ms; }
