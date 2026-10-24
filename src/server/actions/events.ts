@@ -355,6 +355,21 @@ export async function deleteEventAction(form: FormData): Promise<void> {
     summary: `${t.enums.auditAction.DELETE}: ${event.name}`,
   });
 
+  /*
+   * Assignments first, then the event.
+   *
+   * Deleting the event cascades to its gates, but an assignment points at its
+   * gate with ON DELETE RESTRICT — on purpose, so that nobody removes a gate
+   * with people standing at it. That rule fires here too: the cascade reaches
+   * the gates while the assignments still reference them, the delete is
+   * refused, and the page shows an error. An event with nobody placed on it
+   * deletes cleanly, which is why the rehearsals went and the real one stayed.
+   *
+   * So the assignments are cleared first and the cascade is left with nothing
+   * to object to. Everything else hanging off the event — members, attendance,
+   * announcements, reports, markers, the questionnaire — already cascades.
+   */
+  await db.delete(assignments).where(eq(assignments.eventId, eventId));
   await db.delete(events).where(eq(events.id, eventId));
   revalidatePath('/admin/events');
   redirect('/admin/events');

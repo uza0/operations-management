@@ -20,6 +20,7 @@ export const ar = {
     cancel: 'إلغاء',
     delete: 'حذف',
     count: 'العدد',
+    select: 'تحديد',
     edit: 'تعديل',
     add: 'إضافة',
     create: 'إنشاء',

@@ -937,7 +937,11 @@ const gate6Members = (await db.prepare(`
 check('gate leader does not see other gates’ members',
   gate6Members.every(n => !gateTeam.includes(n)),
   `checked ${gate6Members.length} gate-6 members`);
-await gateLeader.goto(`${BASE}/leader/events/${eventId}/activity`, { waitUntil: 'networkidle' });
+/*
+ * Read the menu from a page this gate leader may actually open. The activity
+ * log used to serve for this and now refuses him, which is the point of the
+ * check further down.
+ */
 const gateNav = await gateLeader.textContent('aside, header');
 /* ---- the briefing screen exposes phone numbers: managers only ---------- */
 await gateLeader.goto(`${BASE}/admin/events/${eventId}/notify`);
@@ -952,6 +956,50 @@ check('gate leader blocked from the leader briefing route too',
   gateLeader.url());
 
 check('gate leader nav omits management sections', !gateNav.includes('التوزيع'));
+
+/* ---- the attendance list selects everyone from one place --------------- */
+
+/*
+ * On a phone the table head is gone and each row is a card, so the only
+ * select-all must be the one above the list. The bug this replaces put the
+ * head's label on every row's own checkbox: "select all" appeared on each
+ * card and picked one person.
+ */
+const handset = await browser.newContext({ viewport: { width: 390, height: 844 } });
+await login(handset, 'admin', 'Admin@12345');
+const phoneAdmin = handset.pages().at(-1);
+await phoneAdmin.goto(`${BASE}/admin/events/${eventId}/attendance`);
+await phoneAdmin.waitForLoadState('networkidle');
+await phoneAdmin.waitForTimeout(600);
+const selectAlls = await phoneAdmin.locator('label:visible:has-text("تحديد الكل")').count();
+check('one select-all on the attendance list, not one per person',
+  selectAlls === 1, `${selectAlls}`);
+
+await phoneAdmin.locator('label:visible:has-text("تحديد الكل") input').check();
+await phoneAdmin.waitForTimeout(400);
+const boxes = await phoneAdmin.locator('tbody input[type=checkbox]').count();
+const ticked = await phoneAdmin.locator('tbody input[type=checkbox]:checked').count();
+check('select-all picks everyone on the list', boxes > 1 && ticked === boxes,
+  `${ticked}/${boxes}`);
+await handset.close();
+
+/* ---- the closing report carries every promoter's pay: managers only ----- */
+
+/*
+ * The menu does not offer these two to a gate leader, which is not the same
+ * as closing them. The report prints what each promoter is owed and the log
+ * prints the old and the new figure every time one is changed — and a gate
+ * leader is usually a promoter with a radio, standing next to the people
+ * whose pay is on that page.
+ */
+for (const [name, path] of [['closing report', 'reports'], ['activity log', 'activity']]) {
+  for (const base of ['admin', 'leader']) {
+    await gateLeader.goto(`${BASE}/${base}/events/${eventId}/${path}`);
+    await gateLeader.waitForLoadState('networkidle');
+    check(`gate leader cannot open the ${name} (/${base})`,
+      gateLeader.url().includes('/forbidden'), gateLeader.url());
+  }
+}
 
 /*
  * A gate leader marks who turned up at their own gate. Rewriting the times and
@@ -1489,6 +1537,33 @@ await admin.goto(`${BASE}/admin/events`);
 await admin.waitForLoadState('networkidle');
 const deleteButtons = await admin.locator('form button:has-text("حذف")').count();
 check('every event on the list can be deleted', deleteButtons > 0, `${deleteButtons}`);
+
+/*
+ * And an event with people placed on it really goes. An assignment points at
+ * its gate with ON DELETE RESTRICT, so the cascade used to be refused and the
+ * only events that would delete were the empty ones.
+ */
+// Any staffed event except the one the rest of the suite is working on.
+const busy = await db.prepare(`
+  select e.id, e.name, count(a.id) as n from events e
+    join assignments a on a.event_id = e.id
+   where e.id != ?
+   group by e.id order by n desc limit 1`).get(eventId);
+const eventsBefore = Number(
+  (await db.prepare('select count(*) as n from events').get()).n);
+admin.once('dialog', (d) => d.accept());
+await admin.goto(`${BASE}/admin/events?q=${encodeURIComponent(busy.name)}`);
+await admin.waitForLoadState('networkidle');
+await admin.locator('form button:has-text("حذف")').first().click();
+await admin.waitForTimeout(4000);
+const eventsAfter = Number(
+  (await db.prepare('select count(*) as n from events').get()).n);
+const orphans = Number(
+  (await db.prepare('select count(*) as n from assignments where event_id=?')
+    .get(busy.id)).n);
+check('an event with people placed on it deletes too',
+  eventsAfter === eventsBefore - 1 && orphans === 0,
+  `${busy.n} assignments · ${eventsBefore} → ${eventsAfter}`);
 
 /* ---- the way back, and the board before the list it produces ----------- */
 await admin.goto(`${BASE}/admin/events/${eventId}`);

@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import Link from 'next/link';
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 
 import { getT } from '@/lib/i18n/server';
 import { requireEventScope, type EventScope } from '@/server/auth/rbac';
@@ -72,6 +72,20 @@ export async function loadEventPage(eventId: string): Promise<{
   if (!event) notFound();
   const { locale, t } = await getT();
   return { scope, event, locale, t };
+}
+
+/**
+ * The same, for a page only a manager may open.
+ *
+ * Leaving a page out of the menu hides it; it does not close it. A gate
+ * leader who types the address of the closing report reaches it exactly as
+ * easily as the leader it was written for — and the closing report carries
+ * every promoter's pay. The menu is a courtesy; this is the lock.
+ */
+export async function loadManagedEventPage(eventId: string) {
+  const loaded = await loadEventPage(eventId);
+  if (!loaded.scope.canManage) redirect('/forbidden');
+  return loaded;
 }
 
 export function eventTypeLabel(t: Awaited<ReturnType<typeof getT>>['t'], type: string) {

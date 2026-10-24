@@ -1,4 +1,4 @@
-import { loadEventPage } from '@/features/event/workspace';
+import { loadManagedEventPage } from '@/features/event/workspace';
 import { buildFindings, buildReport } from '@/server/services/report';
 import { Badge, eventStatusTone, issueStatusTone } from '@/components/ui/status';
 import { format, type Dictionary } from '@/lib/i18n';
@@ -34,7 +34,7 @@ import {
  * to a manager as-is.
  */
 export async function EventReportPage({ eventId }: { eventId: string }) {
-  const { scope, event, locale, t } = await loadEventPage(eventId);
+  const { scope, event, locale, t } = await loadManagedEventPage(eventId);
   const data = await buildReport(eventId);
   const { findings, recommendations } = buildFindings(data, t, format);
 

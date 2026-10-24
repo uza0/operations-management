@@ -281,6 +281,17 @@ export function AttendanceTable({
       return next;
     });
 
+  /** Picks or drops every row the current filter is showing. */
+  const selectShown = (on: boolean) =>
+    setPicked((current) => {
+      const next = new Set(current);
+      for (const row of filtered) {
+        if (on) next.add(row.eventMemberId);
+        else next.delete(row.eventMemberId);
+      }
+      return next;
+    });
+
   const allShownPicked = filtered.length > 0 && filtered.every((r) => picked.has(r.eventMemberId));
   const somePicked = filtered.some((r) => picked.has(r.eventMemberId)) && !allShownPicked;
 
@@ -389,6 +400,33 @@ export function AttendanceTable({
           />
         ) : (
           <div className="table-wrap">
+            {/*
+              On a phone the table head is gone — every row becomes its own
+              card — and the select-all went with it. Without this the only
+              checkboxes on screen are the rows' own, each one sitting under
+              the head's label, so "select all" appeared on every card and
+              picked exactly one person.
+            */}
+            {canRecord ? (
+              <label className="press mb-2.5 flex min-h-[44px] items-center gap-2.5 rounded-card border border-ink-700 bg-ink-850 px-3 text-[13px] font-semibold text-ink-200 sm:hidden">
+                <input
+                  type="checkbox"
+                  className="h-4.5 w-4.5 accent-brand-500"
+                  checked={allShownPicked}
+                  ref={(el) => {
+                    if (el) el.indeterminate = somePicked;
+                  }}
+                  onChange={(e) => selectShown(e.target.checked)}
+                />
+                {t.board.selectAll}
+                {picked.size > 0 ? (
+                  <span className="nums ms-auto text-[12px] font-normal text-ink-500">
+                    {format(t.board.selectedCount, { n: picked.size })}
+                  </span>
+                ) : null}
+              </label>
+            ) : null}
+
             <table className="op-table op-table-stack">
               <thead>
                 <tr>
@@ -403,16 +441,7 @@ export function AttendanceTable({
                         ref={(el) => {
                           if (el) el.indeterminate = somePicked;
                         }}
-                        onChange={(e) =>
-                          setPicked((current) => {
-                            const next = new Set(current);
-                            for (const row of filtered) {
-                              if (e.target.checked) next.add(row.eventMemberId);
-                              else next.delete(row.eventMemberId);
-                            }
-                            return next;
-                          })
-                        }
+                        onChange={(e) => selectShown(e.target.checked)}
                       />
                       </label>
                     </th>
@@ -432,7 +461,7 @@ export function AttendanceTable({
                 {filtered.map((row) => (
                   <tr key={row.eventMemberId}>
                     {canRecord ? (
-                      <td data-label={t.board.selectAll}>
+                      <td data-label={t.common.select}>
                         <label className="flex min-h-[44px] cursor-pointer items-center sm:min-h-0">
                           <input
                             type="checkbox"

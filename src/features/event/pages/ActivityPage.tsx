@@ -1,4 +1,4 @@
-import { loadEventPage } from '@/features/event/workspace';
+import { loadManagedEventPage } from '@/features/event/workspace';
 import { listEventAudit } from '@/server/services/audit';
 import { PageHeader, Panel } from '@/components/ui/panel';
 import { EmptyState, Notice } from '@/components/ui/states';
@@ -18,7 +18,7 @@ function parseJson(value: string | null): Record<string, unknown> | null {
 
 /** Read-only for operational users — the log is never edited from the UI. */
 export async function EventActivityPage({ eventId }: { eventId: string }) {
-  const { locale, t } = await loadEventPage(eventId);
+  const { locale, t } = await loadManagedEventPage(eventId);
   const rows = await listEventAudit(eventId, 300);
 
   return (

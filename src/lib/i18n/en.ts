@@ -18,6 +18,7 @@ export const en: Dictionary = {
     cancel: 'Cancel',
     delete: 'Delete',
     count: 'Count',
+    select: 'Select',
     edit: 'Edit',
     add: 'Add',
     create: 'Create',
