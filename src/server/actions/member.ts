@@ -17,6 +17,9 @@ import { newId } from '@/lib/ids';
 import { firstIssueKey, issueSchema, str } from '@/lib/validation';
 import { recordAudit } from '@/server/services/audit';
 import { resolveMemberByToken } from '@/server/services/member';
+import { routeNewIssue } from '@/server/services/issue-routing';
+import { dueAtFor } from '@/lib/issue-sla';
+import type { IssuePriority } from '@/lib/constants';
 
 import { fail, ok, type ActionState } from './types';
 
@@ -65,6 +68,36 @@ export async function memberReportIssueAction(
     )
     .get();
 
+  /*
+   * The same report, sent twice.
+   *
+   * A phone with no signal writes the report to itself and sends it when the
+   * network returns; the promoter, seeing nothing happen, taps again. Both
+   * carry the id the device minted, so the second arrival is recognised as the
+   * first and answered with success — the report is in, which is what the
+   * person asked about, and the board stays clean.
+   *
+   * A report sent with no client id at all (an older page, a browser with no
+   * storage) is simply created, as before.
+   */
+  const clientId = str(form, 'clientId');
+  if (clientId) {
+    const already = await db.query.issues.findFirst({
+      where: eq(issues.clientId, clientId),
+    });
+    if (already) {
+      return already.eventId === member.eventId && already.reportedByMemberId === member.id
+        ? ok(t.member.issueSent)
+        : fail(t.errors.forbidden);
+    }
+  }
+
+  const routed = await routeNewIssue({
+    eventId: member.eventId,
+    gateId: assignment?.gateId ?? null,
+    priority: parsed.data.priority,
+  });
+
   const id = newId();
   await db.insert(issues).values({
     id,
@@ -78,6 +111,10 @@ export async function memberReportIssueAction(
     reportedByMemberId: member.id,
     reportedByUserId: null,
     reporterName: member.name,
+    clientId: clientId ?? null,
+    assigneeUserId: routed.assigneeUserId,
+    assignedAt: routed.assignedAt,
+    dueAt: routed.dueAt,
   });
 
   let locationName: string | null = null;
@@ -209,4 +246,80 @@ export async function submitFeedbackAction(
   revalidatePath(`/member/${token}`);
   revalidatePath(`/admin/events/${member.eventId}/reports`);
   return ok(t.feedback.thanks);
+}
+
+/**
+ * "It is still happening."
+ *
+ * The other half of the loop, and the half that decides whether anybody
+ * reports anything a second time. Somebody at a desk marked this resolved;
+ * the person standing in front of it says otherwise, and they are the one who
+ * can see. So their word reopens it, puts it back in front of whoever closed
+ * it, and counts — a report reopened twice is a different kind of problem from
+ * a report reopened once, and the count is what makes that visible.
+ *
+ * Only the reporter may do this, only on their own report, and only on one
+ * that was actually closed: reopening an open report would just be noise.
+ */
+export async function memberReopenIssueAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const token = String(form.get('token') ?? '');
+
+  const member = await resolveMemberByToken(token);
+  if (!member) return fail(t.member.invalidToken);
+  if (member.status === 'CANCELLED') return fail(t.member.cancelled);
+
+  const issueId = str(form, 'issueId');
+  if (!issueId) return fail(t.errors.notFound);
+
+  const row = await db.query.issues.findFirst({ where: eq(issues.id, issueId) });
+  if (
+    !row ||
+    row.eventId !== member.eventId ||
+    row.reportedByMemberId !== member.id
+  ) {
+    return fail(t.errors.notFound);
+  }
+  if (row.status !== 'RESOLVED' && row.status !== 'CLOSED') {
+    return fail(t.errors.notFound);
+  }
+
+  const now = new Date();
+  await db
+    .update(issues)
+    .set({
+      status: 'OPEN',
+      // The clock starts again, and it starts short: a problem that was
+      // declared fixed and is not is more urgent than it was the first time.
+      acknowledgedAt: null,
+      resolvedAt: null,
+      reopenedAt: now,
+      reopenCount: row.reopenCount + 1,
+      dueAt: dueAtFor(row.priority as IssuePriority, now),
+      updatedAt: now,
+    })
+    .where(eq(issues.id, issueId));
+
+  await recordAudit({
+    eventId: member.eventId,
+    actorId: null,
+    actorName: member.name,
+    action: 'UPDATE',
+    entity: 'ISSUE',
+    entityId: issueId,
+    entityLabel: row.description.slice(0, 60),
+    oldValues: { status: row.status },
+    newValues: { status: 'OPEN', reopenCount: row.reopenCount + 1 },
+    reason: t.member.stillHappening,
+    summary: `${t.member.stillHappening}: ${member.name}`,
+  });
+
+  revalidatePath(`/member/${token}`);
+  for (const base of ['/admin', '/leader']) {
+    revalidatePath(`${base}/events/${member.eventId}/issues`);
+  }
+  return ok(t.member.reopened);
 }

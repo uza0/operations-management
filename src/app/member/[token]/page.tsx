@@ -30,6 +30,7 @@ import type {
 } from '@/lib/constants';
 
 import { MemberIssueForm } from './MemberIssueForm';
+import { MemberIssueCard } from './MemberIssueCard';
 import { MemberShell, InvalidToken } from './MemberShell';
 
 export const metadata: Metadata = {
@@ -474,27 +475,22 @@ export default async function MemberPortalPage({
           {data.myIssues.length > 0 ? (
             <ul className="mt-3 space-y-2">
               {data.myIssues.map((row) => (
-                <li key={row.id} className="panel px-4 py-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="text-[13.5px] font-medium text-ink-100">
-                      {t.enums.issueType[row.type as IssueType]}
-                    </p>
-                    <Badge
-                      tone={
-                        row.status === 'RESOLVED' || row.status === 'CLOSED'
-                          ? 'ok'
-                          : row.status === 'OPEN'
-                            ? 'crit'
-                            : 'info'
-                      }
-                    >
-                      {t.enums.issueStatus[row.status as IssueStatus]}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 text-[12.5px] leading-5 text-ink-400">
-                    {row.description}
-                  </p>
-                </li>
+                <MemberIssueCard
+                  key={row.id}
+                  t={t}
+                  token={token}
+                  line={{
+                    ...row,
+                    acknowledgedLabel: row.acknowledgedAt
+                      ? formatTime(
+                          `${String(row.acknowledgedAt.getHours()).padStart(2, '0')}:${String(
+                            row.acknowledgedAt.getMinutes(),
+                          ).padStart(2, '0')}`,
+                          locale,
+                        )
+                      : null,
+                  }}
+                />
               ))}
             </ul>
           ) : null}

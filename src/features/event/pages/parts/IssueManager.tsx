@@ -17,7 +17,8 @@ import {
   type IssueType,
 } from '@/lib/constants';
 import { formatDateTime } from '@/lib/time';
-import type { Dictionary } from '@/lib/i18n';
+import { format, type Dictionary } from '@/lib/i18n';
+import { plural } from '@/lib/plural';
 
 export type IssueRow = {
   id: string;
@@ -31,6 +32,14 @@ export type IssueRow = {
   resolvedAt: Date | null;
   resolvedByName: string | null;
   resolutionNote: string | null;
+  /** Who holds it now — not who eventually closed it. */
+  assigneeName: string | null;
+  dueAt: Date | null;
+  /** Past its target with nobody having picked it up. */
+  overdue: boolean;
+  minutesLate: number;
+  escalated: boolean;
+  reopenCount: number;
 };
 
 type Option = { id: string; name: string };
@@ -234,8 +243,41 @@ export function IssueManager({
               {t.issue.reporter}: {issue.reporterName} ·{' '}
               <span className="nums">{formatDateTime(issue.createdAt, locale)}</span>
             </p>
+            {/*
+              Who owns it, said plainly. A report with no name against it is
+              the one everybody assumes somebody else is handling, which is
+              how a problem sits open for an hour with four people aware of it.
+            */}
+            <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[12px]">
+              <span className="text-ink-500">{t.issue.owner}:</span>
+              {issue.assigneeName ? (
+                <span className="font-semibold text-ink-200">{issue.assigneeName}</span>
+              ) : (
+                <span className="font-semibold text-warn-text">{t.issue.unassigned}</span>
+              )}
+              {issue.escalated ? (
+                <Badge tone="warn" dot={false}>
+                  {t.issue.escalated}
+                </Badge>
+              ) : null}
+              {issue.reopenCount > 0 ? (
+                <Badge tone="warn" dot={false}>
+                  {format(t.issue.reopened, { n: issue.reopenCount })}
+                </Badge>
+              ) : null}
+            </p>
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {/*
+              Late means nobody has picked it up — the clock stops at the
+              acknowledgement, not at the fix. A problem that takes an hour to
+              solve is not a failure; an hour of silence is.
+            */}
+            {issue.overdue ? (
+              <Badge tone="crit" pulse>
+                {plural(t.issue.lateBy, issue.minutesLate, locale)}
+              </Badge>
+            ) : null}
             <Badge tone={issuePriorityTone[issue.priority as IssuePriority]}>
               {t.enums.issuePriority[issue.priority as IssuePriority]}
             </Badge>

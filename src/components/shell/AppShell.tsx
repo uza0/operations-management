@@ -48,7 +48,10 @@ export async function AppShell({
           <Link href={homeHref} className="flex items-center gap-2.5">
             <BrandMark size={36} className="shrink-0 text-brand-600" />
             <span className="min-w-0">
-              <span className="block truncate text-[14.5px] font-bold text-ink-100">
+              <span
+                className="block truncate text-[14.5px] font-bold text-ink-100"
+                style={{ unicodeBidi: 'plaintext' }}
+              >
                 {t.app.name}
               </span>
               <span className="block truncate text-[11.5px] text-ink-500">

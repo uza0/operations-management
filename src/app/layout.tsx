@@ -8,15 +8,15 @@ import { themeScript } from '@/components/pwa/ThemeToggle';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'إدارة العمليات — منصة فرق الفعاليات وعمليات البوابات',
+  title: 'TicketZone Ops — منصة فرق الفعاليات وعمليات البوابات',
   description:
     'منصة داخلية لإدارة فرق الفعاليات: البوابات، التوزيع، الحضور، الإعلانات، المشاكل والتقارير.',
-  applicationName: 'إدارة العمليات',
+  applicationName: 'TicketZone Ops',
   robots: { index: false, follow: false },
   manifest: '/manifest.webmanifest',
   appleWebApp: {
     capable: true,
-    title: 'إدارة العمليات',
+    title: 'TicketZone Ops',
     statusBarStyle: 'black-translucent',
   },
   icons: {

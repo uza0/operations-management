@@ -1,7 +1,16 @@
-import { desc, eq } from 'drizzle-orm';
+import { aliasedTable, desc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { gates, issues, users, workingPoints } from '@/db/schema';
+import { escalateOverdue } from '@/server/services/issue-routing';
+import { isOverdue, minutesLate } from '@/lib/issue-sla';
+
+/**
+ * The same users table, joined twice: once for whoever closed the report and
+ * once for whoever holds it now. They are different questions and frequently
+ * different people, so they need different aliases.
+ */
+const assignee = aliasedTable(users, 'assignee');
 import { loadEventPage } from '@/features/event/workspace';
 import { PageHeader } from '@/components/ui/panel';
 
@@ -26,11 +35,17 @@ export async function EventIssuesPage({ eventId }: { eventId: string }) {
         resolvedAt: issues.resolvedAt,
         resolvedByName: users.name,
         resolutionNote: issues.resolutionNote,
+        acknowledgedAt: issues.acknowledgedAt,
+        dueAt: issues.dueAt,
+        escalatedAt: issues.escalatedAt,
+        reopenCount: issues.reopenCount,
+        assigneeName: assignee.name,
       })
       .from(issues)
       .leftJoin(gates, eq(issues.gateId, gates.id))
       .leftJoin(workingPoints, eq(issues.workingPointId, workingPoints.id))
       .leftJoin(users, eq(issues.resolvedById, users.id))
+      .leftJoin(assignee, eq(issues.assigneeUserId, assignee.id))
       .where(eq(issues.eventId, eventId))
       .orderBy(desc(issues.createdAt)),
     db
@@ -44,6 +59,23 @@ export async function EventIssuesPage({ eventId }: { eventId: string }) {
   ]);
 
   const visible = scope.gateId ? rows.filter((r) => r.gateId === scope.gateId) : rows;
+
+  /*
+   * Escalation happens here, when somebody looks.
+   *
+   * There is no scheduler on this host, and a cron job would buy nothing a
+   * person would recognise as escalation: a report nobody is looking at has
+   * not been escalated in any useful sense. So the moment this screen loads,
+   * anything that has run past its target unanswered is handed to the team
+   * leader and flagged — once, because `escalatedAt` latches it.
+   */
+  const overdue = visible.filter((r) => isOverdue(r));
+  if (overdue.length > 0) {
+    await escalateOverdue(
+      eventId,
+      overdue.filter((r) => !r.escalatedAt).map((r) => r.id),
+    );
+  }
 
   return (
     <>
@@ -64,6 +96,12 @@ export async function EventIssuesPage({ eventId }: { eventId: string }) {
           resolvedAt: r.resolvedAt,
           resolvedByName: r.resolvedByName,
           resolutionNote: r.resolutionNote,
+          assigneeName: r.assigneeName,
+          dueAt: r.dueAt,
+          overdue: isOverdue(r),
+          minutesLate: isOverdue(r) ? minutesLate(r.dueAt) : 0,
+          escalated: r.escalatedAt !== null,
+          reopenCount: r.reopenCount,
         }))}
         gates={scope.gateId ? gateRows.filter((g) => g.id === scope.gateId) : gateRows}
         workingPoints={scope.gateId ? [] : wpRows}

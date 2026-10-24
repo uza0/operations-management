@@ -90,7 +90,12 @@ export default async function LoginPage({
           <div className="flex items-center gap-3">
             <BrandMark size={44} className="text-brand-600" />
             <div>
-              <p className="text-[17px] font-bold leading-tight text-ink-100">{t.app.name}</p>
+              <p
+                className="text-[17px] font-bold leading-tight text-ink-100"
+                style={{ unicodeBidi: 'plaintext' }}
+              >
+                {t.app.name}
+              </p>
               <p className="text-[12px] text-ink-400">{t.app.tagline}</p>
             </div>
           </div>

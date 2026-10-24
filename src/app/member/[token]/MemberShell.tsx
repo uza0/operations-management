@@ -38,7 +38,12 @@ export async function MemberShell({
         <div className="mx-auto flex w-full max-w-[560px] items-center justify-between gap-3 px-4 py-2.5">
           <div className="flex min-w-0 items-center gap-2.5">
             <BrandMark size={28} className="shrink-0 text-brand-600" />
-            <span className="truncate text-[14px] font-bold text-ink-100">{t.app.name}</span>
+            <span
+              className="truncate text-[14px] font-bold text-ink-100"
+              style={{ unicodeBidi: 'plaintext' }}
+            >
+              {t.app.name}
+            </span>
           </div>
           <div className="flex shrink-0 items-center gap-1">
             <ThemeToggle t={t} />

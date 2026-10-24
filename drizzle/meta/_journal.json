@@ -57,6 +57,13 @@
       "when": 1792682883526,
       "tag": "0007_complete_ultron",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1792791121080,
+      "tag": "0008_open_the_professor",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, asc, desc, eq, ne, or } from 'drizzle-orm';
+import { and, asc, desc, eq, ne, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { mainGateForMember } from '@/server/services/main-gate';
@@ -214,6 +214,16 @@ export async function getMemberPortal(token: string) {
     .where(eq(timelineItems.eventId, membership.eventId))
     .orderBy(asc(timelineItems.scheduledTime));
 
+  /*
+   * The reporter's own view of what happened to what they reported.
+   *
+   * A status word on its own does not close the loop — "resolved" by whom, and
+   * what did they do? A promoter who watches a problem they can still see get
+   * marked resolved from a desk, with no name on it and no way to say so, does
+   * not report the next one. So this carries who picked it up, when, what they
+   * wrote, and the reopen count that proves saying "it is still happening" does
+   * something.
+   */
   const myIssues = await db
     .select({
       id: issues.id,
@@ -221,8 +231,18 @@ export async function getMemberPortal(token: string) {
       status: issues.status,
       description: issues.description,
       createdAt: issues.createdAt,
+      acknowledgedAt: issues.acknowledgedAt,
+      resolvedAt: issues.resolvedAt,
+      resolutionNote: issues.resolutionNote,
+      reopenCount: issues.reopenCount,
+      handlerName: users.name,
     })
     .from(issues)
+    .leftJoin(
+      users,
+      // Whoever holds it now, or whoever closed it when nobody holds it.
+      eq(users.id, sql`coalesce(${issues.assigneeUserId}, ${issues.resolvedById})`),
+    )
     .where(
       and(
         eq(issues.eventId, membership.eventId),

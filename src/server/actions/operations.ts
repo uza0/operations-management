@@ -33,6 +33,7 @@ import {
 import type { AttendanceStatus, IssueStatus, Priority } from '@/lib/constants';
 import { assertEventManager, currentUser, resolveEventScope } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
+import { routeNewIssue } from '@/server/services/issue-routing';
 
 import { fail, idle, ok, type ActionState } from './types';
 
@@ -488,6 +489,12 @@ export async function createIssueAction(
   if (!parsed.success) return fail(errorFor(t, firstIssueKey(parsed.error)));
 
   const id = newId();
+  const routed = await routeNewIssue({
+    eventId,
+    gateId: parsed.data.gateId ?? null,
+    priority: parsed.data.priority,
+  });
+
   await db.insert(issues).values({
     id,
     eventId,
@@ -495,6 +502,9 @@ export async function createIssueAction(
     description: parsed.data.description,
     priority: parsed.data.priority,
     status: 'OPEN',
+    assigneeUserId: routed.assigneeUserId,
+    assignedAt: routed.assignedAt,
+    dueAt: routed.dueAt,
     gateId: parsed.data.gateId ?? null,
     workingPointId: parsed.data.workingPointId ?? null,
     reportedByMemberId: null,
@@ -548,6 +558,15 @@ export async function updateIssueStatusAction(
     .update(issues)
     .set({
       status: next,
+      /*
+       * Touching a report takes it. Whoever moves it off OPEN is the person
+       * who has it from then on, unless somebody already does — which is how
+       * an unassigned report at a gate with no leader of its own finds an
+       * owner the moment a human looks at it, without anybody having to
+       * remember to claim it.
+       */
+      assigneeUserId: row.assigneeUserId ?? user.id,
+      assignedAt: row.assignedAt ?? now,
       acknowledgedAt:
         row.acknowledgedAt ??
         (['ACKNOWLEDGED', 'IN_PROGRESS', 'RESOLVED', 'CLOSED'].includes(next) ? now : null),

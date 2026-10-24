@@ -548,9 +548,65 @@ export const issues = sqliteTable(
       onDelete: 'set null',
     }),
     resolutionNote: text('resolution_note'),
+
+    /**
+     * The id the reporting device gave this report before it ever reached a
+     * server.
+     *
+     * A promoter inside a full stadium has no signal, so a report is written
+     * to their own phone first and sent when the network comes back — which
+     * means the same report can be sent twice: once by the retry, once by the
+     * tap they made again because nothing seemed to happen. The device's id is
+     * what lets the server recognise the second one as the first, so it is
+     * unique and it is the only thing standing between an operations board and
+     * a wall of duplicates.
+     */
+    clientId: text('client_id'),
+
+    /**
+     * Who owns this report RIGHT NOW — not who eventually closed it.
+     *
+     * The gate's own leader gets it on arrival: they are standing nearest to
+     * it and can act without asking anyone. `resolvedById` below records who
+     * finished it, which is a different question and often a different person.
+     */
+    assigneeUserId: text('assignee_user_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    assignedAt: integer('assigned_at', { mode: 'timestamp_ms' }),
+
+    /**
+     * When this report becomes late.
+     *
+     * Set once, at creation, from the priority — a medical call is two
+     * minutes and a shortage of wristbands is half an hour, and treating them
+     * alike is how a board full of red stops meaning anything. Nothing runs in
+     * the background to check it: "late" is computed when somebody looks, which
+     * is the only honest thing a server with no scheduler can claim.
+     */
+    dueAt: integer('due_at', { mode: 'timestamp_ms' }),
+
+    /** When it passed its target unanswered and reached the team leader. */
+    escalatedAt: integer('escalated_at', { mode: 'timestamp_ms' }),
+
+    /**
+     * The reporter said it is still happening after someone marked it resolved.
+     *
+     * This is the half of the loop that decides whether anyone reports anything
+     * a second time: a promoter who watches a real problem get closed from a
+     * desk, and has no way to say so, stops using the system that evening.
+     */
+    reopenedAt: integer('reopened_at', { mode: 'timestamp_ms' }),
+    reopenCount: integer('reopen_count').notNull().default(0),
+
     ...timestamps,
   },
-  (t) => [index('issues_event_idx').on(t.eventId), index('issues_status_idx').on(t.status)],
+  (t) => [
+    index('issues_event_idx').on(t.eventId),
+    index('issues_status_idx').on(t.status),
+    index('issues_assignee_idx').on(t.assigneeUserId),
+    uniqueIndex('issues_client_id_unique').on(t.clientId),
+  ],
 );
 
 /* -------------------------------------------------------------------------- */

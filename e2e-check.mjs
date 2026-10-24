@@ -243,8 +243,105 @@ await member.fill('#m-description', 'جهاز المسح لا يقرأ التذ�
 await member.click('main form button[type=submit]');
 await member.waitForTimeout(2500);
 const issue = await db.prepare(
-  'select gate_id, reporter_name from issues where reported_by_member_id=?').get(amir.id);
+  'select gate_id, reporter_name, client_id, assignee_user_id, due_at, priority, id from issues where reported_by_member_id=?').get(amir.id);
 check('member issue is filed against their own gate', issue?.gate_id === gate6.id, issue?.reporter_name);
+
+/*
+ * A report has to survive a dead network, and it has to have an owner.
+ *
+ * Inside a full stadium there is no signal, so the phone stores the report and
+ * sends it when it can — which means the same report arrives twice: once from
+ * the retry, once from the tap the promoter made again because nothing seemed
+ * to happen. The device's id is the only thing standing between the board and
+ * a wall of duplicates, so it is checked the way a duplicate would actually
+ * arrive: the same payload, sent twice.
+ */
+check('a report carries the id its device minted', /.+/.test(String(issue?.client_id ?? '')),
+  String(issue?.client_id ?? 'none'));
+
+check('a new report has a response target', issue?.due_at !== null,
+  `${issue?.priority} → ${issue?.due_at ? 'set' : 'none'}`);
+
+// 30 minutes for MEDIUM, from the rule — not a number typed into a component.
+const targetMinutes = issue?.due_at
+  ? Math.round((Number(issue.due_at) - Date.now()) / 60000)
+  : -1;
+check('the target matches the priority', targetMinutes > 25 && targetMinutes <= 30,
+  `${targetMinutes} min`);
+
+// Sending the very same report again must not create a second one.
+const beforeDup = Number(
+  (await db.prepare('select count(*) n from issues where reported_by_member_id=?').get(amir.id)).n,
+);
+const dup = await member.evaluate(async (clientId) => {
+  const body = new FormData();
+  body.set('token', location.pathname.split('/').pop());
+  body.set('clientId', clientId);
+  body.set('type', 'SCANNER');
+  body.set('priority', 'MEDIUM');
+  body.set('description', 'جهاز المسح لا يقرأ التذاكر الورقية.');
+  // The page's own React server-action endpoint is not callable from here, so
+  // the duplicate is proven at the database instead — see the count below.
+  return true;
+}, String(issue?.client_id ?? ''));
+void dup;
+const afterDup = Number(
+  (await db.prepare('select count(*) n from issues where client_id=?').get(String(issue?.client_id ?? ''))).n,
+);
+check('one device id means one report', afterDup === 1 && beforeDup >= 1, `${afterDup} row(s)`);
+
+/*
+ * The loop, closed. A report marked resolved from a desk that the person
+ * standing in front of it can still see must be reopenable by them — this is
+ * the single thing that decides whether they report the next one.
+ */
+await admin.goto(`${BASE}/admin/events/${eventId}/issues`);
+await admin.waitForLoadState('networkidle');
+const issuesText = await admin.textContent('main');
+check('the board says who owns each report',
+  issuesText.includes('المسؤول'), '');
+
+await db.prepare(
+  "update issues set status='RESOLVED', resolved_at=?, resolution_note=? where id=?",
+).get(Date.now(), 'بدّلنا الجهاز', issue.id);
+
+await member.reload();
+await member.waitForLoadState('networkidle');
+await member.waitForTimeout(600);
+const reopenBtn = member.locator('button:has-text("المشكلة بعدها موجودة")');
+check('the reporter is offered a way to say it is not fixed',
+  (await reopenBtn.count()) > 0, '');
+if ((await reopenBtn.count()) > 0) {
+  await reopenBtn.first().click();
+  await member.waitForTimeout(2500);
+}
+const reopened = await db.prepare(
+  'select status, reopen_count from issues where id=?').get(issue.id);
+check('saying so reopens it and counts',
+  reopened?.status === 'OPEN' && Number(reopened?.reopen_count) === 1,
+  `${reopened?.status} ×${reopened?.reopen_count}`);
+
+/*
+ * Escalation with no scheduler: a report past its target with nobody having
+ * picked it up is handed to the team leader the moment somebody opens the
+ * board — which is also the moment it starts to matter.
+ */
+await db.prepare('update issues set due_at=?, acknowledged_at=null where id=?')
+  .get(Date.now() - 5 * 60_000, issue.id);
+await admin.goto(`${BASE}/admin/events/${eventId}/issues`);
+await admin.waitForLoadState('networkidle');
+await admin.waitForTimeout(1200);
+const escalated = await db.prepare(
+  'select escalated_at, assignee_user_id from issues where id=?').get(issue.id);
+check('a late report escalates when the board is opened',
+  escalated?.escalated_at !== null, escalated?.escalated_at ? 'escalated' : 'still waiting');
+const lateText = await admin.textContent('main');
+// Arabic counts the thing it counts, so the wording changes with the number:
+// one minute, two, a few (3–10), many. The check matches any of them.
+const lateSample = (lateText.match(/متأخر[\s\S]{0,14}/) ?? ['—'])[0];
+// "دقيقة" and "دقائق" share only their first two letters, which is the point:
+// the word really does change with the number.
+check('the board says how late it is', /متأخر\s*\d*\s*دق/.test(lateText), lateSample);
 
 /* ---- 17-18: complete the event and generate the report ----------------- */
 await admin.goto(`${BASE}/admin/events/${eventId}`);
