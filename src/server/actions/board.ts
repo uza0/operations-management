@@ -41,6 +41,64 @@ function revalidateBoard(eventId: string) {
   }
 }
 
+/**
+ * Publishes the board, or puts it back into draft.
+ *
+ * Nothing about the distribution reaches a promoter's phone until this is
+ * pressed. Before it, the supervisor can drag the same man across four gates
+ * while he makes up his mind and nobody is told anything; after it, every
+ * promoter sees his place, and a later change is a change they are told about
+ * — which is the right way round, and the opposite of what happens when every
+ * draft move is broadcast.
+ *
+ * Going back to draft is allowed and does not undo anything on the board: it
+ * only closes the window again, for the case where a supervisor publishes and
+ * then sees that a whole section is wrong. What promoters already read, they
+ * read — this is a tap, not a time machine — so the audit line records both
+ * directions under the name of whoever pressed it.
+ */
+export async function setBoardPublishedAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  const user = await assertEventManager(eventId).catch(() => null);
+  if (!user) return fail(t.errors.forbidden);
+
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return fail(t.errors.notFound);
+
+  const publish = str(form, 'published') === '1';
+  const now = new Date();
+
+  await db
+    .update(events)
+    .set({
+      boardPublishedAt: publish ? now : null,
+      boardPublishedById: publish ? user.id : null,
+      updatedAt: now,
+    })
+    .where(eq(events.id, eventId));
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'EVENT',
+    entityId: eventId,
+    entityLabel: event.name,
+    oldValues: { boardPublished: event.boardPublishedAt !== null },
+    newValues: { boardPublished: publish },
+    summary: publish ? t.board.publishedSummary : t.board.draftSummary,
+  });
+
+  revalidateBoard(eventId);
+  revalidatePath(`/member`, 'layout');
+  return ok();
+}
+
 /** Puts one member into one lane — "<locationId>:<TASK>". */
 export async function placeOnLaneAction(
   _prev: ActionState,
@@ -229,8 +287,20 @@ export async function setLanesAction(
   });
 
   revalidateBoard(eventId);
+  /*
+   * Keeping an occupied lane is not a refusal: everything the supervisor
+   * ticked was saved. Reporting it as an error left the dialog open under a
+   * red line, so the save that had just happened looked like one that had
+   * not — and the lane the supervisor was trying to remove was named
+   * nowhere. It closes, and says which lane stayed and what frees it.
+   */
   return stillNeeded.length > 0
-    ? fail(t.board.laneKept)
+    ? ok(
+        t.board.laneKept.replace(
+          '{tasks}',
+          stillNeeded.map((task) => t.enums.task[task]).join(' · '),
+        ),
+      )
     : ok();
 }
 

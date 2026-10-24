@@ -53,6 +53,7 @@ export async function getMemberPortal(token: string) {
       eventStart: events.startTime,
       eventArrival: events.teamArrivalTime,
       eventStatus: events.status,
+      boardPublishedAt: events.boardPublishedAt,
       eventMapUrl: events.mapImageUrl,
       venueName: venues.name,
       venueAddress: venues.address,
@@ -74,33 +75,45 @@ export async function getMemberPortal(token: string) {
     membership.tokenExpiresAt !== null &&
     membership.tokenExpiresAt.getTime() < Date.now();
 
-  const assignment = await db
-    .select({
-      id: assignments.id,
-      task: assignments.task,
-      arrivalTime: assignments.arrivalTime,
-      shiftStart: assignments.shiftStart,
-      shiftEnd: assignments.shiftEnd,
-      isGateLeader: assignments.isGateLeader,
-      notes: assignments.notes,
-      status: assignments.status,
-      gateId: assignments.gateId,
-      workingPointId: assignments.workingPointId,
-      gateName: gates.name,
-      gateLeaderMemberId: gates.gateLeaderId,
-      workingPointName: workingPoints.name,
-      updatedAt: assignments.updatedAt,
-    })
-    .from(assignments)
-    .leftJoin(gates, eq(assignments.gateId, gates.id))
-    .leftJoin(workingPoints, eq(assignments.workingPointId, workingPoints.id))
-    .where(
-      and(
-        eq(assignments.eventMemberId, membership.id),
-        ne(assignments.status, 'CANCELLED'),
-      ),
-    )
-    .get();
+  /*
+   * While the board is a draft the member is told nothing about where he will
+   * stand — and is told nothing by the server, not merely shown nothing by the
+   * page. The query below does not run at all, so there is no gate name, no
+   * task and no shift anywhere in the response for someone reading it with
+   * the browser's network tab open.
+   */
+  const boardPublished = membership.boardPublishedAt !== null;
+
+  const loadAssignment = () =>
+    db
+      .select({
+        id: assignments.id,
+        task: assignments.task,
+        arrivalTime: assignments.arrivalTime,
+        shiftStart: assignments.shiftStart,
+        shiftEnd: assignments.shiftEnd,
+        isGateLeader: assignments.isGateLeader,
+        notes: assignments.notes,
+        status: assignments.status,
+        gateId: assignments.gateId,
+        workingPointId: assignments.workingPointId,
+        gateName: gates.name,
+        gateLeaderMemberId: gates.gateLeaderId,
+        workingPointName: workingPoints.name,
+        updatedAt: assignments.updatedAt,
+      })
+      .from(assignments)
+      .leftJoin(gates, eq(assignments.gateId, gates.id))
+      .leftJoin(workingPoints, eq(assignments.workingPointId, workingPoints.id))
+      .where(
+        and(
+          eq(assignments.eventMemberId, membership.id),
+          ne(assignments.status, 'CANCELLED'),
+        ),
+      )
+      .get();
+
+  const assignment = boardPublished ? await loadAssignment() : undefined;
 
   // Gate leader's name — a colleague's name is exposed only because the member
   // needs to know who to report to.
@@ -253,6 +266,8 @@ export async function getMemberPortal(token: string) {
 
   return {
     membership,
+    /** False while the supervisor is still arranging the board. */
+    boardPublished,
     expired,
     cancelled: membership.status === 'CANCELLED',
     assignment,

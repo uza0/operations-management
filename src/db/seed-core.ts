@@ -355,6 +355,9 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
       description:
         'مباراة الجولة السابعة من الدوري الممتاز. حضور متوقع 11,000 متفرج، مع تشغيل المسح الإلكتروني على كل البوابات الجماهيرية.',
       status: 'LIVE',
+      /* A live event's board was published long before the gates opened. */
+      boardPublishedAt: at('12:00', -60 * 24 * 2),
+      boardPublishedById: adminId,
       mapImageUrl: null,
       reportNotes: null,
       createdById: adminId,

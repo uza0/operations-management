@@ -100,6 +100,16 @@ export const teamMembers = sqliteTable(
     fullName: text('full_name').notNull(),
     phone: text('phone'),
     employeeCode: text('employee_code').notNull(),
+    /**
+     * The Super Key card they carry.
+     *
+     * It belongs to the ticketing system, not to this one: a supervisor at a
+     * gate reads it off the card in someone's hand to tie the person in front
+     * of him to the account scanning tickets. Optional, because not everyone
+     * has been issued one and a missing card is no reason to be unable to add
+     * a man to tomorrow's event.
+     */
+    cardNumber: text('card_number'),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     notes: text('notes'),
     ...timestamps,
@@ -186,6 +196,25 @@ export const events = sqliteTable(
      * what those events were reckoned at; nothing reads it any more.
      */
     payDefault: real('pay_default').notNull().default(30000),
+    /**
+     * When the board stopped being a draft.
+     *
+     * A supervisor builds a distribution over days: he drags a man onto a
+     * gate, moves him off at midnight, swaps two sections in the morning. If
+     * every drag reached the promoters' phones, each of them would be told
+     * three times where to stand and twice that it changed — and the one who
+     * acted on the first message is at the wrong gate. So the board is a
+     * draft until somebody says it is ready, and only then does a promoter
+     * see his place.
+     *
+     * Null means draft, which is also what every event created before this
+     * column existed reads as — the safe side: nothing is published by
+     * accident, and the supervisor publishes it himself.
+     */
+    boardPublishedAt: integer('board_published_at', { mode: 'timestamp_ms' }),
+    boardPublishedById: text('board_published_by_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
     /**
      * Opens the read-only distribution sheet to anyone holding the link.
      *

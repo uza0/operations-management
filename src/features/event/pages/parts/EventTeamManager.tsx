@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import {
   addMembersToEventAction,
+  deleteEventMemberAction,
   reinstateEventMemberAction,
   revokeEventMemberAction,
   rotateMemberTokenAction,
@@ -19,7 +20,14 @@ import {
   Dialog,
   SubmitButton,
 } from '@/components/ui/client';
-import { IconPlus, IconQr, IconRefresh, IconSearch, IconUsers } from '@/components/ui/icons';
+import {
+  IconPlus,
+  IconQr,
+  IconRefresh,
+  IconSearch,
+  IconTrash,
+  IconUsers,
+} from '@/components/ui/icons';
 import { EVENT_MEMBER_STATUSES, type EventMemberStatus } from '@/lib/constants';
 import { format, type Dictionary } from '@/lib/i18n';
 import { byStatusThenName } from '@/lib/sort';
@@ -203,17 +211,19 @@ function MemberActions({
   const [revokeState, revoke] = useActionState(revokeEventMemberAction, idle);
   const [updateState, update] = useActionState(updateEventMemberAction, idle);
   const [backState, putBack] = useActionState(reinstateEventMemberAction, idle);
+  const [deleteState, remove] = useActionState(deleteEventMemberAction, idle);
 
   useEffect(() => {
     if (
       rotateState.status === 'success' ||
       revokeState.status === 'success' ||
       updateState.status === 'success' ||
-      backState.status === 'success'
+      backState.status === 'success' ||
+      deleteState.status === 'success'
     ) {
       router.refresh();
     }
-  }, [rotateState, revokeState, updateState, backState, router]);
+  }, [rotateState, revokeState, updateState, backState, deleteState, router]);
 
   /*
    * A cancelled participant gets one button, and it is the way back. The rest
@@ -231,6 +241,7 @@ function MemberActions({
             {t.eventTeam.reinstate}
           </SubmitButton>
         </form>
+        <RemoveButton t={t} eventId={eventId} member={member} action={remove} />
       </div>
     );
   }
@@ -273,7 +284,39 @@ function MemberActions({
           </span>
         ) : null}
       </form>
+
+      <RemoveButton t={t} eventId={eventId} member={member} action={remove} />
     </div>
+  );
+}
+
+/**
+ * The one button on this row that cannot be undone, so it says what it does
+ * before it does it and is styled apart from the rest.
+ */
+function RemoveButton({
+  t,
+  eventId,
+  member,
+  action,
+}: {
+  t: Dictionary;
+  eventId: string;
+  member: EventTeamRow;
+  action: (form: FormData) => void;
+}) {
+  return (
+    <form action={action}>
+      <input type="hidden" name="eventId" value={eventId} />
+      <input type="hidden" name="eventMemberId" value={member.id} />
+      <ConfirmSubmit
+        className="btn-ghost btn-sm text-crit-text"
+        message={t.eventTeam.removeConfirm}
+      >
+        <IconTrash width={14} height={14} />
+        {t.eventTeam.remove}
+      </ConfirmSubmit>
+    </form>
   );
 }
 

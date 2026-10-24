@@ -325,10 +325,20 @@ export default async function MemberPortalPage({
             </div>
           </section>
         ) : (
+          /*
+           * Two different silences, and telling them apart is the whole
+           * point. "The board is still being arranged" says the wait is
+           * normal and nothing is required of him; "you have no place yet"
+           * says the board is finished and he is not on it, which is worth a
+           * phone call to his leader. One message for both left everyone
+           * calling, or nobody.
+           */
           <div className="panel p-6 text-center">
-            <p className="text-[16px] font-semibold text-ink-100">{t.member.noAssignment}</p>
+            <p className="text-[16px] font-semibold text-ink-100">
+              {data.boardPublished ? t.member.noAssignment : t.member.boardDraft}
+            </p>
             <p className="mt-1.5 text-[13.5px] leading-6 text-ink-400">
-              {t.member.noAssignmentHint}
+              {data.boardPublished ? t.member.noAssignmentHint : t.member.boardDraftHint}
             </p>
           </div>
         )}

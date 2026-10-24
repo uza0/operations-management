@@ -65,14 +65,27 @@ export const venueSchema = z.object({
 
 export const teamMemberSchema = z.object({
   fullName: shortText,
+  /*
+   * Required, and it is the one field here that earns being required: a
+   * promoter who does not answer his link, or whose gate changes an hour
+   * before the event, is reached by phone or is not reached at all. A row in
+   * the roster with no number is a person nobody can call.
+   */
   phone: z
     .string()
     .trim()
+    .min(7, 'required')
     .max(32)
-    .regex(/^[+0-9\s()-]*$/, 'invalidNumber')
-    .optional()
-    .nullable(),
+    .regex(/^[+0-9\s()-]+$/, 'invalidNumber'),
   employeeCode: z.string().trim().min(1).max(40),
+  /** Their Super Key card, when they have one. */
+  cardNumber: z
+    .string()
+    .trim()
+    .max(40)
+    .transform((value) => (value === '' ? null : value))
+    .nullable()
+    .optional(),
   active: z.boolean().optional(),
   notes: longText,
 });

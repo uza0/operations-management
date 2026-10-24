@@ -1,6 +1,6 @@
 /**
  * GENERATED FILE — do not edit.
- * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql.
+ * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql.
  * Regenerate after changing src/db/schema.ts:
  *   npx drizzle-kit generate && node scripts/embed-schema.mjs
  */
@@ -90,4 +90,7 @@ export const SCHEMA_STATEMENTS: string[] = [
   "ALTER TABLE `issues` ADD `reopen_count` integer DEFAULT 0 NOT NULL",
   "CREATE INDEX IF NOT EXISTS `issues_assignee_idx` ON `issues` (`assignee_user_id`)",
   "CREATE UNIQUE INDEX IF NOT EXISTS `issues_client_id_unique` ON `issues` (`client_id`)",
+  "ALTER TABLE `events` ADD `board_published_at` integer",
+  "ALTER TABLE `events` ADD `board_published_by_id` text REFERENCES users(id)",
+  "ALTER TABLE `team_members` ADD `card_number` text",
 ];

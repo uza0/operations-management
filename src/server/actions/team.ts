@@ -5,10 +5,12 @@ import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { eventMembers, teamMembers } from '@/db/schema';
+import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
 import { bool, firstIssueKey, str, teamMemberSchema } from '@/lib/validation';
 import { assertRole } from '@/server/auth/rbac';
+import { readCsv, readXlsx } from '@/server/services/xlsx-read';
 import { recordAudit } from '@/server/services/audit';
 import { nextEmployeeCode } from '@/server/services/team';
 
@@ -35,21 +37,21 @@ export async function saveTeamMemberAction(
    * that already belongs to somebody. An existing member keeps whatever code
    * he has unless the edit form sends a different one — a code is the key the
    * rest of the system remembers a person by, so it is never rewritten by
-   * accident.
+   * accident — and it is not sent by the form at all any more, in either
+   * direction. Editing used to offer it as a text box, which meant the one
+   * identifier every assignment, report and audit line in the system hangs
+   * off could be changed by a supervisor who thought he was fixing a typo.
    */
-  const submittedCode = str(form, 'employeeCode');
-  let employeeCode = submittedCode;
-  if (!employeeCode) {
-    employeeCode = id
-      ? ((await db.query.teamMembers.findFirst({ where: eq(teamMembers.id, id) }))
-          ?.employeeCode ?? '')
-      : await nextEmployeeCode();
-  }
+  const employeeCode = id
+    ? ((await db.query.teamMembers.findFirst({ where: eq(teamMembers.id, id) }))
+        ?.employeeCode ?? '')
+    : await nextEmployeeCode();
 
   const parsed = teamMemberSchema.safeParse({
     fullName: str(form, 'fullName') ?? '',
     phone: str(form, 'phone'),
     employeeCode,
+    cardNumber: str(form, 'cardNumber') ?? '',
     active: bool(form, 'active'),
     notes: str(form, 'notes'),
   });
@@ -75,8 +77,9 @@ export async function saveTeamMemberAction(
       .update(teamMembers)
       .set({
         fullName: parsed.data.fullName,
-        phone: parsed.data.phone ?? null,
+        phone: parsed.data.phone,
         employeeCode: parsed.data.employeeCode,
+        cardNumber: parsed.data.cardNumber ?? null,
         active: parsed.data.active ?? true,
         notes: parsed.data.notes ?? null,
         updatedAt: new Date(),
@@ -98,8 +101,9 @@ export async function saveTeamMemberAction(
     await db.insert(teamMembers).values({
       id: memberId,
       fullName: parsed.data.fullName,
-      phone: parsed.data.phone ?? null,
+      phone: parsed.data.phone,
       employeeCode: parsed.data.employeeCode,
+      cardNumber: parsed.data.cardNumber ?? null,
       active: parsed.data.active ?? true,
       notes: parsed.data.notes ?? null,
     });
@@ -197,4 +201,195 @@ export async function deleteTeamMemberAction(
 
   revalidatePath('/admin/team');
   return ok();
+}
+
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The roster, taken in from a spreadsheet.
+ *
+ * Adding sixty promoters one dialog at a time is an evening's work, and the
+ * list usually already exists in somebody's Excel file. So the sheet is the
+ * input: export, edit, upload.
+ *
+ * Which row is which person is decided by the employee code alone, and the
+ * code is this system's to give. A row carrying a code the roster knows is
+ * that man, updated; a row whose code cell is empty is somebody new, and he
+ * is issued the next code in the sequence the moment he is written. A row
+ * carrying a code the system has never heard of is not a licence to invent
+ * one — somebody typed over a cell, and the row is reported back rather than
+ * guessed at, because the alternative is a second record for a man who is
+ * already in the roster.
+ *
+ * Nothing is deleted. A person who has disappeared from the sheet stays in
+ * the roster: a file is a snapshot of what somebody had to hand, and a
+ * missing row is far more often a filter left on than a decision to remove
+ * the man from the company.
+ */
+
+/** What the importer made of one upload. */
+export type ImportReport = {
+  added: number;
+  updated: number;
+  skipped: number;
+  /** Row number as the spreadsheet shows it, and why it was not taken. */
+  problems: { row: number; name: string; reason: string }[];
+};
+
+export type ImportState =
+  | { status: 'idle' }
+  | { status: 'error'; message: string }
+  | { status: 'success'; report: ImportReport };
+
+/** Finds a column by any of the headers it might carry, in either language. */
+function columnOf(headers: string[], names: string[]): number {
+  const wanted = names.map((n) => n.trim().toLowerCase()).filter(Boolean);
+  return headers.findIndex((header) => wanted.includes(header.trim().toLowerCase()));
+}
+
+export async function importTeamAction(
+  _prev: ImportState,
+  form: FormData,
+): Promise<ImportState> {
+  const { t } = await getT();
+  const user = await assertRole('ADMIN').catch(() => null);
+  if (!user) return { status: 'error', message: t.errors.forbidden };
+
+  const file = form.get('file');
+  if (!(file instanceof File) || file.size === 0) {
+    return { status: 'error', message: t.team.importNoFile };
+  }
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  let rows: string[][];
+  try {
+    // A zip starts "PK"; anything else that got this far is read as text.
+    rows =
+      buffer[0] === 0x50 && buffer[1] === 0x4b
+        ? readXlsx(buffer)
+        : readCsv(buffer.toString('utf8'));
+  } catch {
+    return { status: 'error', message: t.team.importBadFile };
+  }
+
+  const table = rows.filter((row) => row.some((cell) => cell !== ''));
+  if (table.length < 2) return { status: 'error', message: t.team.importNoRows };
+
+  /*
+   * Headers are matched in both languages, so a file exported in Arabic can
+   * be uploaded on an English screen and the other way round — the person
+   * who edits the sheet and the person who uploads it are often not the same
+   * person, and need not have the same browser.
+   */
+  const headers = table[0];
+  const nameAt = columnOf(headers, ['الاسم الكامل', 'full name', 'name', 'الاسم']);
+  if (nameAt < 0) return { status: 'error', message: t.team.importNoName };
+  const codeAt = columnOf(headers, ['الرقم الوظيفي', 'employee code', 'code']);
+  const phoneAt = columnOf(headers, ['رقم الهاتف', 'الهاتف', 'phone', 'phone number']);
+  const cardAt = columnOf(headers, [
+    'رقم بطاقة سوبر كي',
+    'super key card number',
+    'card number',
+    'بطاقة سوبر كي',
+  ]);
+  const notesAt = columnOf(headers, ['ملاحظات', 'ملاحظة', 'notes', 'note']);
+
+  const existing = await db
+    .select({
+      id: teamMembers.id,
+      employeeCode: teamMembers.employeeCode,
+    })
+    .from(teamMembers);
+  const byCode = new Map(existing.map((row) => [row.employeeCode.toLowerCase(), row.id]));
+
+  const report: ImportReport = { added: 0, updated: 0, skipped: 0, problems: [] };
+  /*
+   * The next code is worked out once and then counted on here rather than
+   * being asked for per row: a hundred new people in one upload would
+   * otherwise be a hundred round trips, and each would read a roster the
+   * previous row had already changed.
+   */
+  let nextCode = await nextEmployeeCode();
+  const bump = (code: string) => {
+    const match = /^(.*?)(\d+)$/.exec(code);
+    if (!match) return code;
+    return match[1] + String(Number(match[2]) + 1).padStart(match[2].length, '0');
+  };
+
+  for (let i = 1; i < table.length; i++) {
+    const row = table[i];
+    const at = i + 1; // what the spreadsheet calls this row
+    const cell = (index: number) => (index >= 0 ? (row[index] ?? '').trim() : '');
+
+    const fullName = cell(nameAt);
+    const code = cell(codeAt);
+    const phone = cell(phoneAt);
+    const cardNumber = cell(cardAt) || null;
+    const notes = cell(notesAt) || null;
+
+    if (!fullName) {
+      report.skipped++;
+      report.problems.push({ row: at, name: code || '—', reason: t.team.importRowNoName });
+      continue;
+    }
+    if (!phone) {
+      report.skipped++;
+      report.problems.push({ row: at, name: fullName, reason: t.team.importRowNoPhone });
+      continue;
+    }
+
+    const known = code ? byCode.get(code.toLowerCase()) : undefined;
+    if (code && !known) {
+      report.skipped++;
+      report.problems.push({
+        row: at,
+        name: fullName,
+        reason: t.team.importRowUnknownCode,
+      });
+      continue;
+    }
+
+    if (known) {
+      await db
+        .update(teamMembers)
+        .set({ fullName, phone, cardNumber, notes, updatedAt: new Date() })
+        .where(eq(teamMembers.id, known));
+      report.updated++;
+    } else {
+      const memberId = newId();
+      await db.insert(teamMembers).values({
+        id: memberId,
+        fullName,
+        phone,
+        employeeCode: nextCode,
+        cardNumber,
+        active: true,
+        notes,
+      });
+      byCode.set(nextCode.toLowerCase(), memberId);
+      nextCode = bump(nextCode);
+      report.added++;
+    }
+  }
+
+  await recordAudit({
+    actorId: user.id,
+    actorName: user.name,
+    action: 'CREATE',
+    entity: 'TEAM_MEMBER',
+    entityLabel: file.name,
+    newValues: {
+      added: report.added,
+      updated: report.updated,
+      skipped: report.skipped,
+    },
+    summary: format(t.team.importResult, {
+      added: report.added,
+      updated: report.updated,
+      skipped: report.skipped,
+    }),
+  });
+
+  revalidatePath('/admin/team');
+  return { status: 'success', report };
 }

@@ -643,8 +643,9 @@ export function DistributionBoard({ t, data, canManage }: Props) {
           t={t}
           eventId={board.event.id}
           location={lanesFor}
-          onDone={() => {
+          onDone={(message) => {
             setLanesFor(null);
+            if (message !== undefined) setNote(message ?? null);
             router.refresh();
           }}
         />
@@ -783,7 +784,7 @@ function LaneEditor({
   t: Dictionary;
   eventId: string;
   location: BoardData['locations'][number];
-  onDone: () => void;
+  onDone: (message?: string | null) => void;
 }) {
   const [state, action] = useActionState(setLanesAction, idle);
   const current = new Set(location.lanes.map((l) => l.task));
@@ -796,11 +797,11 @@ function LaneEditor({
   const allChosen = chosen.size === TASKS.length;
 
   useEffect(() => {
-    if (state.status === 'success') onDone();
+    if (state.status === 'success') onDone(state.message ?? null);
   }, [state, onDone]);
 
   return (
-    <Dialog open onClose={onDone} title={location.name} description={t.board.lanesHint}>
+    <Dialog open onClose={() => onDone()} title={location.name} description={t.board.lanesHint}>
       <form action={action} className="space-y-3">
         <input type="hidden" name="eventId" value={eventId} />
         <input type="hidden" name="locationId" value={location.id} />

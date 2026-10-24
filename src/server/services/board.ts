@@ -97,6 +97,8 @@ export type BoardData = {
     status: string;
     venueName: string | null;
     boardToken: string | null;
+    /** Null while the board is still a draft — see the events schema. */
+    boardPublishedAt: Date | null;
   };
   locations: BoardLocation[];
   /** Members of the event with no active assignment — the pile to be dealt. */
@@ -115,6 +117,7 @@ export async function buildBoard(eventId: string): Promise<BoardData | null> {
       teamDepartureTime: events.teamDepartureTime,
       status: events.status,
       boardToken: events.boardToken,
+      boardPublishedAt: events.boardPublishedAt,
       venueName: venues.name,
     })
     .from(events)

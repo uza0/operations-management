@@ -48,13 +48,27 @@ export function eventNav(
   canManage: boolean,
 ): NavSection[] {
   const root = `${base}/events/${eventId}`;
+  /*
+   * The way out, first and on its own. Inside an event every link leads
+   * further in, and the only road back was the browser's own button or the
+   * crumb above the title — which on a phone is the size of a grain of rice.
+   */
+  const home: NavItem[] = [
+    { href: `${base}/events`, label: t.nav.home, icon: 'calendar' },
+  ];
   const core: NavItem[] = [
     { href: root, label: t.nav.overview, icon: 'dashboard', exact: true },
     { href: `${root}/map`, label: t.nav.map, icon: 'map' },
     { href: `${root}/gates`, label: t.nav.gates, icon: 'gate' },
     { href: `${root}/team`, label: t.nav.team, icon: 'users' },
-    { href: `${root}/assignments`, label: t.nav.assignments, icon: 'clipboard' },
+    /*
+     * The board comes before the list. The board is where the work is done —
+     * people are dragged onto sections — and the list is what that work
+     * produces, so a menu that puts the list first offers the result before
+     * the act.
+     */
     { href: `${root}/board`, label: t.nav.board, icon: 'gate' },
+    { href: `${root}/assignments`, label: t.nav.assignments, icon: 'clipboard' },
     { href: `${root}/attendance`, label: t.nav.attendance, icon: 'checkCircle' },
   ];
   const ops: NavItem[] = [
@@ -71,6 +85,7 @@ export function eventNav(
   if (!canManage) {
     // Gate leaders get a deliberately narrow view (spec §3.3).
     return [
+      { items: home },
       {
         items: [
           { href: root, label: t.nav.overview, icon: 'dashboard', exact: true },
@@ -84,5 +99,5 @@ export function eventNav(
     ];
   }
 
-  return [{ items: core }, { items: ops }, { items: closing }];
+  return [{ items: home }, { items: core }, { items: ops }, { items: closing }];
 }

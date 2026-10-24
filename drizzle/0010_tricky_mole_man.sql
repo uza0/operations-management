@@ -1,0 +1,1 @@
+ALTER TABLE `team_members` ADD `card_number` text;

@@ -12,6 +12,7 @@ import { EmptyState } from '@/components/ui/states';
 import { IconGate, IconPrint } from '@/components/ui/icons';
 import { notFound } from 'next/navigation';
 
+import { BoardPublish } from './parts/BoardPublish';
 import { DistributionBoard } from './parts/DistributionBoard';
 import { MainGatePanel } from './parts/MainGatePanel';
 import { SheetLink } from './parts/SheetLink';
@@ -73,6 +74,14 @@ export async function EventBoardPage({
         />
       ) : (
         <>
+          {scope.canManage ? (
+            <BoardPublish
+              t={t}
+              eventId={eventId}
+              published={data.event.boardPublishedAt !== null}
+            />
+          ) : null}
+
           <DistributionBoard t={t} data={data} canManage={scope.canManage} />
 
           {/* The detail sits under the board because it is read after it:

@@ -18,6 +18,7 @@ export default async function TeamPage() {
       fullName: teamMembers.fullName,
       phone: teamMembers.phone,
       employeeCode: teamMembers.employeeCode,
+      cardNumber: teamMembers.cardNumber,
       active: teamMembers.active,
       notes: teamMembers.notes,
       eventCount: sql<number>`(select count(*) from ${eventMembers} where ${eventMembers.teamMemberId} = ${teamMembers.id})`,

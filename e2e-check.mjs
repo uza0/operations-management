@@ -2,6 +2,7 @@
  * End-to-end check of the demonstration scenario (spec §45) plus the
  * security test cases (spec §53), driven through the real HTTP surface.
  */
+import fs from 'node:fs';
 import { chromium } from 'playwright';
 
 const BASE = 'http://localhost:3000';
@@ -465,6 +466,8 @@ const highestBefore = (await db.prepare(
 ).get())?.c;
 const newName = `فحص التسلسل ${Date.now() % 100000}`;
 await admin.fill('input[name="fullName"]', newName);
+// The phone is required now — a roster row nobody can call is not a row.
+await admin.fill('input[name="phone"]', '+9647700000099');
 await admin.locator('form button[type=submit]').last().click();
 await admin.waitForTimeout(2500);
 
@@ -481,6 +484,7 @@ await admin.click('button:has-text("عضو جديد")');
 await admin.waitForTimeout(600);
 const secondName = `${newName} ب`;
 await admin.fill('input[name="fullName"]', secondName);
+await admin.fill('input[name="phone"]', '+9647700000098');
 await admin.locator('form button[type=submit]').last().click();
 await admin.waitForTimeout(2500);
 const second = await db.prepare('select employee_code from team_members where full_name=?')
@@ -1343,6 +1347,150 @@ await admin.locator('section article button:has-text("ضع")').first().click();
 await admin.waitForTimeout(5000);
 const placedAll = await unplaced();
 check('a whole selection is placed in one go', placedAll === 0, `${afterReturn} → ${placedAll}`);
+
+/* ---- the way back, and the board before the list it produces ----------- */
+await admin.goto(`${BASE}/admin/events/${eventId}`);
+await admin.waitForLoadState('networkidle');
+const navLinks = await admin.locator('nav a').evaluateAll((els) =>
+  els.map((el) => ({ text: el.textContent.trim(), href: el.getAttribute('href') })),
+);
+check('the event menu offers a way back out',
+  navLinks.some((l) => l.text === 'الرئيسية' && l.href === '/admin/events'), '');
+const boardAt = navLinks.findIndex((l) => l.href?.endsWith('/board'));
+const listAt = navLinks.findIndex((l) => l.href?.endsWith('/assignments'));
+check('the board comes before the list it produces',
+  boardAt > -1 && listAt > -1 && boardAt < listAt, `${boardAt} < ${listAt}`);
+
+/* ---- draft and ready: nobody sees a place that is still being moved ----- */
+const draftMember = await db.prepare(
+  `select em.token from event_members em
+     join assignments a on a.event_member_id = em.id and a.status != 'CANCELLED'
+    where em.event_id = ? limit 1`,
+).get(eventId);
+
+await admin.goto(`${BASE}/admin/events/${eventId}/board`);
+await admin.waitForLoadState('networkidle');
+const publishText = await admin.textContent('main');
+check('a published board says so on the board itself',
+  publishText.includes('جاهز') && publishText.includes('رجّعه مسودة'), '');
+
+// Back to draft, and the promoter's place goes with it.
+admin.once('dialog', (d) => d.accept());
+await admin.waitForSelector('button:not([disabled]):has-text("رجّعه مسودة")');
+await admin.locator('button:has-text("رجّعه مسودة")').first().click();
+await admin.waitForTimeout(3000);
+const draftRow = await db.prepare('select board_published_at from events where id = ?').get(eventId);
+check('back to draft clears the publish stamp', draftRow.board_published_at === null, '');
+
+const draftView = await memberCtx.newPage();
+await draftView.goto(`${BASE}/member/${draftMember.token}`);
+await draftView.waitForLoadState('networkidle');
+const draftText = await draftView.textContent('main');
+check('a draft board tells the promoter to wait',
+  draftText.includes('التوزيع لسه ما خلص'), '');
+/*
+ * Not "no gate is named anywhere" — an announcement written to the whole
+ * event may well say gate 6 needs people, and that is the announcement doing
+ * its job. What must be absent is HIS gate: the card that tells this man
+ * where to stand.
+ */
+check('a draft board carries no place for this promoter',
+  !draftText.includes('موقعك'), '');
+
+// Publish again, and it comes back.
+admin.once('dialog', (d) => d.accept());
+await admin.waitForSelector('button:not([disabled]):has-text("انشر التوزيع")');
+await admin.locator('button:has-text("انشر التوزيع")').first().click();
+await admin.waitForTimeout(3000);
+await draftView.reload();
+await draftView.waitForLoadState('networkidle');
+const liveText = await draftView.textContent('main');
+check('publishing gives the promoter his place back',
+  liveText.includes('وقت وصولك'), '');
+await draftView.close();
+
+/* ---- removing somebody from the event, for good ------------------------ */
+const countBefore = (
+  await db.prepare('select count(*) as n from event_members where event_id = ?').get(eventId)
+).n;
+await admin.goto(`${BASE}/admin/events/${eventId}/team`);
+await admin.waitForLoadState('networkidle');
+check('the team page offers removal beside cancellation',
+  (await admin.locator('button:has-text("حذف من الفعالية")').count()) > 0, '');
+
+admin.once('dialog', (d) => d.accept());
+await admin.waitForSelector('button:not([disabled]):has-text("حذف من الفعالية")');
+await admin.locator('button:has-text("حذف من الفعالية")').first().click();
+await admin.waitForTimeout(3500);
+const countAfter = (
+  await db.prepare('select count(*) as n from event_members where event_id = ?').get(eventId)
+).n;
+check('removing somebody drops the team count',
+  countAfter === countBefore - 1, `${countBefore} → ${countAfter}`);
+check('nothing of theirs is left behind',
+  (await db.prepare(
+    `select count(*) as n from assignments a
+      where a.event_member_id not in (select id from event_members)`,
+  ).get()).n === 0, '');
+
+/* ---- the roster: a fixed code, a required phone, and the Excel trip ----- */
+await admin.goto(`${BASE}/admin/team`);
+await admin.waitForLoadState('networkidle');
+await admin.locator('table tbody tr button').first().click();
+await admin.waitForTimeout(600);
+check('the employee code cannot be typed over',
+  (await admin.locator('input[name="employeeCode"]').count()) === 0, '');
+check('the phone is required, not optional',
+  await admin.locator('input[name="phone"]').first().evaluate((el) => el.required), '');
+check('the roster carries a Super Key card number',
+  (await admin.locator('input[name="cardNumber"]').count()) > 0, '');
+await admin.keyboard.press('Escape');
+await admin.waitForTimeout(400);
+
+// The workbook, and the same workbook back again.
+const sheet = await admin.request.get(`${BASE}/api/team/export`);
+const sheetBody = Buffer.from(await sheet.body());
+check('the roster exports as a workbook',
+  sheet.status() === 200 && sheetBody[0] === 0x50 && sheetBody[1] === 0x4b,
+  `${sheet.status()} · ${sheetBody.length} bytes`);
+
+const rosterBefore = (await db.prepare('select count(*) as n from team_members').get()).n;
+const known = await db.prepare(
+  'select employee_code, full_name from team_members order by employee_code limit 1',
+).get();
+
+// One row that is somebody already here, one row that is nobody.
+const csv = [
+  'الرقم الوظيفي,الاسم الكامل,رقم الهاتف,رقم بطاقة سوبر كي',
+  `${known.employee_code},${known.full_name},+9647700000001,SK-TEST`,
+  ',مستورد من الاكسل,+9647700000002,',
+  ',بلا رقم هاتف,,',
+].join('\n');
+fs.writeFileSync('/tmp/team-import.csv', '\ufeff' + csv, 'utf8');
+
+await admin.locator('button:has-text("استيراد من اكسل")').click();
+await admin.waitForTimeout(500);
+await admin.locator('input[type="file"]').setInputFiles('/tmp/team-import.csv');
+await admin.locator('button:has-text("افحص وارفع")').click();
+await admin.waitForTimeout(4000);
+const importText = await admin.textContent('body');
+check('the import reports what it did per row',
+  /انضاف\s*1/.test(importText) && /انتحدث\s*1/.test(importText) && /انتخطى\s*1/.test(importText),
+  '');
+check('a row with no phone number is named, not swallowed',
+  importText.includes('بلا رقم هاتف'), '');
+
+const rosterAfter = (await db.prepare('select count(*) as n from team_members').get()).n;
+check('the import adds only the new row', rosterAfter === rosterBefore + 1,
+  `${rosterBefore} → ${rosterAfter}`);
+check('the system issues the code, not the sheet',
+  (await db.prepare(
+    "select employee_code as c from team_members where full_name = 'مستورد من الاكسل'",
+  ).get()).c.length > 0, '');
+check('the matched row was updated, not duplicated',
+  (await db.prepare(
+    'select card_number as c from team_members where employee_code = ?',
+  ).get(known.employee_code)).c === 'SK-TEST', '');
 
 /* ---- RTL / LTR --------------------------------------------------------- */
 // From a known page, so this never depends on where the previous check ended.

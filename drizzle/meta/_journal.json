@@ -64,6 +64,20 @@
       "when": 1792791121080,
       "tag": "0008_open_the_professor",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1792847568142,
+      "tag": "0009_thankful_thena",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "6",
+      "when": 1792849682660,
+      "tag": "0010_tricky_mole_man",
+      "breakpoints": true
     }
   ]
 }

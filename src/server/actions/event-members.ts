@@ -4,7 +4,17 @@ import { revalidatePath } from 'next/cache';
 import { and, eq, inArray, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { assignments, eventMembers, teamMembers } from '@/db/schema';
+import {
+  announcements,
+  assignments,
+  attendance,
+  eventFeedback,
+  eventMembers,
+  issues,
+  mainGateMembers,
+  mapMarkers,
+  teamMembers,
+} from '@/db/schema';
 import { getT } from '@/lib/i18n/server';
 import { newId, newMemberToken } from '@/lib/ids';
 import { bool, str } from '@/lib/validation';
@@ -287,6 +297,95 @@ export async function revokeEventMemberAction(
   });
 
   revalidateEvent(eventId);
+  return ok();
+}
+
+/**
+ * Takes somebody off this event for good.
+ *
+ * Cancelling and deleting answer two different situations, and the team page
+ * needs both. Cancelling says "he was on this event and is not working it" —
+ * the row stays, greyed, and can be undone, which is what you want for a man
+ * who pulled out the night before. Deleting says "he was never on this
+ * event": somebody added the wrong name, or added the same man twice, and the
+ * count at the top of the page should read one lower because the team really
+ * is one smaller. Cancelling cannot do that — a mistake left visible forever
+ * is still a mistake, and a team of 41 that is really 40 makes every staffing
+ * sum on the board wrong.
+ *
+ * It removes him from this event only. His record in the team database is
+ * untouched, so he can be added again, here or anywhere else.
+ *
+ * SQLite enforces foreign keys only when asked to, and this connection does
+ * not ask, so the rows that hang off a participant are cleared by hand rather
+ * than left to a cascade that will not fire. What goes: his place on the
+ * board, his attendance line, his feedback, his seat at the main gate, the
+ * announcements written to him alone, and his pin on the map. What stays:
+ * every problem he reported, with his name on it as he gave it — operational
+ * history belongs to the event, not to the man, and an incident that loses
+ * its reporter the day somebody tidies a list is worth nothing afterwards.
+ */
+export async function deleteEventMemberAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  let user;
+  try {
+    user = await assertEventManager(eventId);
+  } catch {
+    return fail(t.errors.forbidden);
+  }
+
+  const id = str(form, 'eventMemberId');
+  if (!id) return fail(t.errors.notFound);
+
+  const row = await db
+    .select({
+      id: eventMembers.id,
+      eventId: eventMembers.eventId,
+      status: eventMembers.status,
+      name: teamMembers.fullName,
+    })
+    .from(eventMembers)
+    .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+    .where(eq(eventMembers.id, id))
+    .get();
+  if (!row || row.eventId !== eventId) return fail(t.errors.notFound);
+
+  const placed = await db.$count(
+    assignments,
+    and(eq(assignments.eventMemberId, id), ne(assignments.status, 'CANCELLED')),
+  );
+
+  await db.delete(assignments).where(eq(assignments.eventMemberId, id));
+  await db.delete(attendance).where(eq(attendance.eventMemberId, id));
+  await db.delete(eventFeedback).where(eq(eventFeedback.eventMemberId, id));
+  await db.delete(mainGateMembers).where(eq(mainGateMembers.eventMemberId, id));
+  await db.delete(announcements).where(eq(announcements.eventMemberId, id));
+  await db.delete(mapMarkers).where(eq(mapMarkers.eventMemberId, id));
+  await db
+    .update(issues)
+    .set({ reportedByMemberId: null })
+    .where(eq(issues.reportedByMemberId, id));
+  await db.delete(eventMembers).where(eq(eventMembers.id, id));
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'DELETE',
+    entity: 'EVENT_MEMBER',
+    entityId: id,
+    entityLabel: row.name,
+    oldValues: { status: row.status, assignments: placed },
+    summary: `${t.eventTeam.remove}: ${row.name}`,
+  });
+
+  revalidateEvent(eventId);
+  revalidatePath(`/admin/events/${eventId}/board`);
+  revalidatePath(`/leader/events/${eventId}/board`);
   return ok();
 }
 

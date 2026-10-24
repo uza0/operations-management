@@ -9,11 +9,20 @@ import {
   saveTeamMemberAction,
   toggleTeamMemberAction,
 } from '@/server/actions/team';
+import { importTeamAction } from '@/server/actions/team';
 import { idle } from '@/server/actions/types';
+import { format } from '@/lib/i18n';
 import { EmptyState, FormError } from '@/components/ui/states';
 import { Badge } from '@/components/ui/status';
 import { ConfirmSubmit, Dialog, SubmitButton } from '@/components/ui/client';
-import { IconEdit, IconPlus, IconSearch, IconUsers } from '@/components/ui/icons';
+import {
+  IconEdit,
+  IconPlus,
+  IconPrint,
+  IconSearch,
+  IconUpload,
+  IconUsers,
+} from '@/components/ui/icons';
 import type { Dictionary } from '@/lib/i18n';
 import { compareNames } from '@/lib/sort';
 
@@ -22,6 +31,7 @@ export type TeamRow = {
   fullName: string;
   phone: string | null;
   employeeCode: string;
+  cardNumber: string | null;
   active: boolean;
   notes: string | null;
   eventCount: number;
@@ -69,14 +79,16 @@ function MemberForm({
             {t.team.employeeCode}
           </label>
           {member ? (
-            <input
-              id="employeeCode"
-              name="employeeCode"
-              className="field nums"
-              required
-              dir="ltr"
-              defaultValue={member.employeeCode}
-            />
+            /*
+             * Shown, not editable. The code is what every assignment, report,
+             * attendance line and audit entry in the system remembers this
+             * person by, so changing it does not correct a record — it breaks
+             * the thread between a man and his history. It is issued once and
+             * then it is his.
+             */
+            <p className="field nums flex items-center text-ink-300" dir="ltr">
+              {member.employeeCode}
+            </p>
           ) : (
             /*
              * Adding someone asks for a name and nothing else that can be got
@@ -92,17 +104,33 @@ function MemberForm({
         </div>
         <div>
           <label className="field-label" htmlFor="phone">
-            {t.team.phone} <span className="text-ink-500">({t.common.optional})</span>
+            {t.team.phone}
           </label>
           <input
             id="phone"
             name="phone"
             className="field nums"
+            type="tel"
+            required
             dir="ltr"
             defaultValue={member?.phone ?? ''}
             placeholder="+9647XXXXXXXXX"
           />
         </div>
+      </div>
+
+      <div>
+        <label className="field-label" htmlFor="cardNumber">
+          {t.team.cardNumber} <span className="text-ink-500">({t.common.optional})</span>
+        </label>
+        <input
+          id="cardNumber"
+          name="cardNumber"
+          className="field nums"
+          dir="ltr"
+          defaultValue={member?.cardNumber ?? ''}
+          placeholder={t.team.cardNumberHint}
+        />
       </div>
 
       <label className="flex items-center gap-2.5 text-[14px] text-ink-200">
@@ -167,6 +195,7 @@ export function TeamManager({ t, members }: { t: Dictionary; members: TeamRow[] 
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<TeamRow | null>(null);
+  const [importing, setImporting] = useState(false);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -203,11 +232,32 @@ export function TeamManager({ t, members }: { t: Dictionary; members: TeamRow[] 
             aria-label={t.common.search}
           />
         </div>
-        <button type="button" className="btn-primary" onClick={() => setCreating(true)}>
-          <IconPlus width={16} height={16} />
-          {t.team.newMember}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/*
+           * Export first, then import: that is the order they are used in.
+           * Nobody writes the spreadsheet from nothing — they take the one
+           * the system already has and change it.
+           */}
+          <a href="/api/team/export" className="btn-ghost btn-sm">
+            <IconPrint width={15} height={15} />
+            {t.team.exportXlsx}
+          </a>
+          <button
+            type="button"
+            className="btn-secondary btn-sm"
+            onClick={() => setImporting(true)}
+          >
+            <IconUpload width={15} height={15} />
+            {t.team.importXlsx}
+          </button>
+          <button type="button" className="btn-primary" onClick={() => setCreating(true)}>
+            <IconPlus width={16} height={16} />
+            {t.team.newMember}
+          </button>
+        </div>
       </div>
+
+      {importing ? <ImportDialog t={t} onClose={() => setImporting(false)} /> : null}
 
       <div className="panel">
         {filtered.length === 0 ? (
@@ -310,5 +360,88 @@ export function TeamManager({ t, members }: { t: Dictionary; members: TeamRow[] 
         ) : null}
       </Dialog>
     </>
+  );
+}
+
+/**
+ * The upload side of the round trip.
+ *
+ * It reports per row rather than per file, because a file of sixty people
+ * where two rows have no phone number should put fifty-eight people in the
+ * roster and tell you about the two — refusing the whole upload over them
+ * sends somebody back to Excel to hunt for rows a machine has already found.
+ */
+function ImportDialog({ t, onClose }: { t: Dictionary; onClose: () => void }) {
+  const router = useRouter();
+  const [state, action] = useActionState(importTeamAction, {
+    status: 'idle' as const,
+  });
+
+  useEffect(() => {
+    if (state.status === 'success') router.refresh();
+  }, [state, router]);
+
+  const report = state.status === 'success' ? state.report : null;
+
+  return (
+    <Dialog open onClose={onClose} title={t.team.importTitle} description={t.team.importHint}>
+      {report ? (
+        <div className="space-y-3">
+          <p className="rounded-control border border-ok/45 bg-ok/10 px-3 py-2.5 text-[13.5px] font-semibold text-ok-text">
+            {format(t.team.importResult, {
+              added: report.added,
+              updated: report.updated,
+              skipped: report.skipped,
+            })}
+          </p>
+
+          {report.problems.length > 0 ? (
+            <div>
+              <p className="mb-1.5 text-[12.5px] font-bold text-ink-300">
+                {t.team.importProblems}
+              </p>
+              <ul className="max-h-56 space-y-1 overflow-y-auto">
+                {report.problems.map((problem) => (
+                  <li
+                    key={`${problem.row}-${problem.name}`}
+                    className="flex items-center justify-between gap-3 rounded-control border border-ink-800 px-2.5 py-1.5 text-[12.5px]"
+                  >
+                    <span className="min-w-0 truncate text-ink-200">
+                      <span className="nums text-ink-500">{problem.row}</span>{' '}
+                      {problem.name}
+                    </span>
+                    <span className="shrink-0 text-warn-text">{problem.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
+          <button type="button" className="btn-primary btn-sm w-full" onClick={onClose}>
+            {t.common.close}
+          </button>
+        </div>
+      ) : (
+        <form action={action} className="space-y-3">
+          <div>
+            <label className="field-label" htmlFor="file">
+              {t.team.importFile}
+            </label>
+            <input
+              id="file"
+              name="file"
+              type="file"
+              required
+              accept=".xlsx,.csv,text/csv"
+              className="field"
+            />
+          </div>
+          <FormError message={state.status === 'error' ? state.message : null} />
+          <SubmitButton className="btn-primary btn-sm w-full">
+            {t.team.importRun}
+          </SubmitButton>
+        </form>
+      )}
+    </Dialog>
   );
 }
