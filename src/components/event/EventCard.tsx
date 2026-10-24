@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 
 import type { Dictionary } from '@/lib/i18n';
 import type { EventStatus, EventType } from '@/lib/constants';
@@ -25,18 +26,28 @@ export function EventCard({
   t,
   locale,
   href,
+  action,
 }: {
   event: EventCardData;
   t: Dictionary;
   locale: 'ar' | 'en';
   href: string;
+  /**
+   * A control that belongs to the card but not to the link — deleting, for
+   * one. It sits outside the anchor on purpose: a button inside a link is a
+   * link as far as a keyboard and a screen reader are concerned, and tapping
+   * it on a phone opens the event instead of doing what it says.
+   */
+  action?: ReactNode;
 }) {
   const status = event.status as EventStatus;
 
-  return (
+  const card = (
     <Link
       href={href}
-      className="panel lift group block p-4 hover:border-brand-600/45 hover:bg-ink-850"
+      className={`panel lift group block p-4 hover:border-brand-600/45 hover:bg-ink-850 ${
+        action ? 'pb-12' : ''
+      }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
@@ -78,5 +89,14 @@ export function EventCard({
         </div>
       </dl>
     </Link>
+  );
+
+  if (!action) return card;
+
+  return (
+    <div className="relative">
+      {card}
+      <div className="absolute bottom-3 end-3">{action}</div>
+    </div>
   );
 }

@@ -8,6 +8,7 @@ import {
   clearManyFromBoardAction,
   placeManyOnLaneAction,
   placeOnLaneAction,
+  retaskLaneAction,
   setLanesAction,
   setManyMemberRolesAction,
   setMemberRoleAction,
@@ -17,7 +18,8 @@ import { FormError } from '@/components/ui/states';
 import { Dialog, SubmitButton } from '@/components/ui/client';
 import { IconSearch } from '@/components/ui/icons';
 import { EVENT_ROLES, TASKS, type Task } from '@/lib/constants';
-import { format, type Dictionary } from '@/lib/i18n';
+import { format, type Dictionary, type Locale } from '@/lib/i18n';
+import { plural } from '@/lib/plural';
 import type { BoardData, BoardPerson } from '@/server/services/board';
 import { byName } from '@/lib/sort';
 
@@ -44,8 +46,18 @@ import { byName } from '@/lib/sort';
 
 type Props = {
   t: Dictionary;
+  /** Needed for the counts: Arabic picks a different word for 2, for 3–10… */
+  locale: Locale;
   data: BoardData;
   canManage: boolean;
+};
+
+/** A section of one location, as the retasking dialog needs to know it. */
+type LaneRef = {
+  locationId: string;
+  locationName: string;
+  task: Task;
+  people: number;
 };
 
 function Chip({
@@ -188,7 +200,7 @@ function SelectAll({
   );
 }
 
-export function DistributionBoard({ t, data, canManage }: Props) {
+export function DistributionBoard({ t, locale, data, canManage }: Props) {
   const router = useRouter();
   const [, startTransition] = useTransition();
   /*
@@ -204,6 +216,7 @@ export function DistributionBoard({ t, data, canManage }: Props) {
   const [note, setNote] = useState<string | null>(null);
   const [roleFor, setRoleFor] = useState<BoardPerson | null>(null);
   const [lanesFor, setLanesFor] = useState<BoardData['locations'][number] | null>(null);
+  const [retaskFor, setRetaskFor] = useState<LaneRef | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
 
   /*
@@ -499,9 +512,34 @@ export function DistributionBoard({ t, data, canManage }: Props) {
                       }`}
                     >
                       <div className="mb-1.5 flex items-center gap-2">
-                        <span className="rounded bg-ink-800 px-1.5 py-0.5 text-[11px] font-medium text-ink-300">
-                          {t.enums.task[lane.task]}
-                        </span>
+                        {canManage ? (
+                          /*
+                           * The name of the section is the way to change it.
+                           * A supervisor who wants this section to be
+                           * something else reaches for its name first, and a
+                           * separate button in the header would be a second
+                           * place to look for the same thing.
+                           */
+                          <button
+                            type="button"
+                            title={t.board.retask}
+                            onClick={() =>
+                              setRetaskFor({
+                                locationId: location.id,
+                                locationName: location.name,
+                                task: lane.task,
+                                people: lane.people.length,
+                              })
+                            }
+                            className="press flex min-h-[40px] items-center rounded bg-ink-800 px-2 py-0.5 text-[11px] font-medium text-ink-300 hover:bg-ink-700 hover:text-ink-100 sm:min-h-0"
+                          >
+                            {t.enums.task[lane.task]}
+                          </button>
+                        ) : (
+                          <span className="rounded bg-ink-800 px-1.5 py-0.5 text-[11px] font-medium text-ink-300">
+                            {t.enums.task[lane.task]}
+                          </span>
+                        )}
                         {canManage && lane.people.length > 0 ? (
                           <SelectAll
                             t={t}
@@ -638,6 +676,24 @@ export function DistributionBoard({ t, data, canManage }: Props) {
         />
       ) : null}
 
+      {retaskFor ? (
+        <LaneRetasker
+          t={t}
+          locale={locale}
+          eventId={board.event.id}
+          lane={retaskFor}
+          lanes={
+            board.locations.find((l) => l.id === retaskFor.locationId)?.lanes.map((l) => l.task) ??
+            []
+          }
+          onDone={(message) => {
+            setRetaskFor(null);
+            if (message !== undefined) setNote(message ?? null);
+            router.refresh();
+          }}
+        />
+      ) : null}
+
       {lanesFor ? (
         <LaneEditor
           t={t}
@@ -651,6 +707,96 @@ export function DistributionBoard({ t, data, canManage }: Props) {
         />
       ) : null}
     </>
+  );
+}
+
+/**
+ * Changes what a section is, and takes its people with it.
+ *
+ * Deliberately a different dialog from the lane picker: that one asks which
+ * jobs a whole location is divided into, and answers with a set. This one asks
+ * one question about one section, and the answer moves people — so it says
+ * how many before it is pressed, and says so again when it is done.
+ */
+function LaneRetasker({
+  t,
+  locale,
+  eventId,
+  lane,
+  lanes,
+  onDone,
+}: {
+  t: Dictionary;
+  locale: Locale;
+  eventId: string;
+  lane: LaneRef;
+  lanes: Task[];
+  onDone: (message?: string | null) => void;
+}) {
+  const [state, action] = useActionState(retaskLaneAction, idle);
+  const [picked, setPicked] = useState<Task>(lane.task);
+
+  useEffect(() => {
+    if (state.status === 'success') onDone(state.message ?? null);
+  }, [state, onDone]);
+
+  const merges = picked !== lane.task && lanes.includes(picked);
+
+  return (
+    <Dialog
+      open
+      onClose={() => onDone()}
+      title={lane.locationName}
+      description={t.board.retaskHint}
+    >
+      <form action={action} className="space-y-3">
+        <input type="hidden" name="eventId" value={eventId} />
+        <input type="hidden" name="locationId" value={lane.locationId} />
+        <input type="hidden" name="fromTask" value={lane.task} />
+
+        <p className="px-0.5 text-[12.5px] text-ink-400">
+          {lane.people > 0
+            ? format(t.board.retaskMoves, {
+                count: plural(t.board.people, lane.people, locale),
+              })
+            : t.board.retaskEmpty}
+        </p>
+
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {TASKS.map((task) => (
+            <label
+              key={task}
+              className={`flex min-h-[44px] items-center gap-2.5 rounded-lg border px-2.5 py-2 text-[13.5px] sm:min-h-0 ${
+                picked === task
+                  ? 'border-brand-500 bg-brand-500/10 text-ink-100'
+                  : 'border-ink-800 text-ink-200'
+              }`}
+            >
+              <input
+                type="radio"
+                name="toTask"
+                value={task}
+                checked={picked === task}
+                onChange={() => setPicked(task as Task)}
+                className="h-4.5 w-4.5 accent-brand-500"
+              />
+              {t.enums.task[task as Task]}
+            </label>
+          ))}
+        </div>
+
+        {merges ? (
+          <p className="rounded-lg border border-warn/40 bg-warn-soft px-3 py-2 text-[12.5px] text-warn-text">
+            {t.board.retaskMerge}
+          </p>
+        ) : null}
+
+        <FormError message={state.status === 'error' ? state.message : null} />
+        <SubmitButton className="btn-primary btn-sm w-full" disabled={picked === lane.task}>
+          {t.common.save}
+        </SubmitButton>
+      </form>
+    </Dialog>
   );
 }
 

@@ -161,7 +161,8 @@ export const en: Dictionary = {
     advanceTo: 'Move status to',
     archive: 'Archive event',
     archiveConfirm: 'Archive this event? Its data stays available for reporting.',
-    deleteConfirm: 'This deletes the event and all of its operational data. This cannot be undone.',
+    deleteConfirm:
+      'Delete "{name}" and everything on it: team, board, attendance, reports, issues. This cannot be undone.',
     empty: 'No events yet',
     emptyHint: 'Start by creating an event, then pick a venue, add gates and distribute the team.',
     notReady: 'This event is not ready',
@@ -346,7 +347,22 @@ export const en: Dictionary = {
     lanesHint: 'Choose the jobs this location is divided into on the board — scanning and information, for example.',
     needsOneLane: 'Pick at least one lane.',
     laneKept:
-      'Saved. {tasks} stayed because people are still on it — move them, then remove it.',
+      'Saved. {tasks} stayed because people are still on it — retask the section itself, or move them, then remove it.',
+    retask: 'Change job',
+    retaskTitle: "This section's job",
+    retaskHint:
+      'Pick the new job — everyone standing in this section comes with it, and nobody is left out.',
+    retaskMoves: '{count} come with it',
+    people: {
+      one: '1 person',
+      two: '2 people',
+      few: '{n} people',
+      many: '{n} people',
+      other: '{n} people',
+    },
+    retaskEmpty: 'The section is empty — only the job changes.',
+    retaskMerge: 'This location already has a section for that job — the two become one.',
+    retaskDone: 'The section is now {task}, and {count} came with it.',
     draft: 'Draft',
     ready: 'Ready',
     draftHint: 'This board is a draft — nobody on the team can see their place yet.',

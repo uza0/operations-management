@@ -783,7 +783,18 @@ await admin.fill('#currentPassword', 'Admin@12345');
 await admin.fill('#newPassword', 'Admin@67890');
 await admin.fill('#confirmPassword', 'Admin@67890');
 await admin.locator('form:has(#currentPassword) button[type=submit]').click();
-await admin.waitForTimeout(2000);
+/*
+ * Wait for the answer, not for a guess at how long it takes. A server action
+ * that hashes a password takes as long as the machine is busy, and a fixed
+ * two seconds failed this check — and with it every check after — on a laptop
+ * that happened to be compiling something else.
+ */
+await admin
+  .locator('main')
+  .filter({ hasText: 'تم تغيير كلمة المرور' })
+  .first()
+  .waitFor({ timeout: 15000 })
+  .catch(() => {});
 check('a password can be changed from inside the app',
   (await admin.textContent('main')).includes('تم تغيير كلمة المرور'), '');
 
@@ -792,7 +803,13 @@ await admin.fill('#currentPassword', 'Admin@67890');
 await admin.fill('#newPassword', 'Admin@12345');
 await admin.fill('#confirmPassword', 'Admin@12345');
 await admin.locator('form:has(#currentPassword) button[type=submit]').click();
-await admin.waitForTimeout(2000);
+await admin.waitForTimeout(1200);
+await admin
+  .locator('main')
+  .filter({ hasText: 'تم تغيير كلمة المرور' })
+  .first()
+  .waitFor({ timeout: 15000 })
+  .catch(() => {});
 const restored = await admin.textContent('main');
 check('and changed back, so the old one works again',
   restored.includes('تم تغيير كلمة المرور'), '');
@@ -1347,6 +1364,51 @@ await admin.locator('section article button:has-text("ضع")').first().click();
 await admin.waitForTimeout(5000);
 const placedAll = await unplaced();
 check('a whole selection is placed in one go', placedAll === 0, `${afterReturn} → ${placedAll}`);
+
+/* ---- retasking a section carries its people with it -------------------- */
+
+/*
+ * The edit the lane picker could never make: a section that is one job and
+ * ought to be another. The check is on the rows, not the screen — a rename
+ * that leaves everyone on the old task is the failure that looks fine.
+ */
+await admin.goto(`${BASE}/admin/events/${eventId}/board`);
+await admin.waitForLoadState('networkidle');
+await admin.waitForTimeout(800);
+
+const laneOf = async (task) =>
+  Number(
+    (
+      await db.prepare(
+        `select count(*) as n from assignments a
+           join gates g on g.id = a.gate_id
+          where g.event_id = ? and a.task = ? and a.status != 'CANCELLED'`,
+      ).get(eventId, task)
+    ).n,
+  );
+
+const firstLane = admin.locator('section article button[title="غيّر المهمة"]').first();
+check('a section name is the way to change it', (await firstLane.count()) > 0, '');
+const fromLabel = (await firstLane.textContent()).trim();
+await firstLane.click();
+await admin.waitForTimeout(500);
+check('the retasking dialog says how many people come with it',
+  (await admin.locator('text=/ينتقل معها|القسم فارغ/').count()) > 0, '');
+
+const beforeSecurity = await laneOf('SECURITY_SUPPORT');
+await admin.locator('label:has-text("إسناد أمني") input[type=radio]').first().check();
+await admin.waitForTimeout(200);
+await admin.locator('form button[type=submit]:has-text("حفظ")').first().click();
+await admin.waitForTimeout(4000);
+const afterSecurity = await laneOf('SECURITY_SUPPORT');
+check('the people move with the section',
+  afterSecurity > beforeSecurity, `${fromLabel}: ${beforeSecurity} → ${afterSecurity}`);
+
+/* ---- an event can be deleted, and says which one ----------------------- */
+await admin.goto(`${BASE}/admin/events`);
+await admin.waitForLoadState('networkidle');
+const deleteButtons = await admin.locator('form button:has-text("حذف")').count();
+check('every event on the list can be deleted', deleteButtons > 0, `${deleteButtons}`);
 
 /* ---- the way back, and the board before the list it produces ----------- */
 await admin.goto(`${BASE}/admin/events/${eventId}`);

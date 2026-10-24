@@ -6,6 +6,7 @@ import { listEventsForUser } from '@/server/services/events';
 import { PageHeader, Panel } from '@/components/ui/panel';
 import { EmptyState } from '@/components/ui/states';
 import { EventCard } from '@/components/event/EventCard';
+import { DeleteEventButton } from '@/components/event/DeleteEventButton';
 import { IconCalendar, IconPlus } from '@/components/ui/icons';
 import { EVENT_STATUSES, type EventStatus } from '@/lib/constants';
 
@@ -91,6 +92,9 @@ export default async function AdminEventsPage({
               t={t}
               locale={locale}
               href={`/admin/events/${event.id}`}
+              action={
+                <DeleteEventButton t={t} eventId={event.id} eventName={event.name} />
+              }
             />
           ))}
         </div>

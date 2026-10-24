@@ -82,7 +82,7 @@ export async function EventBoardPage({
             />
           ) : null}
 
-          <DistributionBoard t={t} data={data} canManage={scope.canManage} />
+          <DistributionBoard t={t} locale={locale} data={data} canManage={scope.canManage} />
 
           {/* The detail sits under the board because it is read after it:
               first who is where, then who is borrowed beforehand. */}

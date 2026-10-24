@@ -18,6 +18,7 @@ import {
 import { str } from '@/lib/validation';
 import { assertEventManager } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
+import { plural } from '@/lib/plural';
 import { parseLanes } from '@/server/services/board';
 
 import { saveAssignmentAction } from './assignments';
@@ -302,6 +303,103 @@ export async function setLanesAction(
         ),
       )
     : ok();
+}
+
+/**
+ * Changes what one section of a location IS, carrying its people with it.
+ *
+ * The lane picker can only add and remove jobs, and it refuses to drop a job
+ * that still holds people — correctly, because dropping it would strand them.
+ * But that leaves the commonest edit of all impossible: a supervisor looking
+ * at a section called "other" who means it to be crowd guidance, or at
+ * "information" that this time is handing out wristbands. Adding the new job
+ * and removing the old one is two operations that cannot both succeed, so the
+ * section was stuck with the name it was born with.
+ *
+ * Here it is one operation: everyone standing in the section is given the new
+ * job, and the section is renamed under them. Nobody moves, nothing is
+ * stranded, and the audit line says what the section used to be.
+ */
+export async function retaskLaneAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { locale, t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  const user = await assertEventManager(eventId).catch(() => null);
+  if (!user) return fail(t.errors.forbidden);
+
+  const locationId = str(form, 'locationId');
+  const from = str(form, 'fromTask');
+  const to = str(form, 'toTask');
+  const known = (value: string | null): value is Task =>
+    value !== null && (TASKS as readonly string[]).includes(value);
+  if (!locationId || !known(from) || !known(to)) return fail(t.errors.notFound);
+  if (from === to) return ok();
+
+  const gate = await db.query.gates.findFirst({ where: eq(gates.id, locationId) });
+  const point = gate
+    ? null
+    : await db.query.workingPoints.findFirst({ where: eq(workingPoints.id, locationId) });
+  const location = gate ?? point;
+  if (!location || location.eventId !== eventId) return fail(t.errors.notFound);
+
+  const atLocation = gate
+    ? eq(assignments.gateId, locationId)
+    : eq(assignments.workingPointId, locationId);
+
+  const moving = await db
+    .select({ id: assignments.id })
+    .from(assignments)
+    .where(and(atLocation, eq(assignments.task, from)));
+
+  await db
+    .update(assignments)
+    .set({ task: to, updatedAt: new Date() })
+    .where(and(atLocation, eq(assignments.task, from)));
+
+  /*
+   * The order of the sections is the order the supervisor arranged them in, so
+   * the new job takes the old one's place rather than being appended. If the
+   * location already had a section for the new job, the two become one — which
+   * is what a supervisor who renamed a section into an existing one meant.
+   */
+  const previous = parseLanes(location.lanes, gate ? 'GATE' : 'POINT');
+  const lanes = [...new Set(previous.map((task) => (task === from ? to : task)))];
+
+  if (gate) {
+    await db
+      .update(gates)
+      .set({ lanes: JSON.stringify(lanes), updatedAt: new Date() })
+      .where(eq(gates.id, locationId));
+  } else {
+    await db
+      .update(workingPoints)
+      .set({ lanes: JSON.stringify(lanes), updatedAt: new Date() })
+      .where(eq(workingPoints.id, locationId));
+  }
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: gate ? 'GATE' : 'WORKING_POINT',
+    entityId: locationId,
+    entityLabel: location.name,
+    oldValues: { lanes: previous, task: from, people: moving.length },
+    newValues: { lanes, task: to },
+    summary: `${location.name}: ${t.enums.task[from]} \u2190 ${t.enums.task[to]}`,
+  });
+
+  revalidateBoard(eventId);
+  if (moving.length === 0) return ok();
+  return ok(
+    format(t.board.retaskDone, {
+      task: t.enums.task[to],
+      count: plural(t.board.people, moving.length, locale),
+    }),
+  );
 }
 
 /**
