@@ -1,5 +1,5 @@
 /**
- * Service worker — Operations Management.
+ * Service worker — TicketZone Ops.
  *
  * The deal it makes, deliberately narrow:
  *   • Static assets (icons, the venue map, uploads, Next's build output) are
@@ -14,15 +14,24 @@
  *     worse than a clear failure.
  */
 
-const VERSION = 'ops-v1';
+/*
+ * Bumping this retires every old cache on the next visit. Static assets are
+ * served cache-first, so a device that already holds the previous icons
+ * would otherwise keep showing them for as long as the app stays installed —
+ * which is why a new mark needs a new version here, not only new files.
+ */
+const VERSION = 'ops-v2';
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const OFFLINE_URL = '/offline.html';
 
 const PRECACHE = [
   OFFLINE_URL,
+  '/favicon.ico',
+  '/icons/favicon-48.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  '/icons/icon-maskable-512.png',
   '/icons/apple-touch-icon.png',
   '/manifest.webmanifest',
 ];
