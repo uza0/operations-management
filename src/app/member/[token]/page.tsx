@@ -508,7 +508,7 @@ export default async function MemberPortalPage({
 
         {/* Asked last, and only once the evening is actually over. */}
         {membership.eventStatus === 'COMPLETED' || membership.eventStatus === 'ARCHIVED' ? (
-          <FeedbackForm t={t} token={token} existing={data.myFeedback} />
+          <FeedbackForm t={t} token={token} answered={data.answeredFeedback} />
         ) : null}
 
         <p className="pb-2 text-center text-[11.5px] text-ink-600">

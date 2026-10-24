@@ -1,15 +1,16 @@
 import { loadEventPage } from '@/features/event/workspace';
 import { buildFindings, buildReport } from '@/server/services/report';
 import { Badge, eventStatusTone, issueStatusTone } from '@/components/ui/status';
-import { format } from '@/lib/i18n';
+import { format, type Dictionary } from '@/lib/i18n';
 import { formatDate, formatDateTime, formatTime } from '@/lib/time';
-import type {
-  AttendanceStatus,
-  EventStatus,
-  EventType,
-  IssueStatus,
-  IssueType,
-  Task,
+import {
+  FEEDBACK_MIN_GROUP,
+  type AttendanceStatus,
+  type EventStatus,
+  type EventType,
+  type IssueStatus,
+  type IssueType,
+  type Task,
 } from '@/lib/constants';
 
 import { PrintButton, ReportNotes } from './parts/ReportParts';
@@ -471,43 +472,63 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
         </ReportSection>
 
         {/* 10 — What the team said ----------------------------------------- */}
-        <ReportSection index={10} title={t.feedback.adminTitle} hint={t.feedback.subtitle}>
+        <ReportSection index={10} title={t.feedback.adminTitle} hint={t.feedback.adminAnonymous}>
+          <FactGrid>
+            <div>
+              <Fact label={t.feedback.answered}>
+                <span className="nums">
+                  {data.feedback.responses} / {data.feedback.asked}
+                </span>
+              </Fact>
+            </div>
+          </FactGrid>
+
           {data.feedback.responses === 0 ? (
             <p className="report-hint">{t.feedback.adminEmpty}</p>
+          ) : data.feedback.scores === null ? (
+            /*
+             * Enough answered to count, not enough to hide in. Saying so is
+             * better than showing an average of two, which is two people's
+             * scores with the names peeled off.
+             */
+            <p className="report-hint">
+              {format(t.feedback.adminTooFew, {
+                n: data.feedback.responses,
+                min: FEEDBACK_MIN_GROUP,
+              })}
+            </p>
           ) : (
             <>
-              <FactGrid>
-                <div>
-                  <Fact label={t.feedback.average}>
-                    <span className="nums">{data.feedback.average} / 5</span>
-                  </Fact>
-                  <Fact label={t.feedback.responseCount}>
-                    <span className="nums">{data.feedback.responses}</span>
-                  </Fact>
-                </div>
-              </FactGrid>
-
-              <ReportTable
-                head={[
-                  t.common.name,
-                  t.feedback.average,
-                  t.feedback.wentWell,
-                  t.feedback.problems,
-                  t.feedback.suggestions,
-                ]}
-              >
-                {data.feedback.rows.map((row) => (
-                  <tr key={row.id}>
-                    <td className="font-medium text-ink-100" style={{ unicodeBidi: 'plaintext' }}>
-                      {row.memberName}
-                    </td>
-                    <td className="nums">{row.rating} / 5</td>
-                    <td>{row.wentWell ?? '—'}</td>
-                    <td>{row.problems ?? '—'}</td>
-                    <td>{row.suggestions ?? '—'}</td>
+              <ReportTable head={[t.common.name, t.feedback.average]}>
+                {data.feedback.scores.map((row) => (
+                  <tr key={row.key}>
+                    <td className="font-medium text-ink-100">{questionLabel(t, row.key)}</td>
+                    <td className="nums">{row.average} / 5</td>
                   </tr>
                 ))}
               </ReportTable>
+
+              {data.feedback.choices?.map((group) => (
+                <ReportTable key={group.key} head={[questionLabel(t, group.key), t.common.count]}>
+                  {group.counts.map((entry) => (
+                    <tr key={entry.value}>
+                      <td>{answerLabel(t, group.key, entry.value)}</td>
+                      <td className="nums">{entry.count}</td>
+                    </tr>
+                  ))}
+                </ReportTable>
+              ))}
+
+              {data.feedback.comments.length > 0 ? (
+                <ReportTable head={[questionLabel(t, 'comments'), t.feedback.comments]}>
+                  {data.feedback.comments.map((row, i) => (
+                    <tr key={`${row.key}-${i}`}>
+                      <td className="text-ink-300">{questionLabel(t, row.key)}</td>
+                      <td>{row.text}</td>
+                    </tr>
+                  ))}
+                </ReportTable>
+              ) : null}
             </>
           )}
         </ReportSection>
@@ -528,4 +549,56 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
       </article>
     </>
   );
+}
+
+/**
+ * The question a stored key stands for.
+ *
+ * The keys are the column names, which are English and terse on purpose — a
+ * question reworded next season should not strand the answers given to it
+ * this one. This is where they become the sentence people were asked.
+ */
+function questionLabel(t: Dictionary, key: string): string {
+  const labels: Record<string, string> = {
+    instructionsClear: t.feedback.qInstructions,
+    organisation: t.feedback.qOrganisation,
+    supportSpeed: t.feedback.qSupportSpeed,
+    overall: t.feedback.qOverall,
+    knewDuties: t.feedback.qKnewDuties,
+    briefingLength: t.feedback.qBriefing,
+    staffing: t.feedback.qStaffing,
+    distributionGood: t.feedback.qDistribution,
+    unsureMoments: t.feedback.qUnsure,
+    unsureWhy: t.feedback.qUnsureWhy,
+    knewWhoToAsk: t.feedback.qKnewWho,
+    problemKind: t.feedback.qProblemKind,
+    problemPrevention: t.feedback.qPrevention,
+    guestsInformed: t.feedback.qGuestsInformed,
+    guestCommonIssue: t.feedback.qGuestIssue,
+    guestImprovement: t.feedback.qGuestImprovement,
+    keepDoing: t.feedback.qKeepDoing,
+    hardest: t.feedback.qHardest,
+    workAgain: t.feedback.qWorkAgain,
+    moreResponsibility: t.feedback.qResponsibility,
+    freeNote: t.feedback.qFreeNote,
+    comments: t.feedback.comments,
+  };
+  return labels[key] ?? key;
+}
+
+/** The answer a stored code stands for, in the asker's language. */
+function answerLabel(t: Dictionary, question: string, value: string): string {
+  const sets: Record<string, Record<string, string>> = {
+    knewDuties: t.enums.feedbackDegree,
+    distributionGood: t.enums.feedbackDegree,
+    knewWhoToAsk: t.enums.feedbackDegree,
+    guestsInformed: t.enums.feedbackDegree,
+    briefingLength: t.enums.feedbackBriefing,
+    staffing: t.enums.feedbackStaffing,
+    unsureMoments: t.enums.feedbackUnsure,
+    problemKind: t.enums.feedbackProblem,
+    workAgain: t.enums.feedbackAgain,
+    moreResponsibility: t.enums.feedbackResponsibility,
+  };
+  return sets[question]?.[value] ?? value;
 }

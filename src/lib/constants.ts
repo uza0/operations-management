@@ -238,6 +238,64 @@ export const AUDIT_ENTITIES = [
 ] as const;
 export type AuditEntity = (typeof AUDIT_ENTITIES)[number];
 
+/* -------------------------------------------------------------------------- */
+/* The team's verdict on an event                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The answers the end-of-event questionnaire accepts.
+ *
+ * Stored as codes rather than as the words on screen, so the same answer can
+ * be counted across events and read back in either language — and so that
+ * rewording a question next season does not orphan last season's answers.
+ */
+
+/** Yes / sort of / no. One scale, asked about four different things. */
+export const FEEDBACK_DEGREES = ['YES', 'SOMEWHAT', 'NO'] as const;
+export type FeedbackDegree = (typeof FEEDBACK_DEGREES)[number];
+
+export const FEEDBACK_BRIEFINGS = ['TOO_SHORT', 'RIGHT', 'TOO_LONG', 'NONE'] as const;
+export type FeedbackBriefing = (typeof FEEDBACK_BRIEFINGS)[number];
+
+export const FEEDBACK_STAFFING = [
+  'MORE_THAN_ENOUGH',
+  'ENOUGH',
+  'SHORT',
+  'VERY_SHORT',
+] as const;
+export type FeedbackStaffing = (typeof FEEDBACK_STAFFING)[number];
+
+export const FEEDBACK_UNSURE = ['NO', 'ONCE_OR_TWICE', 'OFTEN'] as const;
+export type FeedbackUnsure = (typeof FEEDBACK_UNSURE)[number];
+
+export const FEEDBACK_PROBLEMS = [
+  'SCANNING',
+  'WRISTBANDS',
+  'SEATING',
+  'GATES',
+  'CROWD',
+  'NONE',
+  'OTHER',
+] as const;
+export type FeedbackProblem = (typeof FEEDBACK_PROBLEMS)[number];
+
+export const FEEDBACK_AGAIN = ['DEFINITELY', 'YES', 'MAYBE', 'NO'] as const;
+export type FeedbackAgain = (typeof FEEDBACK_AGAIN)[number];
+
+export const FEEDBACK_RESPONSIBILITY = ['YES', 'AFTER_TRAINING', 'NOT_NOW'] as const;
+export type FeedbackResponsibility = (typeof FEEDBACK_RESPONSIBILITY)[number];
+
+/**
+ * How many answers a group needs before it is shown on its own.
+ *
+ * An average of one answer is that person's answer with their name taken off,
+ * which is not anonymity — and the people filling this in were promised
+ * anonymity. Below this many responses the report shows the count and nothing
+ * else; the same floor decides whether a job is recorded alongside an answer
+ * at all.
+ */
+export const FEEDBACK_MIN_GROUP = 3;
+
 /** Staffing verdict for a gate or working point (spec §9 / §25). */
 export type StaffingLevel = 'UNDERSTAFFED' | 'ADEQUATE' | 'OVERSTAFFED';
 

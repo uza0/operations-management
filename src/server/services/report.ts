@@ -8,7 +8,6 @@ import {
   assignmentChanges,
   assignments,
   attendance,
-  eventFeedback,
   eventMembers,
   events,
   gates,
@@ -17,10 +16,23 @@ import {
   timelineItems,
   workingPoints,
 } from '@/db/schema';
+import { feedbackResponses } from '@/db/schema';
 import { getStaffedLocations } from '@/server/services/staffing';
 import { creditFor } from '@/server/services/credit';
 import { DEFAULT_EVENT_PAY } from '@/lib/money';
-import type { AttendanceStatus, IssueStatus, IssueType } from '@/lib/constants';
+import {
+  FEEDBACK_AGAIN,
+  FEEDBACK_BRIEFINGS,
+  FEEDBACK_DEGREES,
+  FEEDBACK_MIN_GROUP,
+  FEEDBACK_PROBLEMS,
+  FEEDBACK_RESPONSIBILITY,
+  FEEDBACK_STAFFING,
+  FEEDBACK_UNSURE,
+  type AttendanceStatus,
+  type IssueStatus,
+  type IssueType,
+} from '@/lib/constants';
 import { toMinutes } from '@/lib/time';
 import { compareNames } from '@/lib/sort';
 
@@ -125,19 +137,109 @@ export type ReportData = {
    * o'clock.
    */
   feedback: {
+    /** How many answered, and how many were asked. */
     responses: number;
-    average: number | null;
-    rows: Array<{
-      id: string;
-      memberName: string;
-      rating: number;
-      wentWell: string | null;
-      problems: string | null;
-      suggestions: string | null;
-      submittedAt: Date;
-    }>;
+    asked: number;
+    /** Null until enough answers arrived for an average to mean anything. */
+    scores: Array<{ key: string; average: number }> | null;
+    /** Each closed question as counts per answer, in the enum's own order. */
+    choices: Array<{ key: string; counts: Array<{ value: string; count: number }> }> | null;
+    /** The written answers, unattributed, newest first. */
+    comments: Array<{ key: string; text: string }>;
   };
 };
+
+/** The four questions answered on a one-to-five scale. */
+const SCORE_KEYS = ['instructionsClear', 'organisation', 'supportSpeed', 'overall'] as const;
+
+/** The closed questions, each with the list of answers it accepts. */
+const CHOICE_KEYS: Array<[string, readonly string[]]> = [
+  ['knewDuties', FEEDBACK_DEGREES],
+  ['briefingLength', FEEDBACK_BRIEFINGS],
+  ['staffing', FEEDBACK_STAFFING],
+  ['distributionGood', FEEDBACK_DEGREES],
+  ['unsureMoments', FEEDBACK_UNSURE],
+  ['knewWhoToAsk', FEEDBACK_DEGREES],
+  ['problemKind', FEEDBACK_PROBLEMS],
+  ['guestsInformed', FEEDBACK_DEGREES],
+  ['workAgain', FEEDBACK_AGAIN],
+  ['moreResponsibility', FEEDBACK_RESPONSIBILITY],
+];
+
+/** The questions answered in words. */
+const COMMENT_KEYS = [
+  'unsureWhy',
+  'problemPrevention',
+  'guestCommonIssue',
+  'guestImprovement',
+  'keepDoing',
+  'hardest',
+  'freeNote',
+] as const;
+
+/**
+ * Turns the answers into something a supervisor can read without being able
+ * to work out who said what.
+ *
+ * The count of answers is always shown — chasing the rest of the team is the
+ * one thing this has to support. Everything else waits for FEEDBACK_MIN_GROUP
+ * answers: an average over one response is that person's score with their
+ * name removed, which is not anonymity, and a single written line next to a
+ * single score is a signed statement in all but name.
+ */
+function summariseFeedback(
+  rows: Array<Record<string, unknown>>,
+  asked: number,
+): ReportData['feedback'] {
+  if (rows.length < FEEDBACK_MIN_GROUP) {
+    return { responses: rows.length, asked, scores: null, choices: null, comments: [] };
+  }
+
+  const scores = SCORE_KEYS.map((key) => {
+    const values = rows
+      .map((row) => row[key])
+      .filter((value): value is number => typeof value === 'number');
+    const average = values.reduce((sum, value) => sum + value, 0) / (values.length || 1);
+    return { key, average: Math.round(average * 10) / 10 };
+  }).filter((entry) => entry.average > 0);
+
+  const choices = CHOICE_KEYS.map(([key, options]) => ({
+    key,
+    counts: options
+      .map((value) => ({
+        value,
+        count: rows.filter((row) => row[key] === value).length,
+      }))
+      .filter((entry) => entry.count > 0),
+  })).filter((entry) => entry.counts.length > 0);
+
+  /*
+   * The written answers are shuffled before they are listed. Left in the
+   * order they arrived, the rows line up: the first comment under every
+   * question belongs to the same person, and reading down the column
+   * reassembles one anonymous answer into one identifiable account of the
+   * evening.
+   */
+  const comments: Array<{ key: string; text: string }> = [];
+  for (const key of COMMENT_KEYS) {
+    const texts = rows
+      .map((row) => row[key])
+      .filter((value): value is string => typeof value === 'string' && value.trim().length > 0);
+    for (const text of shuffle(texts)) comments.push({ key, text });
+  }
+
+  return { responses: rows.length, asked, scores, choices, comments };
+}
+
+/** Fisher–Yates, on a copy. */
+function shuffle<T>(items: T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j]!, out[i]!];
+  }
+  return out;
+}
 
 function minutesBetween(from: Date, to: Date): number {
   return Math.max(0, Math.round((to.getTime() - from.getTime()) / 60000));
@@ -232,21 +334,17 @@ export async function buildReport(eventId: string): Promise<ReportData> {
       .from(events)
       .where(eq(events.id, eventId))
       .get(),
+    /*
+     * No join to a member and no name column — there is nothing to join to.
+     * The questionnaire is stored apart from the people who filled it in, on
+     * purpose, and this query is where that promise is either kept or quietly
+     * broken.
+     */
     db
-      .select({
-        id: eventFeedback.id,
-        rating: eventFeedback.rating,
-        wentWell: eventFeedback.wentWell,
-        problems: eventFeedback.problems,
-        suggestions: eventFeedback.suggestions,
-        submittedAt: eventFeedback.submittedAt,
-        memberName: teamMembers.fullName,
-      })
-      .from(eventFeedback)
-      .innerJoin(eventMembers, eq(eventFeedback.eventMemberId, eventMembers.id))
-      .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
-      .where(eq(eventFeedback.eventId, eventId))
-      .orderBy(desc(eventFeedback.submittedAt)),
+      .select()
+      .from(feedbackResponses)
+      .where(eq(feedbackResponses.eventId, eventId))
+      .orderBy(desc(feedbackResponses.submittedAt)),
   ]);
 
   /* ---- attendance ------------------------------------------------------- */
@@ -442,18 +540,7 @@ export async function buildReport(eventId: string): Promise<ReportData> {
         scheduledTime: row.scheduledTime,
         status: row.status,
       })),
-    feedback: {
-      responses: feedbackRows.length,
-      average:
-        feedbackRows.length > 0
-          ? Math.round(
-              (feedbackRows.reduce((sum, row) => sum + row.rating, 0) /
-                feedbackRows.length) *
-                10,
-            ) / 10
-          : null,
-      rows: feedbackRows,
-    },
+    feedback: summariseFeedback(feedbackRows, memberRows.length),
     timelineDone: timelineRows.filter((r) => r.status === 'COMPLETED').length,
     tasks: [...taskMap.entries()]
       .map(([task, count]) => ({ task, count }))

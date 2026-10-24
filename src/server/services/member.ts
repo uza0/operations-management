@@ -41,6 +41,7 @@ export async function getMemberPortal(token: string) {
       status: eventMembers.status,
       tokenExpiresAt: eventMembers.tokenExpiresAt,
       isReserve: eventMembers.isReserve,
+      feedbackAt: eventMembers.feedbackAt,
       eventRole: eventMembers.eventRole,
       memberName: teamMembers.fullName,
       /* Shown on the member's own card: at a gate it is what a supervisor
@@ -188,25 +189,11 @@ export async function getMemberPortal(token: string) {
   const mainGate = await mainGateForMember(membership.eventId, membership.id);
 
   /*
-   * Their own feedback, so the form opens filled in rather than blank: a
-   * member who wants to add a line to what they already said should not have
-   * to retype the rest of it.
+   * Whether this person has already answered the questionnaire — not what
+   * they answered, which is deliberately unreachable from here. The page
+   * needs the bare fact so it can thank them instead of asking twice.
    */
-  const myFeedback = await db
-    .select({
-      rating: eventFeedback.rating,
-      wentWell: eventFeedback.wentWell,
-      problems: eventFeedback.problems,
-      suggestions: eventFeedback.suggestions,
-    })
-    .from(eventFeedback)
-    .where(
-      and(
-        eq(eventFeedback.eventId, membership.eventId),
-        eq(eventFeedback.eventMemberId, membership.id),
-      ),
-    )
-    .get();
+  const answeredFeedback = membership.feedbackAt !== null;
 
   const markers = await db
     .select({
@@ -274,7 +261,7 @@ export async function getMemberPortal(token: string) {
     gateLeaderName,
     teamLeaderName: teamLeader?.name ?? null,
     mainGate,
-    myFeedback: myFeedback ?? null,
+    answeredFeedback,
     attendance: attendanceRow ?? null,
     announcements: announcementRows,
     lastChange,

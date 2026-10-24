@@ -63,7 +63,7 @@ const {
   auditLogs,
   mainGateDetails,
   mainGateMembers,
-  eventFeedback,
+  feedbackResponses,
 } = schema;
 
 const MINUTES = 60 * 1000;
@@ -1344,29 +1344,140 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
    * something in it and so the shape of a real answer is visible: a rating
    * from everyone, words from some, and one complaint worth acting on.
    */
-  const feedbackLines: [string, number, string | null, string | null, string | null][] = [
-    ['أمير عبد الله', 5, 'التوزيع كان واضح من البداية والبوابة ما ازدحمت.', null, null],
-    ['زينب الشمري', 4, 'الجمهور دخل بسلاسة.', 'الأساور خلصت قبل انتهاء الدخول بنص ساعة.', 'نزيد كمية الأساور 10% احتياط.'],
-    ['مريم الطائي', 3, null, 'الماسح الثاني وقف مرتين وما كان عدنا بديل جاهز.', 'جهاز احتياط بكل بوابة.'],
-    ['حسن الساعدي', 5, 'التبليغ وصل قبل يوم وعرفت مكاني قبل ما أجي.', null, null],
-    ['علي الزبيدي', 4, null, 'ما كان واضح منو مسؤول البوابة الخارجية بأول ساعة.', 'نثبّت قائد لكل بوابة قبل الفتح.'],
-    ['رغد العزاوي', 4, 'الاستراحة كانت منظمة.', null, null],
+  const feedbackLines: Array<{
+    role: string | null;
+    instructionsClear: number;
+    organisation: number;
+    supportSpeed: number;
+    overall: number;
+    knewDuties: string;
+    briefingLength: string;
+    staffing: string;
+    distributionGood: string;
+    unsureMoments: string;
+    knewWhoToAsk: string;
+    problemKind: string;
+    guestsInformed: string;
+    workAgain: string;
+    moreResponsibility: string;
+    keepDoing: string | null;
+    hardest: string | null;
+    problemPrevention: string | null;
+    unsureWhy: string | null;
+    guestCommonIssue: string | null;
+    guestImprovement: string | null;
+    freeNote: string | null;
+  }> = [
+    {
+      role: 'ELECTRONIC_SCANNING',
+      instructionsClear: 5, organisation: 5, supportSpeed: 5, overall: 5,
+      knewDuties: 'YES', briefingLength: 'RIGHT', staffing: 'ENOUGH',
+      distributionGood: 'YES', unsureMoments: 'NO', knewWhoToAsk: 'YES',
+      problemKind: 'NONE', guestsInformed: 'YES', workAgain: 'DEFINITELY',
+      moreResponsibility: 'YES',
+      keepDoing: 'التوزيع كان واضح من البداية والبوابة ما ازدحمت.',
+      hardest: null, problemPrevention: null, unsureWhy: null,
+      guestCommonIssue: null, guestImprovement: null, freeNote: null,
+    },
+    {
+      role: 'WRISTBAND_FITTING',
+      instructionsClear: 4, organisation: 4, supportSpeed: 4, overall: 4,
+      knewDuties: 'YES', briefingLength: 'RIGHT', staffing: 'SHORT',
+      distributionGood: 'SOMEWHAT', unsureMoments: 'ONCE_OR_TWICE', knewWhoToAsk: 'YES',
+      problemKind: 'WRISTBANDS', guestsInformed: 'SOMEWHAT', workAgain: 'YES',
+      moreResponsibility: 'AFTER_TRAINING',
+      keepDoing: 'الجمهور دخل بسلاسة.',
+      hardest: 'الأساور خلصت قبل انتهاء الدخول بنص ساعة.',
+      problemPrevention: 'نزيد كمية الأساور 10% احتياط.',
+      unsureWhy: null, guestCommonIssue: 'وين مكان الكرسي.',
+      guestImprovement: null, freeNote: null,
+    },
+    {
+      role: 'ELECTRONIC_SCANNING',
+      instructionsClear: 3, organisation: 3, supportSpeed: 2, overall: 3,
+      knewDuties: 'SOMEWHAT', briefingLength: 'TOO_SHORT', staffing: 'ENOUGH',
+      distributionGood: 'YES', unsureMoments: 'ONCE_OR_TWICE', knewWhoToAsk: 'SOMEWHAT',
+      problemKind: 'SCANNING', guestsInformed: 'SOMEWHAT', workAgain: 'YES',
+      moreResponsibility: 'NOT_NOW',
+      keepDoing: null,
+      hardest: 'الماسح الثاني وقف مرتين وما كان عدنا بديل جاهز.',
+      problemPrevention: 'جهاز احتياط بكل بوابة.',
+      unsureWhy: 'ما كان واضح منو يجيب البديل.',
+      guestCommonIssue: null, guestImprovement: null, freeNote: null,
+    },
+    {
+      role: 'CROWD_GUIDANCE',
+      instructionsClear: 5, organisation: 4, supportSpeed: 5, overall: 5,
+      knewDuties: 'YES', briefingLength: 'RIGHT', staffing: 'ENOUGH',
+      distributionGood: 'YES', unsureMoments: 'NO', knewWhoToAsk: 'YES',
+      problemKind: 'NONE', guestsInformed: 'YES', workAgain: 'DEFINITELY',
+      moreResponsibility: 'YES',
+      keepDoing: 'التبليغ وصل قبل يوم وعرفت مكاني قبل ما أجي.',
+      hardest: null, problemPrevention: null, unsureWhy: null,
+      guestCommonIssue: null, guestImprovement: null, freeNote: null,
+    },
+    {
+      role: 'CROWD_GUIDANCE',
+      instructionsClear: 4, organisation: 3, supportSpeed: 4, overall: 4,
+      knewDuties: 'SOMEWHAT', briefingLength: 'RIGHT', staffing: 'ENOUGH',
+      distributionGood: 'SOMEWHAT', unsureMoments: 'ONCE_OR_TWICE', knewWhoToAsk: 'NO',
+      problemKind: 'GATES', guestsInformed: 'NO', workAgain: 'YES',
+      moreResponsibility: 'AFTER_TRAINING',
+      keepDoing: null,
+      hardest: 'ما كان واضح منو مسؤول البوابة الخارجية بأول ساعة.',
+      problemPrevention: 'نثبّت قائد لكل بوابة قبل الفتح.',
+      unsureWhy: 'محد كان واقف بالبوابة الخارجية.',
+      guestCommonIssue: 'من أي باب أدخل.',
+      guestImprovement: 'نحط لوحات أكبر على المداخل.',
+      freeNote: null,
+    },
+    {
+      role: 'CROWD_GUIDANCE',
+      instructionsClear: 4, organisation: 4, supportSpeed: 4, overall: 4,
+      knewDuties: 'YES', briefingLength: 'RIGHT', staffing: 'ENOUGH',
+      distributionGood: 'YES', unsureMoments: 'NO', knewWhoToAsk: 'YES',
+      problemKind: 'CROWD', guestsInformed: 'SOMEWHAT', workAgain: 'YES',
+      moreResponsibility: 'NOT_NOW',
+      keepDoing: 'الاستراحة كانت منظمة.',
+      hardest: null, problemPrevention: null, unsureWhy: null,
+      guestCommonIssue: null, guestImprovement: null,
+      freeNote: 'شكراً على التنظيم.',
+    },
   ];
 
-  await db.insert(eventFeedback)
+  await db
+    .insert(feedbackResponses)
     .values(
-      feedbackLines.map(([name, rating, wentWell, problems, suggestions], i) => ({
+      feedbackLines.map((line, i) => ({
         id: newId(),
         eventId: eventCId,
-        eventMemberId: cEmIds[name],
-        rating,
-        wentWell,
-        problems,
-        suggestions,
+        ...line,
         submittedAt: at('21:30', i * 7 - 60 * 24 * 14),
       })),
     )
     .run();
+
+  /*
+   * And the bookkeeping side of it: these six are marked as having answered,
+   * which is all the system ever knows about who said what. The six rows above
+   * carry no member id, so this is a count, not a key.
+   */
+  for (const name of [
+    'أمير عبد الله',
+    'زينب الشمري',
+    'مريم الطائي',
+    'حسن الساعدي',
+    'علي الزبيدي',
+    'رغد العزاوي',
+  ]) {
+    const id = cEmIds[name];
+    if (!id) continue;
+    await db
+      .update(eventMembers)
+      .set({ feedbackAt: at('21:30', -60 * 24 * 14) })
+      .where(eq(eventMembers.id, id))
+      .run();
+  }
 
   /* ---- done ------------------------------------------------------------- */
   const amirToken = (

@@ -1,25 +1,26 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
   assignments,
-  eventFeedback,
+  eventMembers,
   events,
+  feedbackResponses,
   gates,
   issues,
   workingPoints,
 } from '@/db/schema';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
-import { firstIssueKey, issueSchema, str } from '@/lib/validation';
+import { feedbackSchema, firstIssueKey, issueSchema, readFeedback, str } from '@/lib/validation';
 import { recordAudit } from '@/server/services/audit';
 import { resolveMemberByToken } from '@/server/services/member';
 import { routeNewIssue } from '@/server/services/issue-routing';
 import { dueAtFor } from '@/lib/issue-sla';
-import type { IssuePriority } from '@/lib/constants';
+import { FEEDBACK_MIN_GROUP, type IssuePriority } from '@/lib/constants';
 
 import { fail, ok, type ActionState } from './types';
 
@@ -186,51 +187,68 @@ export async function submitFeedbackAction(
     return fail(t.feedback.notYet);
   }
 
-  const rating = Number(form.get('rating') ?? 0);
-  if (!Number.isInteger(rating) || rating < 1 || rating > 5) {
-    return fail(t.feedback.pickRating);
+  /*
+   * Once, and once only. A second answer cannot replace the first, because
+   * replacing it would mean knowing which row was theirs — and nothing here
+   * knows that. The form says so before the last button, so this is a guard,
+   * not a surprise.
+   */
+  const row = await db
+    .select({ feedbackAt: eventMembers.feedbackAt })
+    .from(eventMembers)
+    .where(eq(eventMembers.id, member.id))
+    .get();
+  if (row?.feedbackAt) return fail(t.feedback.alreadySent);
+
+  const parsed = feedbackSchema.safeParse(readFeedback(form));
+  if (!parsed.success) {
+    return fail(t.errors[firstIssueKey(parsed.error) as keyof typeof t.errors] ?? t.errors.generic);
   }
-
-  const wentWell = str(form, 'wentWell');
-  const problems = str(form, 'problems');
-  const suggestions = str(form, 'suggestions');
-
-  const existing = await db.query.eventFeedback.findFirst({
-    where: and(
-      eq(eventFeedback.eventId, member.eventId),
-      eq(eventFeedback.eventMemberId, member.id),
-    ),
-  });
-
-  if (existing) {
-    await db
-      .update(eventFeedback)
-      .set({
-        rating,
-        wentWell: wentWell ?? null,
-        problems: problems ?? null,
-        suggestions: suggestions ?? null,
-        submittedAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(eq(eventFeedback.id, existing.id));
-  } else {
-    await db.insert(eventFeedback).values({
-      id: newId(),
-      eventId: member.eventId,
-      eventMemberId: member.id,
-      rating,
-      wentWell: wentWell ?? null,
-      problems: problems ?? null,
-      suggestions: suggestions ?? null,
-      submittedAt: new Date(),
-    });
-  }
+  const answers = parsed.data;
 
   /*
-   * The audit line records that a verdict arrived and from whom, never what it
-   * said: the log is read by more people than the feedback is meant for, and a
-   * complaint quoted in a log is a complaint nobody writes twice.
+   * The job goes on the answer only when enough people shared it to hide in.
+   * On a gate with six scanners "a scanner said the handhelds kept dropping"
+   * is a useful line in a report; on a night with one person on VIP the same
+   * sentence is that person's name.
+   */
+  const mine = await db
+    .select({ task: assignments.task })
+    .from(assignments)
+    .where(
+      and(eq(assignments.eventMemberId, member.id), ne(assignments.status, 'CANCELLED')),
+    )
+    .get();
+  let role: string | null = null;
+  if (mine) {
+    const sharing = await db.$count(
+      assignments,
+      and(
+        eq(assignments.eventId, member.eventId),
+        eq(assignments.task, mine.task),
+        ne(assignments.status, 'CANCELLED'),
+      ),
+    );
+    if (sharing >= FEEDBACK_MIN_GROUP) role = mine.task;
+  }
+
+  await db.insert(feedbackResponses).values({
+    id: newId(),
+    eventId: member.eventId,
+    role,
+    ...answers,
+    submittedAt: new Date(),
+  });
+
+  await db
+    .update(eventMembers)
+    .set({ feedbackAt: new Date(), updatedAt: new Date() })
+    .where(eq(eventMembers.id, member.id));
+
+  /*
+   * The audit line records that an answer arrived and from whom, never what it
+   * said — and it cannot say what it said, because the two are not connected.
+   * Even the timestamps are a day apart in practice, which is as it should be.
    */
   await recordAudit({
     eventId: member.eventId,
@@ -240,7 +258,7 @@ export async function submitFeedbackAction(
     entity: 'EVENT_MEMBER',
     entityId: member.id,
     entityLabel: member.name,
-    summary: existing ? t.feedback.updated : t.feedback.received,
+    summary: t.feedback.received,
   });
 
   revalidatePath(`/member/${token}`);

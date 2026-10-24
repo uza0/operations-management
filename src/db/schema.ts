@@ -296,6 +296,13 @@ export const eventMembers = sqliteTable(
      * being told can be flagged — telling someone the wrong gate is worse than
      * telling them nothing.
      */
+    /*
+     * That this person has answered the questionnaire — never what they
+     * answered. The answers live in `feedback_responses`, which carries no
+     * member id, so this column is what makes chasing the rest possible
+     * without making anyone's answers findable.
+     */
+    feedbackAt: integer('feedback_at', { mode: 'timestamp_ms' }),
     notifiedAt: integer('notified_at', { mode: 'timestamp_ms' }),
     notifiedById: text('notified_by_id').references(() => users.id, {
       onDelete: 'set null',
@@ -744,6 +751,73 @@ export const eventFeedback = sqliteTable(
     uniqueIndex('event_feedback_member_unique').on(t.eventId, t.eventMemberId),
     index('event_feedback_event_idx').on(t.eventId),
   ],
+);
+
+/**
+ * The end-of-event questionnaire, kept deliberately apart from the person.
+ *
+ * There is no member id on this table and there is no way to put one back:
+ * the row knows which event it belongs to and nothing else about who wrote
+ * it. That is the whole point. The form promises the answers are anonymous,
+ * and a promise that holds only as long as nobody opens the database is not
+ * one worth making — a supervisor reading "the briefing was useless" should
+ * not be able to find out who typed it, and neither should anyone else.
+ *
+ * Who has answered is tracked on the member row instead (`feedbackAt`), so
+ * the chasing-up still works: the list of who has not replied is knowable,
+ * what each of them said is not.
+ *
+ * `role` is the job the writer was doing, and it is recorded ONLY when enough
+ * people shared that job to hide in — otherwise "the only person on VIP" is a
+ * name written in a different alphabet.
+ */
+export const feedbackResponses = sqliteTable(
+  'feedback_responses',
+  {
+    id: text('id').primaryKey(),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    /** The writer's task, or null when too few shared it to be anonymous. */
+    role: text('role'),
+
+    /* Before the gates opened. */
+    instructionsClear: integer('instructions_clear'),
+    knewDuties: text('knew_duties'),
+    briefingLength: text('briefing_length'),
+
+    /* How the evening was organised. */
+    organisation: integer('organisation'),
+    staffing: text('staffing'),
+    distributionGood: text('distribution_good'),
+    unsureMoments: text('unsure_moments'),
+    unsureWhy: text('unsure_why'),
+
+    /* When something went wrong. */
+    knewWhoToAsk: text('knew_who_to_ask'),
+    supportSpeed: integer('support_speed'),
+    problemKind: text('problem_kind'),
+    problemPrevention: text('problem_prevention'),
+
+    /* The people who came to the event. */
+    guestsInformed: text('guests_informed'),
+    guestCommonIssue: text('guest_common_issue'),
+    guestImprovement: text('guest_improvement'),
+
+    /* The evening as a whole. */
+    overall: integer('overall'),
+    keepDoing: text('keep_doing'),
+    hardest: text('hardest'),
+
+    /* Next time. */
+    workAgain: text('work_again'),
+    moreResponsibility: text('more_responsibility'),
+    freeNote: text('free_note'),
+
+    submittedAt: integer('submitted_at', { mode: 'timestamp_ms' }).notNull(),
+    ...timestamps,
+  },
+  (t) => [index('feedback_responses_event_idx').on(t.eventId)],
 );
 
 export const timelineItems = sqliteTable(

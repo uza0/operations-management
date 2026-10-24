@@ -730,16 +730,19 @@ await admin.keyboard.press('Escape');
 const doneEvent = await db.prepare(
   "select id from events where status='COMPLETED' limit 1").get();
 const doneMember = await db.prepare(
-  'select token, id from event_members where event_id=? limit 1').get(doneEvent.id);
+  `select token, id from event_members where event_id=? and feedback_at is null limit 1`,
+).get(doneEvent.id);
 
 await mp.goto(`${BASE}/member/${doneMember.token}`);
 await mp.waitForLoadState('networkidle');
-// Scoped to the rendered page: the whole dictionary is serialised into the
-// document for the client components, so `body` text contains every label.
-check('a finished event asks its team for feedback',
-  (await mp.locator('h2:has-text("تقييم الفعالية")').count()) === 1, '');
+check('a finished event asks its team for the questionnaire',
+  (await mp.locator('h2:has-text("تقييم الحفلة")').count()) === 1, '');
 
-// An event still to come does not: the evening is not over yet.
+// And it says, before the first question, that the answers carry no name.
+check('the questionnaire promises anonymity up front',
+  (await mp.locator('text=إجاباتك سرّية').count()) > 0, '');
+
+// An event still to come does not ask: the evening is not over yet.
 const upcoming = await db.prepare(`
   select em.token from event_members em
   join events e on e.id = em.event_id
@@ -748,27 +751,100 @@ if (upcoming) {
   await mp.goto(`${BASE}/member/${upcoming.token}`);
   await mp.waitForLoadState('networkidle');
   check('an event that has not finished does not ask yet',
-    (await mp.locator('h2:has-text("تقييم الفعالية")').count()) === 0, '');
+    (await mp.locator('h2:has-text("تقييم الحفلة")').count()) === 0, '');
 }
 
+/*
+ * Walk the five steps. Each screen with a score refuses to advance until it
+ * is answered, which is the only thing the form insists on.
+ */
 await mp.goto(`${BASE}/member/${doneMember.token}`);
 await mp.waitForLoadState('networkidle');
-await mp.locator('button[aria-pressed]').nth(3).click();
-await mp.fill('#fb-problems', 'فحص آلي — الماسح وقف مرتين');
-await mp.locator('form button[type=submit]').last().click();
-await mp.waitForTimeout(2500);
-const saved = await db.prepare(
-  'select rating, problems from event_feedback where event_member_id=?').get(doneMember.id);
-check('a member can rate the event they worked',
-  Number(saved?.rating) === 4 && String(saved?.problems).includes('الماسح'),
-  `${saved?.rating} / 5`);
+const beforeAnswers = Number(
+  (await db.prepare('select count(*) as n from feedback_responses where event_id=?')
+    .get(doneEvent.id)).n,
+);
+check('a step with an unanswered score will not advance',
+  await mp.locator('button:has-text("التالي")').first().isDisabled(), '');
 
-// And the supervisor reads it in the closing report.
+const score = async (n) => {
+  // Only the visible step's score buttons — the others are hidden, not unmounted.
+  await mp.locator('button.nums:visible').nth(n - 1).click();
+  await mp.waitForTimeout(150);
+};
+const next = async () => {
+  await mp.locator('button:has-text("التالي")').first().click();
+  await mp.waitForTimeout(350);
+};
+
+await score(4);
+await mp.locator('label:has-text("إلى حد ما") input[type=radio]').first().check();
+await next();                                   // 1 → 2
+await score(3);
+await next();                                   // 2 → 3
+await score(5);
+await next();                                   // 3 → 4
+await next();                                   // 4 → 5 (nothing required)
+await score(4);
+await mp.fill('#fb-hardest', 'فحص آلي — الماسح وقف مرتين');
+await mp.locator('form button[type=submit]').last().click();
+await mp.waitForTimeout(3000);
+
+const answer = await db.prepare(
+  `select overall, instructions_clear, hardest, role from feedback_responses
+     where event_id=? order by submitted_at desc limit 1`).get(doneEvent.id);
+const afterAnswers = Number(
+  (await db.prepare('select count(*) as n from feedback_responses where event_id=?')
+    .get(doneEvent.id)).n,
+);
+check('a promoter can answer the questionnaire',
+  afterAnswers === beforeAnswers + 1 &&
+    Number(answer.overall) === 4 &&
+    Number(answer.instructions_clear) === 4 &&
+    String(answer.hardest).includes('الماسح'),
+  `${beforeAnswers} → ${afterAnswers}`);
+
+/*
+ * The whole point of the thing: there is no column on the answer that leads
+ * back to a person, and the member row records only that they answered.
+ */
+const columns = await db.prepare('pragma table_info(feedback_responses)').all();
+check('an answer carries nothing that identifies who wrote it',
+  !columns.some((c) => String(c.name).includes('member')), '');
+const marked = await db.prepare(
+  'select feedback_at from event_members where id=?').get(doneMember.id);
+check('the member row records only that they answered', Boolean(marked.feedback_at), '');
+
+// And it is asked once: the page thanks them instead of asking again.
+await mp.reload();
+await mp.waitForLoadState('networkidle');
+check('the questionnaire is not asked twice',
+  (await mp.locator('text=جاوبت على الاستبيان').count()) > 0, '');
+
+/*
+ * The supervisor reads the totals in the closing report, with no names on
+ * them — and only where enough people answered to hide in. The event just
+ * answered has one response, which is below the floor; the seeded event has
+ * six, which is above it. Both cases are checked, because the one that must
+ * not leak is the first.
+ */
 await admin.goto(`${BASE}/admin/events/${doneEvent.id}/reports`);
 await admin.waitForLoadState('networkidle');
+const thinReport = await admin.textContent('.report-doc');
+check('one answer is counted but never shown',
+  thinReport.includes('استبيان الفريق') && !thinReport.includes('الماسح'), '');
+
+const richEvent = await db.prepare(
+  `select event_id as id, count(*) as n from feedback_responses
+     group by event_id order by n desc limit 1`).get();
+await admin.goto(`${BASE}/admin/events/${richEvent.id}/reports`);
+await admin.waitForLoadState('networkidle');
 const reportFeedback = await admin.textContent('.report-doc');
-check('the closing report carries the team feedback',
-  reportFeedback.includes('تقييمات الفريق') && reportFeedback.includes('الماسح'), '');
+check('the closing report carries the questionnaire',
+  reportFeedback.includes('استبيان الفريق') && reportFeedback.includes('الماسح'),
+  `${richEvent.n} answers`);
+check('the report says the answers are anonymous',
+  reportFeedback.includes('سرّية'), '');
 
 await memberPage.close();
 
@@ -779,6 +855,10 @@ const settingsText = await admin.textContent('main');
 check('the second administrator exists', settingsText.includes('Mohamed Numan'), '');
 
 // Changing your own password, which is what makes a shipped account yours.
+// The button enabling is the page telling us it is interactive: filling a
+// form that React has not picked up yet posts it the old-fashioned way, and
+// the answer never arrives where this check is looking for it.
+await admin.waitForSelector('form:has(#currentPassword) button[type=submit]:not([disabled])');
 await admin.fill('#currentPassword', 'Admin@12345');
 await admin.fill('#newPassword', 'Admin@67890');
 await admin.fill('#confirmPassword', 'Admin@67890');

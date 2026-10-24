@@ -2,6 +2,13 @@ import { z } from 'zod';
 
 import {
   ASSIGNMENT_STATUSES,
+  FEEDBACK_AGAIN,
+  FEEDBACK_BRIEFINGS,
+  FEEDBACK_DEGREES,
+  FEEDBACK_PROBLEMS,
+  FEEDBACK_RESPONSIBILITY,
+  FEEDBACK_STAFFING,
+  FEEDBACK_UNSURE,
   ATTENDANCE_STATUSES,
   AUDIENCES,
   EVENT_STATUSES,
@@ -230,6 +237,66 @@ export const markerSchema = z.object({
 export const markersPayloadSchema = z.object({
   markers: z.array(markerSchema).max(400),
 });
+
+/* -------------------------------------------------------------------------- */
+/* The end-of-event questionnaire                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Every answer is optional except the four scores.
+ *
+ * This is filled in by someone who has been standing for eight hours, and a
+ * form that refuses to send until each of twenty boxes is filled is a form
+ * that gets abandoned at box eleven. A partial answer is worth having; a
+ * blank one is not, which is why the scores are the floor.
+ */
+const score = z.coerce.number().int().min(1).max(5);
+const choice = <T extends readonly [string, ...string[]]>(values: T) =>
+  z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? null : value))
+    .nullable()
+    .refine((value) => value === null || (values as readonly string[]).includes(value), 'generic');
+const note = z.string().trim().max(1200).transform((v) => (v === '' ? null : v)).nullable();
+
+export const feedbackSchema = z.object({
+  instructionsClear: score,
+  knewDuties: choice(FEEDBACK_DEGREES),
+  briefingLength: choice(FEEDBACK_BRIEFINGS),
+
+  organisation: score,
+  staffing: choice(FEEDBACK_STAFFING),
+  distributionGood: choice(FEEDBACK_DEGREES),
+  unsureMoments: choice(FEEDBACK_UNSURE),
+  unsureWhy: note,
+
+  knewWhoToAsk: choice(FEEDBACK_DEGREES),
+  supportSpeed: score,
+  problemKind: choice(FEEDBACK_PROBLEMS),
+  problemPrevention: note,
+
+  guestsInformed: choice(FEEDBACK_DEGREES),
+  guestCommonIssue: note,
+  guestImprovement: note,
+
+  overall: score,
+  keepDoing: note,
+  hardest: note,
+
+  workAgain: choice(FEEDBACK_AGAIN),
+  moreResponsibility: choice(FEEDBACK_RESPONSIBILITY),
+  freeNote: note,
+});
+
+/** Lifts the questionnaire out of a FormData, keys exactly as the schema. */
+export function readFeedback(form: FormData): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const key of Object.keys(feedbackSchema.shape)) {
+    out[key] = String(form.get(key) ?? '');
+  }
+  return out;
+}
 
 /* -------------------------------------------------------------------------- */
 
