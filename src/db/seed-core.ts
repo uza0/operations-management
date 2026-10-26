@@ -201,6 +201,36 @@ const PEOPLE = [
 ];
 
 /** Who is on a monthly company contract rather than on event pay. */
+/**
+ * One of each answer, spread across the upcoming event's team.
+ *
+ * Deliberately not "everyone confirmed": the screens that matter are the ones
+ * for the people who have not, and a seed where nobody is waiting means the
+ * waiting list is never looked at.
+ */
+function invitationStateFor(name: string, i: number) {
+  const sentAt = at('11:00', -60 * 20);
+  const base = { notifiedAt: sentAt, respondBy: at('05:00', -60 * 2) };
+
+  if (i === 0 || i === 1 || i === 2) {
+    return { ...base, status: 'CONFIRMED', confirmedAt: at('12:30', -60 * 19) };
+  }
+  if (i === 3) {
+    return {
+      ...base,
+      status: 'CANCELLED',
+      declinedAt: at('13:10', -60 * 19),
+      declineReason: 'CANNOT_REACH',
+    };
+  }
+  /* Past the deadline and never chased — the list that needs a phone call. */
+  if (i === 4 || i === 5) return base;
+  /* Still inside the window. */
+  if (i < 8) return { notifiedAt: sentAt, respondBy: at('11:00', 60 * 4) };
+  /* No link sent yet. */
+  return {};
+}
+
 const SALARIED_NAMES = new Set(['حسن الساعدي']);
 
 /** The few people the company agreed a higher event rate with. */
@@ -540,6 +570,14 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
           /* Same rule the add-to-event action applies: read off the person. */
           payMode: SALARIED_NAMES.has(name) ? 'SALARIED' : 'EVENT',
           payAmount: SALARIED_NAMES.has(name) ? 0 : (HIGHER_RATES[name] ?? null),
+          /*
+           * The invitation has been sent and answered for everyone here, so
+           * the live event starts where a real one does: with a team that
+           * said yes. The stages before that are exercised on event B.
+           */
+          notifiedAt: at('09:00', -60 * 24 * 3),
+          confirmedAt: at('10:30', -60 * 24 * 3),
+          respondBy: at('03:00', -60 * 24 * 2),
           token: newMemberToken(),
           tokenExpiresAt: null,
           isReserve: RESERVE.has(name),
@@ -751,10 +789,17 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
   const late = new Set(['كرار الموسوي', 'أنس الحيالي']);
   const absent = new Set(['باقر السوداني', 'نبأ الأسدي']);
   const excused = new Set(['تبارك القيسي']);
+  /*
+   * Two people nobody has written anything about yet. A live event where
+   * every single person is already marked is not a live event — it is one
+   * that finished — and the screen that matters most on the night is the one
+   * listing who has not turned up.
+   */
+  const notYet = new Set(['رسول العامري', 'طه المشهداني']);
 
   await db.insert(attendance)
     .values(
-      teamA.map((name, i) => {
+      teamA.filter((name) => !notYet.has(name)).map((name, i) => {
         const status = late.has(name)
           ? 'LATE'
           : absent.has(name)
@@ -1156,7 +1201,7 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
   const bEmIds: Record<string, string> = {};
   await db.insert(eventMembers)
     .values(
-      teamB.map((name) => {
+      teamB.map((name, i) => {
         const id = newId();
         bEmIds[name] = id;
         return {
@@ -1167,6 +1212,13 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
           token: newMemberToken(),
           tokenExpiresAt: null,
           isReserve: false,
+          /*
+           * The upcoming event is where the invitation stages live, and it
+           * holds one of each so that none of them is theoretical: some have
+           * answered, some have not, one is past a deadline nobody chased,
+           * one said no, and one has not been sent a link at all.
+           */
+          ...invitationStateFor(name, i),
         };
       }),
     )
@@ -1297,6 +1349,14 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
           /* Same rule the add-to-event action applies: read off the person. */
           payMode: SALARIED_NAMES.has(name) ? 'SALARIED' : 'EVENT',
           payAmount: SALARIED_NAMES.has(name) ? 0 : (HIGHER_RATES[name] ?? null),
+          /*
+           * The invitation has been sent and answered for everyone here, so
+           * the live event starts where a real one does: with a team that
+           * said yes. The stages before that are exercised on event B.
+           */
+          notifiedAt: at('09:00', -60 * 24 * 3),
+          confirmedAt: at('10:30', -60 * 24 * 3),
+          respondBy: at('03:00', -60 * 24 * 2),
           token: newMemberToken(),
           tokenExpiresAt: null,
           isReserve: false,

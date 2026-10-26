@@ -3,8 +3,9 @@ import type { Metadata } from 'next';
 
 import { getT } from '@/lib/i18n/server';
 import { getMemberPortal } from '@/server/services/member';
-import { formatDate, formatTime } from '@/lib/time';
+import { formatDate, formatDateTime, formatTime } from '@/lib/time';
 import { format } from '@/lib/i18n';
+import { plural } from '@/lib/plural';
 import { Badge, attendanceTone, priorityTone } from '@/components/ui/status';
 
 import { FeedbackForm } from './FeedbackForm';
@@ -29,9 +30,24 @@ import type {
   TimelineStatus,
 } from '@/lib/constants';
 
+import { InvitationScreen } from './InvitationScreen';
+import { ArrivalButton, DepartureButton } from './ArrivalActions';
 import { MemberIssueForm } from './MemberIssueForm';
 import { MemberIssueCard } from './MemberIssueCard';
 import { MemberShell, InvalidToken } from './MemberShell';
+
+/** "يومين و٤ ساعات" — a span a person reads, not a number of minutes. */
+function formatSpan(ms: number, t: Awaited<ReturnType<typeof getT>>['t']): string {
+  const minutes = Math.max(0, Math.round(ms / 60000));
+  const days = Math.floor(minutes / 1440);
+  const hours = Math.floor((minutes % 1440) / 60);
+  const mins = minutes % 60;
+  const parts: string[] = [];
+  if (days > 0) parts.push(plural(t.member.spanDays, days));
+  if (hours > 0) parts.push(plural(t.member.spanHours, hours));
+  if (days === 0 && hours === 0) parts.push(plural(t.member.spanMinutes, mins));
+  return parts.join(' ');
+}
 
 export const metadata: Metadata = {
   robots: { index: false, follow: false },
@@ -106,6 +122,24 @@ export default async function MemberPortalPage({
    * two job titles on one badge is how a gate leader ends up unsure whether
    * they are running the gate.
    */
+  /*
+   * The deadline is formatted here, not on the phone. A device with the wrong
+   * clock — and at a venue there is always one — would otherwise show its own
+   * idea of how long is left.
+   */
+  const now = Date.now();
+  const respondBy = data.invitation.respondBy;
+  const overdue = Boolean(
+    respondBy && !data.invitation.confirmedAt && respondBy.getTime() < now,
+  );
+  const deadline =
+    respondBy && !overdue
+      ? {
+          left: formatSpan(respondBy.getTime() - now, t),
+          at: formatDateTime(respondBy, locale),
+        }
+      : null;
+
   const positionLabel =
     membership.eventRole && membership.eventRole in t.enums.eventRole
       ? t.enums.eventRole[membership.eventRole as EventRole]
@@ -182,7 +216,59 @@ export default async function MemberPortalPage({
           ) : null}
         </section>
 
-        {/* 2 — who I am on this event ---------------------------------- */}
+        {/*
+          2 — the question of the moment.
+
+          One of these, never two. Before he has answered there is nothing to
+          ask but the invitation; once the hour comes there is nothing to ask
+          but whether he is here; and once he is confirmed present the evening
+          is open. See src/lib/journey.ts.
+        */}
+        {data.stage === 'INVITED' ? (
+          <InvitationScreen
+            t={t}
+            token={token}
+            pay={data.invitation.payAmount}
+            currency={t.credit.currency}
+            deadline={deadline}
+            urgent={data.invitation.respondBy === null && data.invitation.confirmedAt === null}
+            overdue={overdue}
+          />
+        ) : null}
+
+        {data.stage === 'CLOSED' ? (
+          <section className="rounded-card border border-ink-700 bg-ink-850 p-5 text-center">
+            <p className="text-[16px] font-bold text-ink-100">{t.journey.closedTitle}</p>
+            <p className="mt-1.5 text-[13px] leading-6 text-ink-400">
+              {t.journey.closedHint}
+            </p>
+          </section>
+        ) : null}
+
+        {data.stage === 'ARRIVING' ? (
+          <ArrivalButton t={t} token={token} />
+        ) : null}
+
+        {data.stage === 'AWAITING_APPROVAL' ? (
+          <section className="rise rounded-card border border-warn/40 bg-warn/10 p-4 text-center">
+            <p className="text-[14.5px] font-semibold text-ink-100">
+              {format(t.journey.arrivalWaiting, {
+                time: formatTime(data.attendance?.checkInTime ?? '', locale),
+              })}
+            </p>
+          </section>
+        ) : null}
+
+        {data.stage === 'AFTER' ? (
+          <section className="rounded-card border border-ink-700 bg-ink-850 p-4 text-center">
+            <p className="text-[15px] font-bold text-ink-100">{t.journey.thanksTitle}</p>
+            <p className="mt-1 text-[12.5px] leading-6 text-ink-400">
+              {t.journey.thanksHint}
+            </p>
+          </section>
+        ) : null}
+
+        {/* 2b — who I am on this event --------------------------------- */}
         <section className="flex items-center gap-3 rounded-card border border-ink-700 bg-ink-850 px-4 py-3.5">
           <span
             aria-hidden
@@ -508,7 +594,15 @@ export default async function MemberPortalPage({
           </section>
         ) : null}
 
-        {/* 10 — reporting a problem ------------------------------------- */}
+        {/*
+          10 — reporting a problem, once he is actually on duty.
+
+          Not a tidiness rule. "The scanner is dead" from a man at home the
+          day before burns a two-minute response target at a gate leader who
+          cannot act on it, and the promise that a critical report is answered
+          in two minutes is only worth making if the reports are real.
+        */}
+        {data.stage === 'ON_DUTY' || data.stage === 'AFTER' ? (
         <section>
           <h2 className="mb-2 flex items-center gap-2 px-1 text-[15px] font-bold text-ink-100">
             <IconAlert width={17} height={17} className="text-ink-500" />
@@ -539,6 +633,11 @@ export default async function MemberPortalPage({
             </ul>
           ) : null}
         </section>
+
+        ) : null}
+
+        {/* The end of his evening, in his own words. */}
+        {data.stage === 'ON_DUTY' ? <DepartureButton t={t} token={token} /> : null}
 
         {/* Asked last, and only once the evening is actually over. */}
         {membership.eventStatus === 'COMPLETED' || membership.eventStatus === 'ARCHIVED' ? (

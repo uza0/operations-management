@@ -18,6 +18,8 @@ import { creditFor } from '@/server/services/credit';
 import { AttendanceTable, type AttendanceRow } from './parts/AttendanceTable';
 import { EventCreditDefault } from './parts/EventCreditDefault';
 import { byName } from '@/lib/sort';
+import { buildArrivals } from '@/server/services/journey';
+import { ArrivalApprovals } from './parts/ArrivalApprovals';
 
 export async function EventAttendancePage({ eventId }: { eventId: string }) {
   const { scope, event, locale, t } = await loadEventPage(eventId);
@@ -90,6 +92,9 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
   // What the event currently owes in total, at today's figures.
   const totalPay = data.reduce((sum, row) => sum + (row.effectiveAmount ?? 0), 0);
 
+  /* Event day's first question, above everything else on the page. */
+  const arrivals = await buildArrivals(eventId);
+
   const rate =
     data.length > 0
       ? Math.round((((counts.PRESENT ?? 0) + (counts.LATE ?? 0)) / data.length) * 100)
@@ -98,6 +103,14 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
   return (
     <>
       <PageHeader title={t.attendance.title} subtitle={t.attendance.subtitle} />
+
+      <ArrivalApprovals
+        t={t}
+        locale={locale}
+        eventId={eventId}
+        pending={arrivals.pending}
+        dueAt={arrivals.dueAt}
+      />
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
         <StatTile

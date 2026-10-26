@@ -221,6 +221,14 @@ export const events = sqliteTable(
      */
     payDefault: real('pay_default').notNull().default(30000),
     /**
+     * How long someone has to answer an invitation to THIS event, in hours.
+     *
+     * Per event because the answer depends on the event: a fortnight's notice
+     * for a league match, four hours for a concert that was moved. Null
+     * follows the house default.
+     */
+    responseWindowHours: integer('response_window_hours'),
+    /**
      * When the board stopped being a draft.
      *
      * A supervisor builds a distribution over days: he drags a man onto a
@@ -342,6 +350,22 @@ export const eventMembers = sqliteTable(
      */
     payoutId: text('payout_id').references(() => payouts.id, { onDelete: 'set null' }),
     feedbackAt: integer('feedback_at', { mode: 'timestamp_ms' }),
+    /* ---- the invitation, and the answer to it ------------------------- */
+
+    /**
+     * When an answer stops being useful.
+     *
+     * Computed once, when the link is sent, and stored — never recomputed on
+     * the way in. A deadline that moves every time the page is opened is not
+     * a deadline, it is a sliding promise, and the man refreshing at midnight
+     * would see eighteen hours left for ever.
+     */
+    respondBy: integer('respond_by', { mode: 'timestamp_ms' }),
+    /** When they said yes. */
+    confirmedAt: integer('confirmed_at', { mode: 'timestamp_ms' }),
+    /** When they said no, and which of the short reasons they picked. */
+    declinedAt: integer('declined_at', { mode: 'timestamp_ms' }),
+    declineReason: text('decline_reason'),
     notifiedAt: integer('notified_at', { mode: 'timestamp_ms' }),
     notifiedById: text('notified_by_id').references(() => users.id, {
       onDelete: 'set null',
@@ -541,6 +565,22 @@ export const attendance = sqliteTable(
      */
     legacyCheckInAt: integer('check_in_at', { mode: 'timestamp_ms' }),
     legacyCheckOutAt: integer('check_out_at', { mode: 'timestamp_ms' }),
+    /**
+     * The moment the person said they had arrived, from their own phone.
+     *
+     * Kept apart from the supervisor's approval on purpose. One is when he
+     * got there; the other is when somebody with a radio got round to looking
+     * at his name. Treating the second as the first is how a man who stood at
+     * the gate from five o'clock is recorded as arriving at six.
+     */
+    reportedArrivalAt: integer('reported_arrival_at', { mode: 'timestamp_ms' }),
+    /** When a supervisor confirmed it, and who. */
+    approvedAt: integer('approved_at', { mode: 'timestamp_ms' }),
+    approvedById: text('approved_by_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    /** The moment they said they were leaving, same distinction. */
+    reportedDepartureAt: integer('reported_departure_at', { mode: 'timestamp_ms' }),
     recordedById: text('recorded_by_id').references(() => users.id, {
       onDelete: 'set null',
     }),

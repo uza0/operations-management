@@ -1,6 +1,6 @@
 /**
  * GENERATED FILE — do not edit.
- * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql, 0014_jittery_venus.sql, 0015_curved_grim_reaper.sql, 0016_hard_the_phantom.sql.
+ * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql, 0014_jittery_venus.sql, 0015_curved_grim_reaper.sql, 0016_hard_the_phantom.sql, 0017_glamorous_clea.sql.
  * Regenerate after changing src/db/schema.ts:
  *   npx drizzle-kit generate && node scripts/embed-schema.mjs
  */
@@ -111,4 +111,13 @@ export const SCHEMA_STATEMENTS: string[] = [
   "ALTER TABLE `event_members` ADD `payout_id` text REFERENCES payouts(id)",
   "DROP INDEX IF EXISTS `seat_setup_details_event_unique`",
   "CREATE INDEX IF NOT EXISTS `seat_setup_details_event_idx` ON `seat_setup_details` (`event_id`,`date`)",
+  "ALTER TABLE `attendance` ADD `reported_arrival_at` integer",
+  "ALTER TABLE `attendance` ADD `approved_at` integer",
+  "ALTER TABLE `attendance` ADD `approved_by_id` text REFERENCES users(id)",
+  "ALTER TABLE `attendance` ADD `reported_departure_at` integer",
+  "ALTER TABLE `event_members` ADD `respond_by` integer",
+  "ALTER TABLE `event_members` ADD `confirmed_at` integer",
+  "ALTER TABLE `event_members` ADD `declined_at` integer",
+  "ALTER TABLE `event_members` ADD `decline_reason` text",
+  "ALTER TABLE `events` ADD `response_window_hours` integer",
 ];

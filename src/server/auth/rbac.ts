@@ -108,6 +108,22 @@ export async function assertEventManager(eventId: string): Promise<SessionUser> 
   return user;
 }
 
+/**
+ * Anyone with a part in this event: a manager, or a gate leader.
+ *
+ * Confirming that a man is standing at your gate is the gate leader's job by
+ * definition — he is the one who can see him — so this is deliberately wider
+ * than assertEventManager, and the caller still has to decide whether the
+ * person being confirmed is at that gate.
+ */
+export async function assertEventStaff(eventId: string): Promise<SessionUser> {
+  const user = await currentUser();
+  if (!user) throw new ForbiddenError();
+  const scope = await resolveEventScope(eventId, user);
+  if (!scope) throw new ForbiddenError();
+  return user;
+}
+
 /** Where a signed-in user's own home is. */
 export function homeFor(role: Role): string {
   return role === 'ADMIN' ? '/admin' : '/leader';

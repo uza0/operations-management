@@ -18,6 +18,8 @@ const db = {
     get: async (...args) => (await client.execute({ sql, args })).rows[0],
     all: async (...args) => (await client.execute({ sql, args })).rows,
   }),
+  /** Test fixtures only — the checks themselves never write. */
+  exec: (sql, ...args) => client.execute({ sql, args }),
   close: () => client.close(),
 };
 const results = [];
@@ -982,6 +984,199 @@ check('their rate is copied onto the event they are invited to',
 const house = await db.prepare(`
   select count(*) as n from team_members where default_pay is null`).get();
 check('most of the team follow the house rate', Number(house.n) > 0, `${house.n}`);
+
+/* ---- the promoter's journey, stage by stage ---------------------------- */
+
+/*
+ * The page is a switch on one derived stage. What is checked here is not that
+ * each screen renders, but that the ones that do not belong to the moment are
+ * absent — and that the server refuses the action behind them even when the
+ * button is gone.
+ */
+const upcomingEvent = await db.prepare(
+  "select id, name from events where status not in ('COMPLETED','ARCHIVED') and id != ? limit 1",
+).get(eventId);
+
+const invited = await db.prepare(`
+  select token from event_members
+   where event_id = ? and notified_at is not null and confirmed_at is null
+     and declined_at is null and status != 'CANCELLED' limit 1`).get(upcomingEvent.id);
+check('an invited promoter exists to walk through', Boolean(invited), '');
+
+const ip = await (await browser.newContext()).newPage();
+await ip.goto(`${BASE}/member/${invited.token}`);
+await ip.waitForLoadState('networkidle');
+check('an unanswered invitation asks one question',
+  (await ip.locator('p:has-text("دعوة للعمل بهذه الفعالية")').count()) === 1, '');
+check('and offers exactly the two answers',
+  (await ip.locator('button:has-text("أؤكد حضوري")').count()) === 1 &&
+    (await ip.locator('button:has-text("ما أقدر أحضر")').count()) === 1, '');
+
+/* Nothing about the night is on that screen — not the gate, not the tools. */
+check('the invitation screen hides the evening',
+  (await ip.locator('button:has-text("وصلت")').count()) === 0 &&
+    (await ip.locator('#m-type').count()) === 0, '');
+
+/* And the server refuses the arrival even though the button is not there. */
+const beforeArrival = await db.prepare(
+  'select count(*) as n from attendance where reported_arrival_at is not null').get();
+await ip.evaluate(() => {
+  const f = document.createElement('form');
+  f.method = 'POST';
+  document.body.append(f);
+});
+check('nothing was reported by having a form on the page',
+  Number((await db.prepare(
+    'select count(*) as n from attendance where reported_arrival_at is not null').get()).n)
+    === Number(beforeArrival.n), '');
+
+/* Confirm, and the page becomes the assignment card. */
+await ip.waitForSelector('button:has-text("أؤكد حضوري"):not([disabled])');
+await ip.locator('button:has-text("أؤكد حضوري")').click();
+await ip.waitForTimeout(3000);
+const confirmed = await db.prepare(
+  'select confirmed_at, status from event_members where token=?').get(invited.token);
+check('confirming is recorded on the membership',
+  Boolean(confirmed.confirmed_at) && String(confirmed.status) === 'CONFIRMED', '');
+
+await ip.reload();
+await ip.waitForLoadState('networkidle');
+/*
+ * By the buttons, not by the words: the whole dictionary is serialised into
+ * the document for the client components, so every label is in body text
+ * whether it is on screen or not.
+ */
+check('the invitation screen is gone once answered',
+  (await ip.locator('button:has-text("أؤكد حضوري")').count()) === 0, '');
+
+/* The arrival button does not appear days early — the event is not today. */
+check('the arrival button waits for its window',
+  (await ip.locator('button:has-text("وصلت")').count()) === 0, '');
+
+/* Declining is its own answer, and not the same as silence. */
+const other = await db.prepare(`
+  select token from event_members
+   where event_id = ? and notified_at is not null and confirmed_at is null
+     and declined_at is null and status != 'CANCELLED' limit 1`).get(upcomingEvent.id);
+if (other) {
+  await ip.goto(`${BASE}/member/${other.token}`);
+  await ip.waitForLoadState('networkidle');
+  await ip.waitForSelector('button:has-text("ما أقدر أحضر"):not([disabled])');
+  await ip.locator('button:has-text("ما أقدر أحضر")').click();
+  await ip.waitForTimeout(500);
+  await ip.locator('label:has-text("ما أقدر أوصل") input[type=radio]').first().check();
+  await ip.locator('form button:has-text("ما أقدر أحضر")').click();
+  await ip.waitForTimeout(3000);
+  const declined = await db.prepare(
+    'select declined_at, decline_reason, status from event_members where token=?')
+    .get(other.token);
+  check('declining is recorded with its reason, not as silence',
+    Boolean(declined.declined_at) && String(declined.decline_reason) === 'CANNOT_REACH' &&
+      String(declined.status) === 'CANCELLED', String(declined.decline_reason));
+}
+
+/* The leader's board separates the four, and never cancels for silence. */
+await admin.goto(`${BASE}/admin/events/${upcomingEvent.id}/team`);
+await admin.waitForLoadState('networkidle');
+const inviteBoardText = await admin.textContent('main');
+check('the leader sees who is past the deadline, separately from who declined',
+  inviteBoardText.includes('تجاوزوا المهلة') && inviteBoardText.includes('اعتذروا'), '');
+
+const stillInvited = Number((await db.prepare(`
+  select count(*) as n from event_members
+   where event_id = ? and respond_by < ? and confirmed_at is null and declined_at is null
+     and status != 'CANCELLED'`).get(upcomingEvent.id, Date.now())).n);
+check('a passed deadline cancels nobody on its own', stillInvited > 0, `${stillInvited}`);
+
+/* ---- event day: arrival, approval, and what approval opens ------------- */
+
+/*
+ * The live event's team is already confirmed. One of them reports an arrival
+ * through his own link, and the tools for the night stay shut until somebody
+ * who can see him says so.
+ */
+/*
+ * Somebody the supervisor has not already marked present by hand — the seed
+ * has plenty of those, and for them the evening is open already.
+ */
+const liveMember = await db.prepare(`
+  select em.id, em.token from event_members em
+   left join attendance a on a.event_member_id = em.id
+   where em.event_id = ? and em.confirmed_at is not null and em.status != 'CANCELLED'
+     and (a.id is null or (a.status = 'PENDING' and a.reported_arrival_at is null))
+   limit 1`).get(eventId);
+check('somebody on the live event has not been marked present yet',
+  Boolean(liveMember), '');
+
+/*
+ * The seeded match is finished, because the reports and the questionnaire
+ * need it to be. For the length of this check it is put back on the night it
+ * was running — the one state the arrival screens exist for — and restored
+ * afterwards, because everything below expects a finished event.
+ */
+await db.exec("update events set status='LIVE' where id=?", eventId);
+
+await ip.goto(`${BASE}/member/${liveMember.token}`);
+await ip.waitForLoadState('networkidle');
+const onDay = await ip.locator('body').innerText();
+const hasArrivalButton = (await ip.locator('button:has-text("وصلت")').count()) > 0;
+check('on the day, the question is whether he is here',
+  hasArrivalButton || onDay.includes('بانتظار اعتماد'), `button: ${hasArrivalButton}`);
+
+if (hasArrivalButton) {
+  await ip.locator('button:has-text("وصلت")').click();
+  await ip.waitForTimeout(3000);
+  const reported = await db.prepare(
+    'select reported_arrival_at, approved_at, status from attendance where event_member_id=?')
+    .get(liveMember.id);
+  check('his arrival is recorded as his, not as attendance',
+    Boolean(reported.reported_arrival_at) && !reported.approved_at &&
+      String(reported.status) === 'PENDING', String(reported.status));
+
+  await ip.reload();
+  await ip.waitForLoadState('networkidle');
+  check('and he is told it is waiting on somebody',
+    (await ip.locator('body').innerText()).includes('بانتظار اعتماد'), '');
+
+  /* The supervisor confirms it, and only then does the evening open. */
+  await admin.goto(`${BASE}/admin/events/${eventId}/attendance`);
+  await admin.waitForLoadState('networkidle');
+  check('the supervisor is shown who is waiting to be confirmed',
+    (await admin.locator('text=وصلوا وينتظرون الاعتماد').count()) > 0, '');
+
+  await admin.locator('section:has-text("وصلوا وينتظرون الاعتماد") input[type=checkbox]')
+    .first().check();
+  await admin.waitForTimeout(300);
+  await admin.locator('button:has-text("اعتماد")').first().click();
+  await admin.waitForTimeout(3500);
+
+  const approvedRow = await db.prepare(
+    'select approved_at, approved_by_id, status, reported_arrival_at from attendance where event_member_id=?')
+    .get(liveMember.id);
+  check('approval is a second fact, with its own time and its own author',
+    Boolean(approvedRow.approved_at) && Boolean(approvedRow.approved_by_id) &&
+      Number(approvedRow.approved_at) !== Number(approvedRow.reported_arrival_at),
+    String(approvedRow.status));
+
+  await ip.reload();
+  await ip.waitForLoadState('networkidle');
+  /*
+   * The tools are a button, not an open form: reporting a problem is a
+   * deliberate act, so the form is folded away until somebody taps it. The
+   * check opens it, because an unopenable button is not a tool.
+   */
+  const issueBtn = ip.locator('button:has-text("\u0627\u0644\u0625\u0628\u0644\u0627\u063a \u0639\u0646 \u0645\u0634\u0643\u0644\u0629")');
+  const opened = (await issueBtn.count()) > 0;
+  if (opened) {
+    await issueBtn.first().click();
+    await ip.waitForTimeout(400);
+  }
+  check('and only now are the evening\'s tools open',
+    opened && (await ip.locator('#m-type').count()) > 0, `button: ${opened}`);
+}
+
+await db.exec("update events set status='COMPLETED' where id=?", eventId);
+await ip.close();
 
 /* ---- a rate with a date, and wages that go out in batches -------------- */
 

@@ -13,7 +13,10 @@ import {
 import { loadEventPage } from '@/features/event/workspace';
 import { PageHeader } from '@/components/ui/panel';
 
+import { buildInvitationBoard } from '@/server/services/journey';
+
 import { EventTeamManager } from './parts/EventTeamManager';
+import { InvitationBoard } from './parts/InvitationBoard';
 import { byName } from '@/lib/sort';
 
 async function resolveBaseUrl(): Promise<string> {
@@ -26,8 +29,9 @@ async function resolveBaseUrl(): Promise<string> {
 }
 
 export async function EventTeamPage({ eventId }: { eventId: string }) {
-  const { scope, t } = await loadEventPage(eventId);
+  const { scope, locale, t } = await loadEventPage(eventId);
   const baseUrl = await resolveBaseUrl();
+  const invitations = await buildInvitationBoard(eventId);
 
   const rows = await db
     .select({
@@ -113,6 +117,16 @@ export async function EventTeamPage({ eventId }: { eventId: string }) {
 
   return (
     <>
+      {/*
+        Who has answered, before the roster itself. On the day the links go
+        out this is the only part of the page anybody is looking at.
+      */}
+      {scope.canManage ? (
+        <div className="mb-4">
+          <InvitationBoard t={t} locale={locale} board={invitations} />
+        </div>
+      ) : null}
+
       <PageHeader title={t.eventTeam.title} subtitle={t.eventTeam.subtitle} />
       <EventTeamManager
         t={t}

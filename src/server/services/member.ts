@@ -3,6 +3,7 @@ import 'server-only';
 import { and, asc, desc, eq, ne, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
+import { ARRIVAL_WINDOW_HOURS, stageFor } from '@/lib/journey';
 import { mainGateForMember } from '@/server/services/main-gate';
 import { seatSetupForMember } from '@/server/services/seat-setup';
 import {
@@ -43,6 +44,13 @@ export async function getMemberPortal(token: string) {
       tokenExpiresAt: eventMembers.tokenExpiresAt,
       isReserve: eventMembers.isReserve,
       feedbackAt: eventMembers.feedbackAt,
+      confirmedAt: eventMembers.confirmedAt,
+      declinedAt: eventMembers.declinedAt,
+      declineReason: eventMembers.declineReason,
+      respondBy: eventMembers.respondBy,
+      notifiedAt: eventMembers.notifiedAt,
+      payAmount: eventMembers.payAmount,
+      payMode: eventMembers.payMode,
       eventRole: eventMembers.eventRole,
       memberName: teamMembers.fullName,
       /* Shown on the member's own card: at a gate it is what a supervisor
@@ -55,6 +63,8 @@ export async function getMemberPortal(token: string) {
       eventStart: events.startTime,
       eventArrival: events.teamArrivalTime,
       eventStatus: events.status,
+      eventEnd: events.teamDepartureTime,
+      eventPayDefault: events.payDefault,
       boardPublishedAt: events.boardPublishedAt,
       eventMapUrl: events.mapImageUrl,
       venueName: venues.name,
@@ -147,6 +157,9 @@ export async function getMemberPortal(token: string) {
       status: attendance.status,
       checkInTime: attendance.checkInTime,
       checkOutTime: attendance.checkOutTime,
+      reportedArrivalAt: attendance.reportedArrivalAt,
+      approvedAt: attendance.approvedAt,
+      reportedDepartureAt: attendance.reportedDepartureAt,
     })
     .from(attendance)
     .where(eq(attendance.eventMemberId, membership.id))
@@ -198,6 +211,26 @@ export async function getMemberPortal(token: string) {
    * needs the bare fact so it can thank them instead of asking twice.
    */
   const answeredFeedback = membership.feedbackAt !== null;
+
+  /*
+   * Where he is in all this. One answer, derived from facts that already
+   * exist, and the page is a switch on it — see src/lib/journey.ts for why it
+   * is not a column.
+   */
+  const stage = stageFor({
+    memberStatus: membership.status,
+    confirmedAt: membership.confirmedAt,
+    declinedAt: membership.declinedAt,
+    eventStatus: membership.eventStatus,
+    attendanceStatus: attendanceRow?.status ?? null,
+    reportedArrivalAt: attendanceRow?.reportedArrivalAt ?? null,
+    approvedAt: attendanceRow?.approvedAt ?? null,
+    reportedDepartureAt: attendanceRow?.reportedDepartureAt ?? null,
+    eventDate: membership.eventDate,
+    teamArrivalTime: membership.eventArrival,
+    arrivalWindowHours: ARRIVAL_WINDOW_HOURS,
+    now: new Date(),
+  });
 
   const markers = await db
     .select({
@@ -267,7 +300,30 @@ export async function getMemberPortal(token: string) {
     mainGate,
     seatSetup,
     answeredFeedback,
-    attendance: attendanceRow ?? null,
+    stage,
+    /* The invitation screen's own facts. */
+    invitation: {
+      respondBy: membership.respondBy,
+      confirmedAt: membership.confirmedAt,
+      declinedAt: membership.declinedAt,
+      declineReason: membership.declineReason,
+      /* What this night is worth to him, and only to him. */
+      payAmount:
+        membership.payMode === 'SALARIED'
+          ? null
+          : (membership.payAmount ?? membership.eventPayDefault),
+      eventEnd: membership.eventEnd,
+    },
+    attendance: attendanceRow
+      ? {
+          status: attendanceRow.status,
+          reportedArrivalAt: attendanceRow.reportedArrivalAt,
+          approvedAt: attendanceRow.approvedAt,
+          reportedDepartureAt: attendanceRow.reportedDepartureAt,
+          checkInTime: attendanceRow.checkInTime,
+          checkOutTime: attendanceRow.checkOutTime,
+        }
+      : null,
     announcements: announcementRows,
     lastChange,
     markers,

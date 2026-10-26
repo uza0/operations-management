@@ -8,6 +8,7 @@ import { eventMembers, events, teamMembers, venues } from '@/db/schema';
 import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
 import { formatDate, formatTime } from '@/lib/time';
+import { RESPONSE_WINDOW_HOURS, responseDeadline } from '@/lib/journey';
 import { assertEventManager } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
 import { buildBriefings, resolveBaseUrl } from '@/server/services/notify';
@@ -24,6 +25,43 @@ import { fail, ok, type ActionState } from './types';
  * this person", which is why the button that triggers it is the same button
  * that opens the chat.
  */
+
+/**
+ * Stamps the response deadline at the moment the link goes out.
+ *
+ * Computed once and stored, never worked out again on the way in: a deadline
+ * recomputed on every page load is one that never arrives, and the man
+ * refreshing at midnight would see eighteen hours left for ever.
+ *
+ * It can come back null, and that is a real answer — an invitation sent two
+ * hours before the team is due has no room for a deadline, so it gets none
+ * and shows up on the leader's screen as urgent instead of as already late.
+ */
+async function stampDeadlines(eventId: string, ids: string[], sentAt: Date) {
+  const event = await db
+    .select({
+      date: events.date,
+      arrival: events.teamArrivalTime,
+      window: events.responseWindowHours,
+    })
+    .from(events)
+    .where(eq(events.id, eventId))
+    .get();
+  if (!event) return;
+
+  const respondBy = responseDeadline({
+    notifiedAt: sentAt,
+    eventDate: event.date,
+    teamArrivalTime: event.arrival,
+    windowHours: event.window ?? RESPONSE_WINDOW_HOURS,
+  });
+
+  await db
+    .update(eventMembers)
+    .set({ respondBy, updatedAt: sentAt })
+    .where(and(eq(eventMembers.eventId, eventId), inArray(eventMembers.id, ids)));
+}
+
 export async function markBriefedAction(
   _prev: ActionState,
   form: FormData,
@@ -48,10 +86,12 @@ export async function markBriefedAction(
 
   if (rows.length === 0) return fail(t.errors.notFound);
 
+  const sentAt = new Date();
   await db
     .update(eventMembers)
-    .set({ notifiedAt: new Date(), notifiedById: user.id, updatedAt: new Date() })
+    .set({ notifiedAt: sentAt, notifiedById: user.id, updatedAt: sentAt })
     .where(and(eq(eventMembers.eventId, eventId), inArray(eventMembers.id, ids)));
+  await stampDeadlines(eventId, ids, sentAt);
 
   await recordAudit({
     eventId,
@@ -184,10 +224,12 @@ export async function sendBriefingsViaApiAction(
   }
 
   if (sent.length > 0) {
+    const sentAt = new Date();
     await db
       .update(eventMembers)
-      .set({ notifiedAt: new Date(), notifiedById: user.id, updatedAt: new Date() })
+      .set({ notifiedAt: sentAt, notifiedById: user.id, updatedAt: sentAt })
       .where(and(eq(eventMembers.eventId, eventId), inArray(eventMembers.id, sent)));
+    await stampDeadlines(eventId, sent, sentAt);
   }
 
   await recordAudit({

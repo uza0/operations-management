@@ -248,6 +248,24 @@ export type AuditEntity = (typeof AUDIT_ENTITIES)[number];
 export const PAY_MODES = ['EVENT', 'SALARIED'] as const;
 export type PayMode = (typeof PAY_MODES)[number];
 
+/**
+ * Why somebody cannot come.
+ *
+ * A short list rather than a text box, and every one of them optional. The
+ * point is a count the leader can act on — "four of them could not get here"
+ * is a transport problem — not an explanation anybody owes. The last option
+ * exists because declining to give a reason is a reason.
+ */
+export const DECLINE_REASONS = [
+  'BUSY',
+  'CANNOT_REACH',
+  'BAD_TIME',
+  'PERSONAL',
+  'OTHER',
+  'PRIVATE',
+] as const;
+export type DeclineReason = (typeof DECLINE_REASONS)[number];
+
 /* -------------------------------------------------------------------------- */
 /* The team's verdict on an event                                              */
 /* -------------------------------------------------------------------------- */
