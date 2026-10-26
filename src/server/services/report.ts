@@ -332,7 +332,7 @@ export async function buildReport(eventId: string): Promise<ReportData> {
       .from(workingPoints)
       .where(eq(workingPoints.eventId, eventId)),
     db
-      .select({ payDefault: events.payDefault })
+      .select({ payDefault: events.payDefault, status: events.status })
       .from(events)
       .where(eq(events.id, eventId))
       .get(),
@@ -455,6 +455,8 @@ export async function buildReport(eventId: string): Promise<ReportData> {
 
   /* ---- the roster, by name ---------------------------------------------- */
   const payDefault = eventRow?.payDefault ?? DEFAULT_EVENT_PAY;
+  /* The closing document states what was earned, not what was offered. */
+  const eventStatus = eventRow?.status ?? null;
   const timesByMember = new Map(
     attendanceRows.map((row) => [row.eventMemberId, row] as const),
   );
@@ -481,6 +483,7 @@ export async function buildReport(eventId: string): Promise<ReportData> {
           status,
           payAmount: member.payAmount,
           eventDefault: payDefault,
+          eventStatus,
         }),
         note: member.creditNote,
       };

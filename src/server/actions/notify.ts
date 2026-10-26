@@ -1,10 +1,16 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { eventMembers, events, teamMembers, venues } from '@/db/schema';
+import {
+  eventMembers,
+  events,
+  seatSetupMembers,
+  teamMembers,
+  venues,
+} from '@/db/schema';
 import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
 import { formatDate, formatTime } from '@/lib/time';
@@ -92,6 +98,23 @@ export async function markBriefedAction(
     .set({ notifiedAt: sentAt, notifiedById: user.id, updatedAt: sentAt })
     .where(and(eq(eventMembers.eventId, eventId), inArray(eventMembers.id, ids)));
   await stampDeadlines(eventId, ids, sentAt);
+
+  /*
+   * The chair day rides on the same message, because it rides on the same
+   * link: one WhatsApp goes out and his page carries both questions. So the
+   * crew rows are stamped as asked at the same moment — it is what lets the
+   * chair board tell "he has not answered" apart from "nobody has asked him".
+   */
+  await db
+    .update(seatSetupMembers)
+    .set({ notifiedAt: sentAt, updatedAt: sentAt })
+    .where(
+      and(
+        eq(seatSetupMembers.eventId, eventId),
+        inArray(seatSetupMembers.eventMemberId, ids),
+        isNull(seatSetupMembers.notifiedAt),
+      ),
+    );
 
   await recordAudit({
     eventId,

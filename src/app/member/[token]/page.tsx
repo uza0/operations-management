@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import type { Metadata } from 'next';
 
 import { getT } from '@/lib/i18n/server';
@@ -13,7 +12,6 @@ import {
   IconAlert,
   IconCalendar,
   IconClock,
-  IconMap,
   IconMegaphone,
   IconPin,
   IconTarget,
@@ -31,6 +29,7 @@ import type {
 } from '@/lib/constants';
 
 import { InvitationScreen } from './InvitationScreen';
+import { SeatSetupCard } from './SeatSetupCard';
 import { ArrivalButton, DepartureButton } from './ArrivalActions';
 import { MemberIssueForm } from './MemberIssueForm';
 import { MemberIssueCard } from './MemberIssueCard';
@@ -360,25 +359,31 @@ export default async function MemberPortalPage({
               {t.seatSetup.memberTitle}
             </p>
             {/*
-              One line per day. A big hall is built over two or three
-              afternoons, and a man on all of them needs all of them.
+              One card per day, each with its own question on it. A big hall is
+              built over two or three afternoons, a man can be free for one of
+              them and not the next, and the fee is per day — so each day is
+              invited, answered and attended by itself.
             */}
-            <ul className="mt-1.5 space-y-2">
+            <ul className="mt-2 space-y-2.5">
               {data.seatSetup.map((shift) => (
-                <li key={`${shift.date}-${shift.startTime}`}>
-                  <p className="text-[16px] font-bold leading-tight text-ink-100">
-                    {formatDate(shift.date, locale)}
-                  </p>
-                  <p className="nums mt-0.5 text-[14px] font-semibold text-ink-200">
-                    {formatTime(shift.startTime, locale)}
-                    {shift.endTime ? ` – ${formatTime(shift.endTime, locale)}` : ''}
-                  </p>
-                  {shift.notes ? (
-                    <p className="mt-0.5 text-[12.5px] leading-5 text-ink-400">
-                      {shift.notes}
-                    </p>
-                  ) : null}
-                </li>
+                <SeatSetupCard
+                  key={shift.id}
+                  t={t}
+                  token={token}
+                  seatMemberId={shift.id}
+                  stage={shift.stage}
+                  when={formatDate(shift.date, locale)}
+                  hours={
+                    formatTime(shift.startTime, locale) +
+                    (shift.endTime ? ` – ${formatTime(shift.endTime, locale)}` : '')
+                  }
+                  notes={shift.notes}
+                  pay={shift.payAmount}
+                  currency={t.credit.currency}
+                  arrivedAt={
+                    shift.checkInTime ? formatTime(shift.checkInTime, locale) : null
+                  }
+                />
               ))}
             </ul>
             <p className="mt-2 text-[12.5px] leading-5 text-ink-400">
@@ -506,32 +511,17 @@ export default async function MemberPortalPage({
           </div>
         </section>
 
-        {/* 7 — the map of the place itself ------------------------------
-          *
-          * The venue's own location went up into the event card, because it is
-          * needed before leaving home. What is left here is the other map: the
-          * plan of the site showing where this post actually is, which is only
-          * useful once you have arrived.
-          */}
-        <section>
-          <h2 className="mb-2 flex items-center gap-2 px-1 text-[15px] font-bold text-ink-100">
-            <IconMap width={17} height={17} className="text-ink-500" />
-            {t.member.gettingThere}
-          </h2>
-          {data.mapImageUrl ? (
-            <Link
-              href={`/member/${token}/map`}
-              className="btn-secondary w-full justify-center py-3.5 text-[15px]"
-            >
-              <IconMap width={18} height={18} />
-              {t.member.viewMap}
-            </Link>
-          ) : (
-            <p className="panel px-4 py-4 text-center text-[13px] leading-6 text-ink-500">
-              {t.member.noVenueMapYet}
-            </p>
-          )}
-        </section>
+        {/*
+          7 — there is no site plan here, deliberately.
+          --------------------------------------------------------------
+          The venue's own location is up in the event card, because it is
+          what somebody needs while deciding which bus to take. The plan of
+          the site is a different thing: it shows every gate, every working
+          point and who is on them, and that is the team's distribution, not
+          one promoter's business. He is told his own place, his own task and
+          the name of the person he reports to; where everybody else is
+          standing is for the people running the evening.
+        */}
 
         {/* 8 — instructions --------------------------------------------- */}
         <section>

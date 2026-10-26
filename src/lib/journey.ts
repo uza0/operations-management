@@ -159,3 +159,66 @@ export function stageFor(facts: JourneyFacts): JourneyStage {
 
   return 'CONFIRMED';
 }
+
+/* -------------------------------------------------------------------------- */
+/* The chair day                                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The day before has a journey of its own, and it is deliberately the same
+ * shape as the night's.
+ *
+ * It is a separate day's work for a separate fee, so being put on the crew
+ * asks its own question and gets its own answer; and because the fee follows
+ * attendance, turning up is settled the same way too — he says he is here,
+ * somebody who can see him says so as well, and only that second sentence
+ * decides whether the day is counted.
+ *
+ * What is NOT the same: there is no lateness here. The chairs are done when
+ * they are done, people come as they can, and a minute counted against
+ * somebody carrying seats across a hall would be a number invented to look
+ * like management.
+ */
+export type SeatStage =
+  | 'INVITED'
+  | 'DECLINED'
+  | 'CONFIRMED'
+  | 'ARRIVING'
+  | 'AWAITING_APPROVAL'
+  | 'ON_DUTY'
+  | 'DONE';
+
+export type SeatFacts = {
+  confirmedAt: Date | null;
+  declinedAt: Date | null;
+  reportedArrivalAt: Date | null;
+  approvedAt: Date | null;
+  reportedDepartureAt: Date | null;
+  attended: boolean;
+  /** "YYYY-MM-DD" and "HH:mm" — the shift's own day and hour. */
+  date: string;
+  startTime: string;
+  arrivalWindowHours: number;
+  now: Date;
+};
+
+export function seatStageFor(facts: SeatFacts): SeatStage {
+  if (facts.declinedAt) return 'DECLINED';
+  if (!facts.confirmedAt) return 'INVITED';
+  if (facts.reportedDepartureAt) return 'DONE';
+  if (facts.approvedAt || facts.attended) return 'ON_DUTY';
+  if (facts.reportedArrivalAt) return 'AWAITING_APPROVAL';
+
+  const due = venueMoment(facts.date, facts.startTime);
+  const opens = new Date(due.getTime() - facts.arrivalWindowHours * 3_600_000);
+  /*
+   * And it closes at the end of that day. A shift nobody turned up to is over
+   * once its day is, rather than leaving an "I'm here" button on a screen for
+   * the rest of the month.
+   */
+  const closes = new Date(venueMoment(facts.date, '23:59').getTime());
+  if (facts.now.getTime() > closes.getTime()) return 'DONE';
+  if (facts.now.getTime() >= opens.getTime()) return 'ARRIVING';
+
+  return 'CONFIRMED';
+}

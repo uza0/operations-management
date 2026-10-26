@@ -8,6 +8,7 @@ import {
   assignmentChanges,
   assignments,
   eventMembers,
+  events,
   gates,
   teamMembers,
   workingPoints,
@@ -156,6 +157,28 @@ export async function saveAssignmentAction(
 
   if (existing) {
     const oldLocation = await locationLabel(existing.gateId, existing.workingPointId);
+    /*
+     * While the board is a draft, moving somebody is not moving them.
+     *
+     * Nobody has been told anything yet: the supervisor is still arranging
+     * names on a sheet, and dragging one from gate 3 to gate 5 twice before
+     * lunch is the work, not a change to it. Recording those as
+     * reassignments produced a history of decisions that were never
+     * decisions, and — worse — a promoter opening his link to "your
+     * assignment has been updated: VIP → Diamond" about a posting he had
+     * never been given in the first place.
+     *
+     * So the record of a move starts when the board is published. After
+     * that every move is real, is kept, and is shown to the person it
+     * happened to.
+     */
+    const published = await db
+      .select({ at: events.boardPublishedAt })
+      .from(events)
+      .where(eq(events.id, eventId))
+      .get();
+    const live = published?.at !== null && published?.at !== undefined;
+
     const moved =
       existing.gateId !== (data.gateId ?? null) ||
       existing.workingPointId !== (data.workingPointId ?? null);
@@ -174,13 +197,13 @@ export async function saveAssignmentAction(
         shiftEnd: data.shiftEnd,
         isGateLeader: data.isGateLeader ?? false,
         notes: data.notes ?? null,
-        status: moved ? 'CHANGED' : existing.status,
+        status: moved && live ? 'CHANGED' : existing.status,
         updatedById: user.id,
         updatedAt: new Date(),
       })
       .where(eq(assignments.id, existing.id));
 
-    if (moved || taskChanged || arrivalChanged) {
+    if (live && (moved || taskChanged || arrivalChanged)) {
       await db.insert(assignmentChanges).values({
         id: newId(),
         assignmentId: existing.id,

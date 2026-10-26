@@ -861,6 +861,33 @@ export const seatSetupMembers = sqliteTable(
     attended: integer('attended', { mode: 'boolean' }).notNull().default(false),
     notes: text('notes'),
     sortOrder: integer('sort_order').notNull().default(0),
+
+    /*
+     * The chair day is invited in its own right.
+     *
+     * It is a different day's work for a different fee, and a man can be free
+     * on the Thursday afternoon and busy on the Friday night, or the other way
+     * round. So being picked for the crew asks him a question of its own, and
+     * his answer to the event's invitation is not an answer to this one.
+     */
+    notifiedAt: integer('notified_at', { mode: 'timestamp_ms' }),
+    respondBy: integer('respond_by', { mode: 'timestamp_ms' }),
+    confirmedAt: integer('confirmed_at', { mode: 'timestamp_ms' }),
+    declinedAt: integer('declined_at', { mode: 'timestamp_ms' }),
+    declineReason: text('decline_reason'),
+
+    /*
+     * And it is attended in its own right, by the same two sentences as the
+     * event itself: he says he is here, somebody who can see him says so too.
+     * `attended` — the fact that decides the fee — is set by the approval and
+     * by nothing he can press himself.
+     */
+    reportedArrivalAt: integer('reported_arrival_at', { mode: 'timestamp_ms' }),
+    approvedAt: integer('approved_at', { mode: 'timestamp_ms' }),
+    approvedById: text('approved_by_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    reportedDepartureAt: integer('reported_departure_at', { mode: 'timestamp_ms' }),
     ...timestamps,
   },
   (t) => [

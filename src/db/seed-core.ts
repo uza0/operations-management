@@ -1645,6 +1645,57 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
     )
     .run();
 
+  /*
+   * And the chairs for the event that has not happened yet — because the
+   * chair day is invited in its own right, and an invitation nobody has
+   * answered only exists before the event.
+   *
+   * One of each answer, so none of the states is theoretical: one said yes,
+   * one said no, and two have been asked and not replied. Nobody has been
+   * approved, which is the point — the fee is not earned until somebody who
+   * can see them says they are in the hall.
+   */
+  const seatDetailB = newId();
+  await db
+    .insert(seatSetupDetails)
+    .values({
+      id: seatDetailB,
+      eventId: eventBId,
+      date: addDays(18),
+      startTime: '15:00',
+      endTime: '20:00',
+      notes: 'تهيئة القاعة قبل ليلة الافتتاح.',
+      payAmount: 30000,
+    })
+    .run();
+
+  const seatCrewB = [
+    ['إبراهيم الزيدي', 'CONFIRMED'],
+    ['قاسم البهادلي', 'DECLINED'],
+    ['جعفر الصائغ', 'ASKED'],
+    ['براء الدراجي', 'ASKED'],
+  ] as const;
+
+  await db
+    .insert(seatSetupMembers)
+    .values(
+      seatCrewB
+        .filter(([name]) => bEmIds[name])
+        .map(([name, state], i) => ({
+          id: newId(),
+          detailId: seatDetailB,
+          eventId: eventBId,
+          eventMemberId: bEmIds[name]!,
+          attended: false,
+          sortOrder: i,
+          notifiedAt: at('11:00', -60 * 24),
+          confirmedAt: state === 'CONFIRMED' ? at('12:10', -60 * 24) : null,
+          declinedAt: state === 'DECLINED' ? at('12:40', -60 * 24) : null,
+          declineReason: state === 'DECLINED' ? 'WORK' : null,
+        })),
+    )
+    .run();
+
   /* ---- done ------------------------------------------------------------- */
   const amirToken = (
     await sql.execute({

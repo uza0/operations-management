@@ -16,7 +16,6 @@ import {
   events,
   gates,
   issues,
-  mapMarkers,
   teamMembers,
   timelineItems,
   users,
@@ -66,10 +65,8 @@ export async function getMemberPortal(token: string) {
       eventEnd: events.teamDepartureTime,
       eventPayDefault: events.payDefault,
       boardPublishedAt: events.boardPublishedAt,
-      eventMapUrl: events.mapImageUrl,
       venueName: venues.name,
       venueAddress: venues.address,
-      venueMapUrl: venues.mapImageUrl,
       /* Where the place is on a real map — the first thing a member needs,
          and the one thing a printed gate number cannot tell them. */
       venueLocationUrl: venues.locationUrl,
@@ -232,18 +229,13 @@ export async function getMemberPortal(token: string) {
     now: new Date(),
   });
 
-  const markers = await db
-    .select({
-      id: mapMarkers.id,
-      type: mapMarkers.type,
-      name: mapMarkers.name,
-      x: mapMarkers.x,
-      y: mapMarkers.y,
-      gateId: mapMarkers.gateId,
-      workingPointId: mapMarkers.workingPointId,
-    })
-    .from(mapMarkers)
-    .where(eq(mapMarkers.eventId, membership.eventId));
+  /*
+   * No site plan and no markers, deliberately: see the member page. The map
+   * shows every gate and who is on it, which is the team's distribution. It
+   * is not withheld from the screen and fetched anyway — the query simply
+   * does not run, so there is nothing about anybody else in the response for
+   * somebody reading it with the network tab open.
+   */
 
   const timeline = await db
     .select()
@@ -326,10 +318,8 @@ export async function getMemberPortal(token: string) {
       : null,
     announcements: announcementRows,
     lastChange,
-    markers,
     timeline,
     myIssues,
-    mapImageUrl: membership.eventMapUrl ?? membership.venueMapUrl,
   };
 }
 

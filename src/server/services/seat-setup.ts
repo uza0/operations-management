@@ -13,6 +13,7 @@ import {
   teamMembers,
   workingPoints,
 } from '@/db/schema';
+import { ARRIVAL_WINDOW_HOURS, seatStageFor, type SeatStage } from '@/lib/journey';
 import { SEAT_SETUP_PAY } from '@/lib/money';
 import { byName } from '@/lib/sort';
 
@@ -39,6 +40,14 @@ export type SeatSetupPerson = {
   notes: string | null;
   /** Where they stand for the event proper — useful context, not a rule. */
   normalPlace: string | null;
+  /** His answer to this day's own invitation, and when he gave it. */
+  confirmedAt: Date | null;
+  declinedAt: Date | null;
+  declineReason: string | null;
+  notifiedAt: Date | null;
+  /** The two halves of turning up: his sentence, then somebody else's. */
+  reportedArrivalAt: Date | null;
+  approvedAt: Date | null;
 };
 
 export type SeatSetupCandidate = {
@@ -199,6 +208,12 @@ export async function buildSeatSetup(eventId: string): Promise<SeatSetupData> {
       checkInTime: seatSetupMembers.checkInTime,
       checkOutTime: seatSetupMembers.checkOutTime,
       notes: seatSetupMembers.notes,
+      confirmedAt: seatSetupMembers.confirmedAt,
+      declinedAt: seatSetupMembers.declinedAt,
+      declineReason: seatSetupMembers.declineReason,
+      notifiedAt: seatSetupMembers.notifiedAt,
+      reportedArrivalAt: seatSetupMembers.reportedArrivalAt,
+      approvedAt: seatSetupMembers.approvedAt,
       name: teamMembers.fullName,
       employeeCode: teamMembers.employeeCode,
     })
@@ -227,6 +242,12 @@ export async function buildSeatSetup(eventId: string): Promise<SeatSetupData> {
         checkOutTime: row.checkOutTime,
         notes: row.notes,
         normalPlace: places.get(row.eventMemberId) ?? null,
+        confirmedAt: row.confirmedAt,
+        declinedAt: row.declinedAt,
+        declineReason: row.declineReason,
+        notifiedAt: row.notifiedAt,
+        reportedArrivalAt: row.reportedArrivalAt,
+        approvedAt: row.approvedAt,
       }))
       .sort(byName),
   }));
@@ -242,10 +263,24 @@ export function dayBefore(date: string): string {
 }
 
 export type MySeatSetup = {
+  /** The crew row itself: the thing his two buttons act on. */
+  id: string;
   date: string;
   startTime: string;
   endTime: string | null;
   notes: string | null;
+  /** What this day is worth to him, stated before he answers. */
+  payAmount: number;
+  confirmedAt: Date | null;
+  declinedAt: Date | null;
+  respondBy: Date | null;
+  reportedArrivalAt: Date | null;
+  approvedAt: Date | null;
+  reportedDepartureAt: Date | null;
+  checkInTime: string | null;
+  attended: boolean;
+  /** Where he is in this day, by the same rules as the night. */
+  stage: SeatStage;
 };
 
 /**
@@ -261,10 +296,20 @@ export async function seatSetupForMember(
 ): Promise<MySeatSetup[]> {
   const rows = await db
     .select({
+      id: seatSetupMembers.id,
       date: seatSetupDetails.date,
       startTime: seatSetupDetails.startTime,
       endTime: seatSetupDetails.endTime,
       notes: seatSetupDetails.notes,
+      payAmount: seatSetupDetails.payAmount,
+      confirmedAt: seatSetupMembers.confirmedAt,
+      declinedAt: seatSetupMembers.declinedAt,
+      respondBy: seatSetupMembers.respondBy,
+      reportedArrivalAt: seatSetupMembers.reportedArrivalAt,
+      approvedAt: seatSetupMembers.approvedAt,
+      reportedDepartureAt: seatSetupMembers.reportedDepartureAt,
+      checkInTime: seatSetupMembers.checkInTime,
+      attended: seatSetupMembers.attended,
     })
     .from(seatSetupMembers)
     .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
@@ -276,5 +321,21 @@ export async function seatSetupForMember(
     )
     .orderBy(asc(seatSetupDetails.date));
 
-  return rows;
+  const now = new Date();
+  return rows.map((row) => ({
+    ...row,
+    payAmount: row.payAmount ?? SEAT_SETUP_PAY,
+    stage: seatStageFor({
+      confirmedAt: row.confirmedAt,
+      declinedAt: row.declinedAt,
+      reportedArrivalAt: row.reportedArrivalAt,
+      approvedAt: row.approvedAt,
+      reportedDepartureAt: row.reportedDepartureAt,
+      attended: row.attended,
+      date: row.date,
+      startTime: row.startTime,
+      arrivalWindowHours: ARRIVAL_WINDOW_HOURS,
+      now,
+    }),
+  }));
 }

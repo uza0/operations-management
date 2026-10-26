@@ -40,6 +40,13 @@ import type { AttendanceStatus } from '@/lib/constants';
  * in the report; it is not a pay cut the system applies on its own.
  */
 
+/**
+ * Credit is only final once the event is over. A LIVE event's attendance is
+ * still being written, so its figure is shown but never folded into a balance
+ * the accounts department is meant to pay against.
+ */
+export const CLOSED_STATUSES = ['COMPLETED', 'ARCHIVED'];
+
 /** Statuses that earn the event's default credit with no one intervening. */
 export const WORKED_STATUSES: AttendanceStatus[] = ['PRESENT', 'LATE'];
 
@@ -59,22 +66,33 @@ export function creditFor(input: {
   eventDefault: number;
   /** 'SALARIED' means the company pays them monthly; this ledger does not. */
   payMode?: string | null;
+  /**
+   * The event's own state. Before it is over there is nothing to judge yet,
+   * so the answer is the rate — what he stands to earn. Once it is over the
+   * answer is what he earned, which is nothing if he did not come.
+   *
+   * This distinction used to be absent, and it stopped mattering the day
+   * every invitation started carrying the person's standing rate: a figure
+   * was always present, the figure always won, and "someone marked absent
+   * earns nothing" quietly became a sentence that was true in this comment
+   * and nowhere in the code.
+   */
+  eventStatus?: string | null;
 }): number | null {
   if (input.payMode === 'SALARIED') return null;
-  if (input.payAmount !== null && input.payAmount !== undefined) {
-    return input.payAmount;
-  }
-  return input.status && WORKED_STATUSES.includes(input.status)
-    ? input.eventDefault
-    : 0;
-}
 
-/**
- * Credit is only final once the event is over. A LIVE event's attendance is
- * still being written, so its figure is shown but never folded into a balance
- * the accounts department is meant to pay against.
- */
-export const CLOSED_STATUSES = ['COMPLETED', 'ARCHIVED'];
+  const rate =
+    input.payAmount !== null && input.payAmount !== undefined
+      ? input.payAmount
+      : input.eventDefault;
+
+  const settled = input.eventStatus
+    ? CLOSED_STATUSES.includes(input.eventStatus)
+    : false;
+  if (!settled) return rate;
+
+  return input.status && WORKED_STATUSES.includes(input.status) ? rate : 0;
+}
 
 export type LedgerLine = {
   eventId: string;
@@ -176,28 +194,43 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
  * built over two or three days, and a join would hand back the event's own
  * line once per chair day and quietly pay it twice.
  */
-async function seatPayByMember(): Promise<Map<string, number>> {
+type SeatPay = {
+  /** Days he is down for and has not refused — what he can still expect. */
+  expected: Map<string, number>;
+  /** Days he was confirmed at — what he has actually earned. */
+  earned: Map<string, number>;
+};
+
+async function seatPayByMember(): Promise<SeatPay> {
   const rows = await db
     .select({
       eventMemberId: seatSetupMembers.eventMemberId,
       pay: seatSetupDetails.payAmount,
+      attended: seatSetupMembers.attended,
+      declinedAt: seatSetupMembers.declinedAt,
     })
     .from(seatSetupMembers)
-    .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
-    .where(eq(seatSetupMembers.attended, true));
+    .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id));
 
-  const map = new Map<string, number>();
+  const expected = new Map<string, number>();
+  const earned = new Map<string, number>();
+  const add = (map: Map<string, number>, id: string, pay: number) =>
+    map.set(id, (map.get(id) ?? 0) + pay);
+
   for (const row of rows) {
-    map.set(row.eventMemberId, (map.get(row.eventMemberId) ?? 0) + row.pay);
+    const pay = row.pay ?? SEAT_SETUP_PAY;
+    if (!row.declinedAt) add(expected, row.eventMemberId, pay);
+    if (row.attended) add(earned, row.eventMemberId, pay);
   }
-  return map;
+  return { expected, earned };
 }
 
 function toLine(
   row: Awaited<ReturnType<typeof ledgerRows>>[number],
-  seatPay: Map<string, number>,
+  seatPay: SeatPay,
 ): LedgerLine {
   const status = (row.status ?? 'PENDING') as AttendanceStatus;
+  const closed = CLOSED_STATUSES.includes(row.eventStatus);
   return {
     eventId: row.eventId,
     eventName: row.eventName,
@@ -214,16 +247,26 @@ function toLine(
       payAmount: row.payAmount,
       eventDefault: row.eventDefault,
       payMode: row.payMode,
+      eventStatus: row.eventStatus,
     }),
     /*
      * Salaried people are outside this ledger for the chairs too: the flat fee
      * is event pay by another name, and their pay is settled elsewhere.
+     *
+     * For everyone else the chair fee follows the same clock as the event's
+     * own figure: while the event is still ahead this is what he can expect
+     * for the days he is down for, and once it is over it is what he was
+     * actually confirmed at. The two differed before, and that is why a
+     * Thursday afternoon showed nothing at all in "قيد الاحتساب" — the
+     * expected column was reading a fact that only exists afterwards.
      */
     seatAmount:
-      row.payMode === 'SALARIED' ? null : (seatPay.get(row.eventMemberId) ?? null),
+      row.payMode === 'SALARIED'
+        ? null
+        : ((closed ? seatPay.earned : seatPay.expected).get(row.eventMemberId) ?? null),
     note: row.creditNote,
     paid: row.payoutId !== null,
-    closed: CLOSED_STATUSES.includes(row.eventStatus),
+    closed,
   };
 }
 

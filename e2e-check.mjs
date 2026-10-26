@@ -703,15 +703,21 @@ await mp.waitForLoadState('networkidle');
 const mpText = await mp.textContent('body');
 check('the member is told about the early shift', mpText.includes('قبل الحفل'), '');
 check('the member is always offered the venue location',
-  mpText.includes('الوصول إلى الموقع')
-    && (mpText.includes('افتح موقع الفعالية على الخرائط') || mpText.includes('خريطة')),
+  mpText.includes('افتح موقع الفعالية على الخرائط')
+    || mpText.includes('الموقع على الخرائط'),
   '');
 
-// The distribution map itself must open for an ordinary member.
+/*
+ * And is never offered the site plan. It shows every gate, every working
+ * point and who is on them — the team's distribution, which is not one
+ * promoter's business. The page does not link to it and the route is gone,
+ * so guessing the address gets a 404 rather than the board.
+ */
 const mapResponse = await mp.goto(`${BASE}/member/${mgMemberToken.token}/map`);
-check('the distribution map opens for an ordinary member',
-  mapResponse.status() === 200 && (await mp.textContent('body')).includes('موقعك'),
-  `status ${mapResponse.status()}`);
+check("the site plan is not the promoter's to see",
+  mapResponse.status() === 404, `status ${mapResponse.status()}`);
+await mp.goto(`${BASE}/member/${mgMemberToken.token}`);
+await mp.waitForLoadState('networkidle');
 
 /* ---- the briefing message ------------------------------------------------ */
 await admin.goto(`${BASE}/admin/events/${eventId}/notify`);
@@ -725,8 +731,8 @@ await admin
   .click();
 await admin.waitForTimeout(700);
 const notifyText = await admin.textContent('pre');
-check('the briefing carries the venue location and the map',
-  notifyText.includes('الموقع على الخرائط') && notifyText.includes('مكانك على خريطة الموقع'),
+check('the briefing carries the venue location and not the site plan',
+  notifyText.includes('الموقع على الخرائط') && !notifyText.includes('مكانك على خريطة الموقع'),
   '');
 check('the briefing tells the early shift where to be first',
   notifyText.includes('قبل الحفل:'), '');
@@ -1178,6 +1184,45 @@ if (hasArrivalButton) {
 await db.exec("update events set status='COMPLETED' where id=?", eventId);
 await ip.close();
 
+/* ---- a draft board has no history to show ------------------------------- */
+
+/*
+ * Moving a name around while the board is a draft is the work, not a change
+ * to it: nobody has been told anything yet. It used to be recorded anyway,
+ * which produced a history of decisions that were never decisions — and a
+ * promoter opening his link to "your assignment has been updated: VIP →
+ * Diamond" about a posting he had never been given.
+ *
+ * Checked as an invariant over the whole database rather than through one
+ * move, because that is the shape of the rule: a change belongs to a
+ * published board or it does not exist.
+ */
+const draftChanges = await db.prepare(`
+  select count(*) as n
+    from assignment_changes ac
+    join assignments a on a.id = ac.assignment_id
+    join events e on e.id = a.event_id
+   where e.board_published_at is null`).get();
+check('no move is recorded against a board nobody has published',
+  Number(draftChanges.n) === 0, `${draftChanges.n}`);
+
+/*
+ * And the other half of it, on the screen it was visible on: a promoter
+ * whose board is a draft is told to wait, and is told nothing about a move.
+ */
+const draftPromoter = await db.prepare(`
+  select em.token from event_members em
+    join events e on e.id = em.event_id
+   where e.board_published_at is null and em.status != 'CANCELLED' limit 1`).get();
+if (draftPromoter) {
+  const dp = await browser.newContext().then((c) => c.newPage());
+  await dp.goto(`${BASE}/member/${draftPromoter.token}`);
+  await dp.waitForLoadState('networkidle');
+  check('a draft board tells him nothing about being moved',
+    (await dp.locator('text=تم تحديث تكليفك').count()) === 0, '');
+  await dp.close();
+}
+
 /* ---- a rate with a date, and wages that go out in batches -------------- */
 
 /*
@@ -1326,6 +1371,115 @@ const rates = await db.prepare(`
   select distinct d.pay_amount as pay from seat_setup_details d`).all();
 check('one rate for the whole chair-setting crew',
   rates.length === 1 && Number(rates[0].pay) === 30000, `${rates.length} rate(s)`);
+
+/* ---- the chair day is its own invitation -------------------------------- */
+
+/*
+ * A different day's work for a different fee, so it asks its own question.
+ * The thing being checked is that the two answers are genuinely independent:
+ * a man who said yes to the night can still say no to the afternoon, and
+ * saying no to the afternoon leaves him on the event.
+ */
+const seatInvite = await db.prepare(`
+  select sm.id, sm.event_id, sm.event_member_id, em.token, em.status as member_status,
+         sm.confirmed_at, sm.declined_at, tm.full_name as name
+    from seat_setup_members sm
+    join event_members em on em.id = sm.event_member_id
+    join team_members tm on tm.id = em.team_member_id
+    join events e on e.id = sm.event_id
+   where e.status not in ('COMPLETED','ARCHIVED') and sm.confirmed_at is null
+     and sm.declined_at is null and em.status = 'INVITED' limit 1`).get();
+check('an upcoming event has a chair invitation nobody has answered',
+  Boolean(seatInvite), seatInvite ? String(seatInvite.name) : 'none');
+
+const sp = await browser.newContext({ viewport: { width: 390, height: 844 } }).then((c) => c.newPage());
+await sp.goto(`${BASE}/member/${seatInvite.token}`);
+await sp.waitForLoadState('networkidle');
+const seatConfirmBtn = sp.locator('button:has-text("أحضر يوم الترتيب")');
+check('the chair day asks its own question on his page',
+  (await seatConfirmBtn.count()) > 0, '');
+
+/*
+ * He has not answered the EVENT either — and the chair card is still there.
+ * That is the whole point: two invitations on one link, neither waiting on
+ * the other.
+ */
+check('the chair question does not wait on the event question',
+  String(seatInvite.member_status) === 'INVITED' && (await seatConfirmBtn.count()) > 0,
+  String(seatInvite.member_status));
+
+await seatConfirmBtn.first().click();
+await sp.waitForTimeout(2500);
+const seatAnswered = await db.prepare(
+  'select confirmed_at, attended, approved_at from seat_setup_members where id=?')
+  .get(seatInvite.id);
+check('his yes is recorded against the day, not the event',
+  Boolean(seatAnswered.confirmed_at) &&
+    Number(seatAnswered.attended) === 0 && !seatAnswered.approved_at,
+  `attended ${seatAnswered.attended}`);
+
+const eventUnanswered = await db.prepare(
+  'select status, confirmed_at from event_members where id=?').get(seatInvite.event_member_id);
+check('answering the chair day leaves the event unanswered',
+  String(eventUnanswered.status) === 'INVITED' && !eventUnanswered.confirmed_at,
+  String(eventUnanswered.status));
+
+/* A no to the afternoon is not a no to the night. */
+const seatNo = await db.prepare(`
+  select sm.declined_at, em.status from seat_setup_members sm
+    join event_members em on em.id = sm.event_member_id
+   where sm.declined_at is not null limit 1`).get();
+check('declining the chair day leaves him on the event',
+  Boolean(seatNo) && String(seatNo.status) !== 'CANCELLED', String(seatNo?.status));
+
+/*
+ * And the fee follows the approval, not the button. He has said yes to the
+ * day and nothing more; nobody has seen him at the hall, so nothing has been
+ * earned.
+ */
+const seatOwed = await db.prepare(
+  'select count(*) as n from seat_setup_members where confirmed_at is not null and attended = 1 and approved_at is null')
+  .get();
+check('nothing is counted for a day nobody confirmed him at',
+  Number(seatOwed.n) === 0, `${seatOwed.n}`);
+
+/* And the supervisor's screen carries the answers. */
+await admin.goto(`${BASE}/admin/events/${seatInvite.event_id}/seats`);
+await admin.waitForLoadState('networkidle');
+const seatBoard = await admin.textContent('main');
+check('the chair board shows who answered and who has not',
+  seatBoard.includes('بانتظار الرد') && seatBoard.includes('اعتذروا'), '');
+
+/*
+ * The expected column. Before the event is over there is nothing to judge,
+ * so what it shows is what the night and the afternoon are worth together —
+ * and the afternoon used to be missing from it entirely, because it was
+ * reading an attendance flag that only exists afterwards.
+ */
+const seatPending = await db.prepare(`
+  select em.team_member_id as id, tm.full_name as name
+    from seat_setup_members sm
+    join event_members em on em.id = sm.event_member_id
+    join team_members tm on tm.id = em.team_member_id
+    join events e on e.id = sm.event_id
+   where e.status not in ('COMPLETED','ARCHIVED') and sm.declined_at is null
+     and tm.salaried = 0 limit 1`).get();
+await admin.goto(`${BASE}/admin/team/${seatPending.id}`);
+await admin.waitForLoadState('networkidle');
+const pendingCard = await admin
+  .locator('div.panel', { hasText: 'قيد الاحتساب' })
+  .first()
+  .innerText();
+/* Arabic-Indic digits render here, so the Latin ones alone would read zero. */
+const pendingFigure = Number(
+  pendingCard
+    .replace(/[\u0660-\u0669]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[^\d]/g, ''),
+);
+check('the expected column counts the chair day too',
+  pendingFigure >= 30000, String(pendingFigure));
+
+await sp.close();
 
 /* ---- a man on the company payroll is counted, not credited ------------- */
 

@@ -9,10 +9,12 @@ import {
   setSeatSetupCrewAction,
   setSeatSetupPersonAction,
 } from '@/server/actions/seat-setup';
+import { approveSeatArrivalsAction } from '@/server/actions/journey';
 import { idle } from '@/server/actions/types';
 import { FormError, EmptyState } from '@/components/ui/states';
 import { ConfirmSubmit, Dialog, SubmitButton } from '@/components/ui/client';
 import { IconPlus, IconUsers } from '@/components/ui/icons';
+import { Badge } from '@/components/ui/status';
 import { formatAmount } from '@/lib/money';
 import { format, type Dictionary, type Locale } from '@/lib/i18n';
 import { formatDate } from '@/lib/time';
@@ -411,13 +413,44 @@ function PersonRow({
 }) {
   const router = useRouter();
   const [state, action] = useActionState(setSeatSetupPersonAction, idle);
+  const [approveState, approve] = useActionState(approveSeatArrivalsAction, idle);
 
   useEffect(() => {
-    if (state.status === 'success') router.refresh();
-  }, [state, router]);
+    if (state.status === 'success' || approveState.status === 'success') router.refresh();
+  }, [state, approveState, router]);
+
+  /*
+   * Where this person is in the day, in one line above the controls.
+   *
+   * The manual checkbox below stays: somebody whose phone died is marked
+   * present by hand, as he always was. What this adds is the ordinary path —
+   * he says he is at the hall, and a tap here is what counts the day for him.
+   */
+  const waiting = Boolean(person.reportedArrivalAt) && !person.approvedAt;
 
   return (
     <li className="p-3">
+      <div className="mb-2 flex flex-wrap items-center gap-2">
+        {person.declinedAt ? (
+          <Badge tone="crit">{t.seatSetup.declinedList}</Badge>
+        ) : person.confirmedAt ? (
+          <Badge tone="ok">{t.seatSetup.confirmedList}</Badge>
+        ) : person.notifiedAt ? (
+          <Badge tone="warn">{t.seatSetup.waitingReply}</Badge>
+        ) : (
+          <Badge tone="neutral">{t.seatSetup.notAsked}</Badge>
+        )}
+
+        {waiting ? (
+          <form action={approve} className="flex items-center gap-2">
+            <input type="hidden" name="eventId" value={eventId} />
+            <input type="hidden" name="seatMemberId" value={person.id} />
+            <Badge tone="warn">{t.seatSetup.approveTitle}</Badge>
+            <SubmitButton className="btn-primary btn-sm">{t.journey.approve}</SubmitButton>
+          </form>
+        ) : null}
+        {person.approvedAt ? <Badge tone="ok">{t.journey.approved}</Badge> : null}
+      </div>
       <form action={action} className="flex flex-wrap items-end gap-2.5">
         <input type="hidden" name="eventId" value={eventId} />
         <input type="hidden" name="id" value={person.id} />

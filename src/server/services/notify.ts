@@ -96,7 +96,6 @@ function buildMessage({
   isReserve,
   gateLeaderName,
   sheetUrl,
-  mapUrl,
   mainGate,
 }: {
   t: Dictionary;
@@ -116,8 +115,6 @@ function buildMessage({
   /** Who to report to on the night — the one name a member actually needs. */
   gateLeaderName: string | null;
   sheetUrl: string | null;
-  /** Their own spot on the venue map — null when no map was uploaded. */
-  mapUrl: string | null;
   mainGate: { place: string; start: string; end: string; task: string } | null;
 }): string {
   const m = t.notify.message;
@@ -175,7 +172,6 @@ function buildMessage({
 
   // Where to stand, drawn on the venue's own photo. It is the member's own
   // page, so it carries nothing anyone else's link would not already show.
-  if (mapUrl) lines.push('', format(m.guide, { url: mapUrl }));
 
   lines.push('', m.linkIntro, memberUrl);
 
@@ -352,7 +348,6 @@ export async function buildBriefings({
         memberUrl,
         gateLeaderName,
         sheetUrl: event.boardToken ? `${baseUrl}/sheet/${event.boardToken}` : null,
-        mapUrl: event.hasMap ? `${memberUrl}/map` : null,
         mainGate,
         isReserve: row.isReserve || !active,
       }),

@@ -80,6 +80,7 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
         status: (r.status ?? 'PENDING') as AttendanceStatus,
         payAmount: r.payAmount,
         eventDefault: event.payDefault,
+        eventStatus: event.status,
       }),
     }))
     .sort(byName);
