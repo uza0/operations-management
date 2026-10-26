@@ -44,6 +44,19 @@ export function AppRuntime() {
       try {
         registration = await navigator.serviceWorker.register('/sw.js', { scope: '/' });
 
+        /*
+         * Tell whoever is in charge which build this page came from, so a
+         * page cached by an earlier one is thrown away rather than served
+         * back with script names that no longer exist on the server.
+         */
+        const announce = () =>
+          navigator.serviceWorker.controller?.postMessage({
+            type: 'BUILD',
+            id: process.env.NEXT_PUBLIC_BUILD_ID,
+          });
+        announce();
+        navigator.serviceWorker.addEventListener('controllerchange', announce);
+
         if (registration.waiting) setWaiting(registration.waiting);
 
         registration.addEventListener('updatefound', () => {

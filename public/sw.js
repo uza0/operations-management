@@ -20,7 +20,7 @@
  * would otherwise keep showing them for as long as the app stays installed —
  * which is why a new mark needs a new version here, not only new files.
  */
-const VERSION = 'ops-v3';
+const VERSION = 'ops-v4';
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const OFFLINE_URL = '/offline.html';
@@ -124,6 +124,45 @@ self.addEventListener('fetch', (event) => {
   }
 });
 
+/**
+ * Which build the cached pages belong to.
+ *
+ * A page is cached so that a dead connection shows the last known copy rather
+ * than nothing. But a page cached from an EARLIER deploy is a trap: its HTML
+ * names script chunks by a hash that no longer exists on the server, so the
+ * browser fetches them, gets a 404, and the app dies during render with a
+ * message that tells nobody anything. It looked random because it needed a
+ * network hiccup to happen first.
+ *
+ * So the page cache belongs to one build. Every page tells the worker which
+ * build it came from, and the moment that differs from what the cache was
+ * filled for, the cache goes — pages and chunks both, since the chunk names
+ * are what went stale.
+ */
+let buildId = null;
+
+async function dropStaleCaches(incoming) {
+  if (!incoming || incoming === buildId) return;
+  buildId = incoming;
+  await Promise.all([
+    caches.delete(PAGE_CACHE),
+    /*
+     * The chunks too. They are content-hashed, so keeping them is harmless in
+     * itself — but a cache that only ever grows across deploys is a phone
+     * filling up with the scripts of every version it has ever seen.
+     */
+    caches.delete(STATIC_CACHE).then(() =>
+      caches.open(STATIC_CACHE).then((cache) => cache.addAll(PRECACHE)),
+    ),
+  ]);
+}
+
 self.addEventListener('message', (event) => {
-  if (event.data === 'SKIP_WAITING') self.skipWaiting();
+  if (event.data === 'SKIP_WAITING') {
+    self.skipWaiting();
+    return;
+  }
+  if (event.data && event.data.type === 'BUILD') {
+    event.waitUntil(dropStaleCaches(event.data.id));
+  }
 });

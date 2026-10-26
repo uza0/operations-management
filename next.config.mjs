@@ -1,6 +1,22 @@
 /** @type {import('next').NextConfig} */
+/*
+ * Which build this is.
+ *
+ * The service worker needs it: a page it cached from an earlier deploy points
+ * at script chunks whose filenames no longer exist on the server, and serving
+ * that page again produces a blank error screen that looks random because it
+ * depends on whether the network happened to hiccup. Vercel gives the commit;
+ * a local build falls back to the start time, which is enough to tell two
+ * builds apart.
+ */
+const BUILD_ID =
+  process.env.VERCEL_GIT_COMMIT_SHA ??
+  process.env.VERCEL_DEPLOYMENT_ID ??
+  String(Date.now());
+
 const nextConfig = {
   reactStrictMode: true,
+  env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
   serverExternalPackages: ['bcryptjs', 'sharp'],
   eslint: { ignoreDuringBuilds: true },
 
