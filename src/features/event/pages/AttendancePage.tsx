@@ -33,6 +33,7 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
       checkInTime: attendance.checkInTime,
       checkOutTime: attendance.checkOutTime,
       payAmount: eventMembers.payAmount,
+      payMode: eventMembers.payMode,
       creditNote: eventMembers.creditNote,
       notes: attendance.notes,
       recordedBy: users.name,
@@ -73,6 +74,7 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
       payAmount: r.payAmount,
       creditNote: r.creditNote,
       effectiveAmount: creditFor({
+        payMode: r.payMode,
         status: (r.status ?? 'PENDING') as AttendanceStatus,
         payAmount: r.payAmount,
         eventDefault: event.payDefault,
@@ -86,7 +88,7 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
   }, {});
 
   // What the event currently owes in total, at today's figures.
-  const totalPay = data.reduce((sum, row) => sum + row.effectiveAmount, 0);
+  const totalPay = data.reduce((sum, row) => sum + (row.effectiveAmount ?? 0), 0);
 
   const rate =
     data.length > 0

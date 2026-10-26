@@ -52,7 +52,11 @@ export async function addMembersToEventAction(
   const asReserve = bool(form, 'isReserve');
 
   const people = await db
-    .select({ id: teamMembers.id, fullName: teamMembers.fullName })
+    .select({
+      id: teamMembers.id,
+      fullName: teamMembers.fullName,
+      salaried: teamMembers.salaried,
+    })
     .from(teamMembers)
     .where(inArray(teamMembers.id, ids));
 
@@ -107,6 +111,12 @@ export async function addMembersToEventAction(
         eventId,
         teamMemberId: p.id,
         status: 'INVITED',
+        /*
+         * Stamped from their contract as it stands today, not read live off
+         * the person later: somebody coming off a monthly contract in March
+         * must not make January's closed events start owing him money.
+         */
+        payMode: p.salaried ? 'SALARIED' : 'EVENT',
         token: newMemberToken(),
         tokenExpiresAt: null,
         isReserve: asReserve,

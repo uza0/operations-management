@@ -238,6 +238,16 @@ export const AUDIT_ENTITIES = [
 ] as const;
 export type AuditEntity = (typeof AUDIT_ENTITIES)[number];
 
+/**
+ * How one person is paid for one event.
+ *
+ * EVENT     — the ordinary case: the event's rate, or their own figure.
+ * SALARIED  — settled by the company on a monthly contract. This system
+ *             counts their attendance and owes them nothing.
+ */
+export const PAY_MODES = ['EVENT', 'SALARIED'] as const;
+export type PayMode = (typeof PAY_MODES)[number];
+
 /* -------------------------------------------------------------------------- */
 /* The team's verdict on an event                                              */
 /* -------------------------------------------------------------------------- */

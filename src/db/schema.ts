@@ -111,6 +111,17 @@ export const teamMembers = sqliteTable(
      */
     cardNumber: text('card_number'),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
+    /**
+     * On the company's payroll, not on this one.
+     *
+     * A few people work the events on a monthly contract: they are on the
+     * team, they stand at a gate, they are counted in the staffing and they
+     * answer the questionnaire — but what they are owed is settled elsewhere
+     * and has nothing to do with this system. The distinction matters because
+     * the alternative is a zero next to their name, and a zero reads as an
+     * unpaid debt rather than as "not our column".
+     */
+    salaried: integer('salaried', { mode: 'boolean' }).notNull().default(false),
     notes: text('notes'),
     ...timestamps,
   },
@@ -302,6 +313,13 @@ export const eventMembers = sqliteTable(
      * member id, so this column is what makes chasing the rest possible
      * without making anyone's answers findable.
      */
+    /*
+     * How this person is paid for THIS event, stamped when they are added
+     * from their standing contract. Kept per event rather than read live off
+     * the person, so that someone coming off a monthly contract in March does
+     * not make January's closed events suddenly owe him money.
+     */
+    payMode: text('pay_mode').notNull().default('EVENT'),
     feedbackAt: integer('feedback_at', { mode: 'timestamp_ms' }),
     notifiedAt: integer('notified_at', { mode: 'timestamp_ms' }),
     notifiedById: text('notified_by_id').references(() => users.id, {
@@ -709,6 +727,79 @@ export const mainGateMembers = sqliteTable(
   (t) => [
     uniqueIndex('main_gate_members_unique').on(t.detailId, t.eventMemberId),
     index('main_gate_members_event_idx').on(t.eventId),
+  ],
+);
+
+/**
+ * The crew that sets out the chairs the day before.
+ *
+ * Most events at a hall are built before they happen: somebody spends the
+ * afternoon before putting out rows of seats so that the evening itself can
+ * start on time. It is a different day, a different job and a different rate
+ * from the event, and until now the system had no idea it existed — the
+ * people who did it either went unpaid or were paid on a piece of paper.
+ *
+ * It is optional: one row per event, and only for the events that need it.
+ *
+ * The rate is flat and lives here rather than on each person. Everyone on
+ * this shift is paid the same for it whatever they earn on the night —
+ * including whoever leads them — and keeping one number on the shift is what
+ * makes that true by construction instead of by remembering.
+ */
+export const seatSetupDetails = sqliteTable(
+  'seat_setup_details',
+  {
+    id: text('id').primaryKey(),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    /** "YYYY-MM-DD" — its own day, usually the one before the event. */
+    date: text('date').notNull(),
+    /** "HH:mm", like every other clock value here — never a timestamp. */
+    startTime: text('start_time').notNull(),
+    /**
+     * When they expect to finish, which on this shift is a guess: the chairs
+     * are done when they are done. Arrival and departure are recorded per
+     * person, and neither is held to this.
+     */
+    endTime: text('end_time'),
+    notes: text('notes'),
+    /** Flat, for everyone on the shift. 30,000 IQD unless changed. */
+    payAmount: real('pay_amount').notNull().default(30000),
+    ...timestamps,
+  },
+  (t) => [uniqueIndex('seat_setup_details_event_unique').on(t.eventId)],
+);
+
+export const seatSetupMembers = sqliteTable(
+  'seat_setup_members',
+  {
+    id: text('id').primaryKey(),
+    detailId: text('detail_id')
+      .notNull()
+      .references(() => seatSetupDetails.id, { onDelete: 'cascade' }),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    eventMemberId: text('event_member_id')
+      .notNull()
+      .references(() => eventMembers.id, { onDelete: 'cascade' }),
+    /*
+     * "HH:mm" and both nullable. This shift does not keep to a timetable:
+     * people arrive as they can and leave when the room is ready, and a
+     * required time would only be a number somebody has to correct later.
+     */
+    checkInTime: text('check_in_time'),
+    checkOutTime: text('check_out_time'),
+    /** Whether the day is counted for them. Set when the supervisor says so. */
+    attended: integer('attended', { mode: 'boolean' }).notNull().default(false),
+    notes: text('notes'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('seat_setup_members_unique').on(t.detailId, t.eventMemberId),
+    index('seat_setup_members_event_idx').on(t.eventId),
   ],
 );
 

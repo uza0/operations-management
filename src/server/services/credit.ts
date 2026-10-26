@@ -40,12 +40,24 @@ import type { AttendanceStatus } from '@/lib/constants';
 /** Statuses that earn the event's default credit with no one intervening. */
 export const WORKED_STATUSES: AttendanceStatus[] = ['PRESENT', 'LATE'];
 
+/**
+ * What this system owes one person for one event.
+ *
+ * `null` is not zero. Zero is "worked nothing, earned nothing"; null is "not
+ * this system's business" — the few people on a monthly contract with the
+ * company, whose pay is settled elsewhere. Every caller has to say which of
+ * the two it is showing, which is the point of returning null rather than a
+ * harmless-looking 0.
+ */
 export function creditFor(input: {
   status: AttendanceStatus | null;
   /** The person's own figure, or null to follow the event. */
   payAmount: number | null;
   eventDefault: number;
-}): number {
+  /** 'SALARIED' means the company pays them monthly; this ledger does not. */
+  payMode?: string | null;
+}): number | null {
+  if (input.payMode === 'SALARIED') return null;
   if (input.payAmount !== null && input.payAmount !== undefined) {
     return input.payAmount;
   }
@@ -72,7 +84,8 @@ export type LedgerLine = {
   status: AttendanceStatus;
   checkInTime: string | null;
   checkOutTime: string | null;
-  amount: number;
+  /** null when the company pays this person monthly — see creditFor. */
+  amount: number | null;
   note: string | null;
   /** False while the event is still open — counted separately. */
   closed: boolean;
@@ -114,6 +127,7 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
       venueName: venues.name,
       memberStatus: eventMembers.status,
       payAmount: eventMembers.payAmount,
+      payMode: eventMembers.payMode,
       creditNote: eventMembers.creditNote,
       status: attendance.status,
       checkInTime: attendance.checkInTime,
@@ -156,6 +170,7 @@ function toLine(row: Awaited<ReturnType<typeof ledgerRows>>[number]): LedgerLine
       status,
       payAmount: row.payAmount,
       eventDefault: row.eventDefault,
+      payMode: row.payMode,
     }),
     note: row.creditNote,
     closed: CLOSED_STATUSES.includes(row.eventStatus),
@@ -174,9 +189,14 @@ function summarise(
     phone: person.phone,
     active: person.active,
     lines: sorted,
-    totalAmount: sorted.filter((l) => l.closed).reduce((sum, l) => sum + l.amount, 0),
-    pendingAmount: sorted.filter((l) => !l.closed).reduce((sum, l) => sum + l.amount, 0),
-    eventsWorked: sorted.filter((l) => l.closed && l.amount > 0).length,
+    /* A null line is outside this ledger, so it adds nothing to either total. */
+    totalAmount: sorted
+      .filter((l) => l.closed)
+      .reduce((sum, l) => sum + (l.amount ?? 0), 0),
+    pendingAmount: sorted
+      .filter((l) => !l.closed)
+      .reduce((sum, l) => sum + (l.amount ?? 0), 0),
+    eventsWorked: sorted.filter((l) => l.closed && (l.amount ?? 0) > 0).length,
   };
 }
 

@@ -33,6 +33,7 @@ export type TeamRow = {
   employeeCode: string;
   cardNumber: string | null;
   active: boolean;
+  salaried: boolean;
   notes: string | null;
   eventCount: number;
 };
@@ -141,6 +142,26 @@ function MemberForm({
           className="h-4.5 w-4.5 accent-brand-500"
         />
         {t.team.active}
+      </label>
+
+      {/*
+        The rare case, and the reason it is a tick on the person rather than a
+        figure on each event: a monthly contract is a fact about them, not
+        about one night.
+      */}
+      <label className="flex items-start gap-2.5 text-[14px] text-ink-200">
+        <input
+          type="checkbox"
+          name="salaried"
+          defaultChecked={member ? member.salaried : false}
+          className="mt-0.5 h-4.5 w-4.5 accent-brand-500"
+        />
+        <span>
+          {t.credit.salaried}
+          <span className="block text-[12px] leading-5 text-ink-500">
+            {t.credit.salariedHint}
+          </span>
+        </span>
       </label>
 
       <p className="text-[12px] leading-5 text-ink-500">{t.team.minimalDataNote}</p>

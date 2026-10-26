@@ -117,13 +117,24 @@ export async function MemberLedgerPage({ memberId }: { memberId: string }) {
                       ) : null}
                     </td>
                     <td data-label={t.credit.days}>
-                      <span
-                        className={`nums font-semibold ${
-                          line.amount > 0 ? 'text-ink-100' : 'text-ink-500'
-                        }`}
-                      >
-                        {formatAmount(line.amount)}
-                      </span>
+                      {/*
+                        A null is not a zero: this person is on the company's
+                        monthly payroll and this ledger owes them nothing. A
+                        0 here would read as an unpaid debt.
+                      */}
+                      {line.amount === null ? (
+                        <span className="text-[12.5px] text-ink-500">
+                          {t.credit.salaried}
+                        </span>
+                      ) : (
+                        <span
+                          className={`nums font-semibold ${
+                            line.amount > 0 ? 'text-ink-100' : 'text-ink-500'
+                          }`}
+                        >
+                          {formatAmount(line.amount)}
+                        </span>
+                      )}
                       {line.note ? (
                         <span className="block max-w-[220px] text-[11.5px] leading-4 text-ink-500">
                           {line.note}

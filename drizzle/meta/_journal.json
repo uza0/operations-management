@@ -85,6 +85,20 @@
       "when": 1792862391574,
       "tag": "0011_grey_titania",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1792866820545,
+      "tag": "0012_white_mandrill",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "6",
+      "when": 1793019676123,
+      "tag": "0013_noisy_longshot",
+      "breakpoints": true
     }
   ]
 }

@@ -11,6 +11,17 @@
 /** What one event is worth to one promoter, before anyone is singled out. */
 export const DEFAULT_EVENT_PAY = 30_000;
 
+/**
+ * The flat rate for the chair-setting shift the day before.
+ *
+ * Deliberately not the same constant as the event rate even though both are
+ * thirty thousand today: they answer to different things. The event rate is
+ * per person and is raised for a few people by agreement; this one is the
+ * same for everybody on the shift, including whoever leads it, and raising
+ * one must never quietly raise the other.
+ */
+export const SEAT_SETUP_PAY = 30_000;
+
 /** Upper bound for a single event's figure — a guard, not a policy. */
 export const MAX_EVENT_PAY = 10_000_000;
 

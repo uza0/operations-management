@@ -53,6 +53,7 @@ export async function saveTeamMemberAction(
     employeeCode,
     cardNumber: str(form, 'cardNumber') ?? '',
     active: bool(form, 'active'),
+    salaried: bool(form, 'salaried'),
     notes: str(form, 'notes'),
   });
   if (!parsed.success) {
@@ -81,6 +82,7 @@ export async function saveTeamMemberAction(
         employeeCode: parsed.data.employeeCode,
         cardNumber: parsed.data.cardNumber ?? null,
         active: parsed.data.active ?? true,
+        salaried: parsed.data.salaried ?? false,
         notes: parsed.data.notes ?? null,
         updatedAt: new Date(),
       })

@@ -35,8 +35,8 @@ export type AttendanceRow = {
   /** This person's own figure, or null to follow the event's default. */
   payAmount: number | null;
   creditNote: string | null;
-  /** What they will actually be credited, once the rule is applied. */
-  effectiveAmount: number;
+  /** What they will be credited, or null when the company pays them monthly. */
+  effectiveAmount: number | null;
 };
 
 const QUICK: AttendanceStatus[] = ['PRESENT', 'LATE', 'ABSENT', 'EXCUSED'];
@@ -510,10 +510,12 @@ export function AttendanceTable({
                     <td data-label={t.credit.days}>
                       <span
                         className={`nums font-medium ${
-                          row.effectiveAmount > 0 ? 'text-ink-100' : 'text-ink-500'
+                          (row.effectiveAmount ?? 0) > 0 ? 'text-ink-100' : 'text-ink-500'
                         }`}
                       >
-                        {formatAmount(row.effectiveAmount)}
+                        {row.effectiveAmount === null
+                          ? t.credit.salaried
+                          : formatAmount(row.effectiveAmount)}
                       </span>
                       {/* A figure someone set by hand says so, and why. */}
                       {row.payAmount !== null ? (

@@ -636,6 +636,8 @@ export const en: Dictionary = {
     notePlaceholder: 'e.g. gate leader, or came a day early to lay out the hall',
     saveCredit: 'Save amount',
     manual: 'Set by hand',
+    salaried: 'On salary',
+    salariedHint: 'Monthly contract with the company — settled outside this ledger.',
     eventDefault: 'Event rate per person',
     eventDefaultHint: 'What everyone who worked earns, unless a figure is set against them.',
     eventTotal: 'Total for this event: {n}',

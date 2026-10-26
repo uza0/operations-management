@@ -1,6 +1,6 @@
 /**
  * GENERATED FILE — do not edit.
- * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql.
+ * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql.
  * Regenerate after changing src/db/schema.ts:
  *   npx drizzle-kit generate && node scripts/embed-schema.mjs
  */
@@ -96,4 +96,11 @@ export const SCHEMA_STATEMENTS: string[] = [
   "CREATE TABLE IF NOT EXISTS `feedback_responses` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`event_id` text NOT NULL,\n\t`role` text,\n\t`instructions_clear` integer,\n\t`knew_duties` text,\n\t`briefing_length` text,\n\t`organisation` integer,\n\t`staffing` text,\n\t`distribution_good` text,\n\t`unsure_moments` text,\n\t`unsure_why` text,\n\t`knew_who_to_ask` text,\n\t`support_speed` integer,\n\t`problem_kind` text,\n\t`problem_prevention` text,\n\t`guests_informed` text,\n\t`guest_common_issue` text,\n\t`guest_improvement` text,\n\t`overall` integer,\n\t`keep_doing` text,\n\t`hardest` text,\n\t`work_again` text,\n\t`more_responsibility` text,\n\t`free_note` text,\n\t`submitted_at` integer NOT NULL,\n\t`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\t`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\tFOREIGN KEY (`event_id`) REFERENCES `events`(`id`) ON UPDATE no action ON DELETE cascade\n)",
   "CREATE INDEX IF NOT EXISTS `feedback_responses_event_idx` ON `feedback_responses` (`event_id`)",
   "ALTER TABLE `event_members` ADD `feedback_at` integer",
+  "CREATE TABLE IF NOT EXISTS `seat_setup_details` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`event_id` text NOT NULL,\n\t`date` text NOT NULL,\n\t`start_time` text NOT NULL,\n\t`end_time` text,\n\t`notes` text,\n\t`pay_amount` real DEFAULT 30000 NOT NULL,\n\t`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\t`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\tFOREIGN KEY (`event_id`) REFERENCES `events`(`id`) ON UPDATE no action ON DELETE cascade\n)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS `seat_setup_details_event_unique` ON `seat_setup_details` (`event_id`)",
+  "CREATE TABLE IF NOT EXISTS `seat_setup_members` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`detail_id` text NOT NULL,\n\t`event_id` text NOT NULL,\n\t`event_member_id` text NOT NULL,\n\t`check_in_time` text,\n\t`check_out_time` text,\n\t`attended` integer DEFAULT false NOT NULL,\n\t`notes` text,\n\t`sort_order` integer DEFAULT 0 NOT NULL,\n\t`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\t`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\tFOREIGN KEY (`detail_id`) REFERENCES `seat_setup_details`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`event_id`) REFERENCES `events`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`event_member_id`) REFERENCES `event_members`(`id`) ON UPDATE no action ON DELETE cascade\n)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS `seat_setup_members_unique` ON `seat_setup_members` (`detail_id`,`event_member_id`)",
+  "CREATE INDEX IF NOT EXISTS `seat_setup_members_event_idx` ON `seat_setup_members` (`event_id`)",
+  "ALTER TABLE `event_members` ADD `pay_mode` text DEFAULT 'EVENT' NOT NULL",
+  "ALTER TABLE `team_members` ADD `salaried` integer DEFAULT false NOT NULL",
 ];

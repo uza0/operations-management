@@ -94,6 +94,7 @@ export const teamMemberSchema = z.object({
     .nullable()
     .optional(),
   active: z.boolean().optional(),
+  salaried: z.boolean().optional(),
   notes: longText,
 });
 

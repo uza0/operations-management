@@ -198,6 +198,9 @@ const PEOPLE = [
   'تميم العاني',
 ];
 
+/** Who is on a monthly company contract rather than on event pay. */
+const SALARIED_NAMES = new Set(['حسن الساعدي']);
+
 type Person = { id: string; name: string; code: string };
 
 async function seedPeople(): Promise<Person[]> {
@@ -207,6 +210,12 @@ async function seedPeople(): Promise<Person[]> {
     phone: `+9647${(700000000 + i * 137911).toString().slice(0, 9)}`,
     employeeCode: `TZ-${String(1001 + i)}`,
     active: i < 44,
+    /*
+     * One person on a monthly contract, because the case exists and a rule
+     * nothing exercises is a rule nobody notices is broken. He works the
+     * events like everyone else; this ledger owes him nothing.
+     */
+    salaried: SALARIED_NAMES.has(name),
     notes: null,
   }));
   await db.insert(teamMembers).values(rows).run();
@@ -514,6 +523,8 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
           eventId: eventAId,
           teamMemberId: byName(name).id,
           status: 'ACTIVE',
+          /* Same rule the add-to-event action applies: read off the person. */
+          payMode: SALARIED_NAMES.has(name) ? 'SALARIED' : 'EVENT',
           token: newMemberToken(),
           tokenExpiresAt: null,
           isReserve: RESERVE.has(name),
@@ -1268,6 +1279,8 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
           eventId: eventCId,
           teamMemberId: byName(name).id,
           status: 'ACTIVE',
+          /* Same rule the add-to-event action applies: read off the person. */
+          payMode: SALARIED_NAMES.has(name) ? 'SALARIED' : 'EVENT',
           token: newMemberToken(),
           tokenExpiresAt: null,
           isReserve: false,

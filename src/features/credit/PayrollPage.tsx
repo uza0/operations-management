@@ -37,7 +37,7 @@ export async function PayrollPage({
   const owed = ledgers.filter((l) => l.totalAmount > 0);
   const grandTotal = owed.reduce((sum, l) => sum + l.totalAmount, 0);
   const eventsCounted = new Set(
-    ledgers.flatMap((l) => l.lines.filter((line) => line.closed && line.amount > 0))
+    ledgers.flatMap((l) => l.lines.filter((line) => line.closed && (line.amount ?? 0) > 0))
       .map((line) => line.eventId),
   ).size;
 
@@ -118,18 +118,18 @@ export async function PayrollPage({
                       The events behind the number, written out rather than
                       counted, so the total can be checked line by line.
                     */}
-                    {ledger.lines.filter((l) => l.closed && l.amount > 0).length === 0 ? (
+                    {ledger.lines.filter((l) => l.closed && (l.amount ?? 0) > 0).length === 0 ? (
                       <span className="text-ink-500">{t.credit.noneInRange}</span>
                     ) : (
                       <ul className="space-y-0.5 text-[12.5px]">
                         {ledger.lines
-                          .filter((l) => l.closed && l.amount > 0)
+                          .filter((l) => l.closed && (l.amount ?? 0) > 0)
                           .map((line) => (
                             <li key={line.eventId}>
                               {line.eventName}
                               <span className="nums text-ink-500">
                                 {' '}
-                                · {formatDate(line.eventDate, locale)} · {formatAmount(line.amount)}
+                                · {formatDate(line.eventDate, locale)} · {formatAmount(line.amount ?? 0)}
                               </span>
                               {line.note ? (
                                 <span className="text-ink-500"> · {line.note}</span>

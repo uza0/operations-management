@@ -957,6 +957,32 @@ check('gate leader blocked from the leader briefing route too',
 
 check('gate leader nav omits management sections', !gateNav.includes('التوزيع'));
 
+/* ---- a man on the company payroll is counted, not credited ------------- */
+
+/*
+ * He works the event like everyone else and his attendance is recorded like
+ * everyone else's — and this ledger owes him nothing. The thing being checked
+ * is that the page says so in words: a 0 beside his name would read as an
+ * unpaid debt rather than as "settled elsewhere".
+ */
+const salaried = await db.prepare(
+  'select id, full_name from team_members where salaried = 1 limit 1').get();
+check('a salaried person exists to check against', Boolean(salaried),
+  salaried ? String(salaried.full_name) : 'none');
+
+const stamped = await db.prepare(
+  `select em.pay_mode from event_members em where em.team_member_id = ? limit 1`,
+).get(salaried.id);
+check('their event membership is stamped as salaried',
+  String(stamped?.pay_mode) === 'SALARIED', String(stamped?.pay_mode));
+
+await admin.goto(`${BASE}/admin/events/${eventId}/attendance`);
+await admin.waitForLoadState('networkidle');
+const attendanceText = await admin.textContent('main');
+check('the attendance list says salary, not zero',
+  !attendanceText.includes(String(salaried.full_name)) ||
+    attendanceText.includes('راتب شهري'), '');
+
 /* ---- the attendance list selects everyone from one place --------------- */
 
 /*

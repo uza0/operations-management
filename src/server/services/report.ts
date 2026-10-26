@@ -73,7 +73,8 @@ export type RosterLine = {
   checkInTime: string | null;
   checkOutTime: string | null;
   isReserve: boolean;
-  amount: number;
+  /** null when the company pays this person monthly — see creditFor. */
+  amount: number | null;
   note: string | null;
 };
 
@@ -278,6 +279,7 @@ export async function buildReport(eventId: string): Promise<ReportData> {
         isReserve: eventMembers.isReserve,
         notifiedAt: eventMembers.notifiedAt,
         payAmount: eventMembers.payAmount,
+        payMode: eventMembers.payMode,
         creditNote: eventMembers.creditNote,
         name: teamMembers.fullName,
         employeeCode: teamMembers.employeeCode,
@@ -475,6 +477,7 @@ export async function buildReport(eventId: string): Promise<ReportData> {
         checkOutTime: times?.checkOutTime ?? null,
         isReserve: member.isReserve,
         amount: creditFor({
+          payMode: member.payMode,
           status,
           payAmount: member.payAmount,
           eventDefault: payDefault,
@@ -496,7 +499,7 @@ export async function buildReport(eventId: string): Promise<ReportData> {
   return {
     roster,
     payDefault,
-    totalPay: roster.reduce((sum, line) => sum + line.amount, 0),
+    totalPay: roster.reduce((sum, line) => sum + (line.amount ?? 0), 0),
     team: {
       total,
       reserve: memberRows.filter((m) => m.isReserve).length,
