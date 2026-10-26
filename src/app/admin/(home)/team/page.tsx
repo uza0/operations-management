@@ -21,6 +21,7 @@ export default async function TeamPage() {
       cardNumber: teamMembers.cardNumber,
       active: teamMembers.active,
       salaried: teamMembers.salaried,
+      defaultPay: teamMembers.defaultPay,
       notes: teamMembers.notes,
       eventCount: sql<number>`(select count(*) from ${eventMembers} where ${eventMembers.teamMemberId} = ${teamMembers.id})`,
     })

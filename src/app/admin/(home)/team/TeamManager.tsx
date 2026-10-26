@@ -34,6 +34,7 @@ export type TeamRow = {
   cardNumber: string | null;
   active: boolean;
   salaried: boolean;
+  defaultPay: number | null;
   notes: string | null;
   eventCount: number;
 };
@@ -143,6 +144,21 @@ function MemberForm({
         />
         {t.team.active}
       </label>
+
+      <div>
+        <label className="field-label" htmlFor="tm-pay">
+          {t.team.defaultPay}
+        </label>
+        <input
+          id="tm-pay"
+          name="defaultPay"
+          inputMode="numeric"
+          className="field nums"
+          defaultValue={member?.defaultPay != null ? String(member.defaultPay) : ''}
+          placeholder={t.team.defaultPayPlaceholder}
+        />
+        <p className="mt-1 text-[12px] leading-5 text-ink-500">{t.team.defaultPayHint}</p>
+      </div>
 
       {/*
         The rare case, and the reason it is a tick on the person rather than a

@@ -214,6 +214,10 @@ export const en: Dictionary = {
        role (team leader, gate leader…) replaces it where one is set. */
     promoter: 'Promoter',
     active: 'Active',
+    defaultPay: 'Rate per event',
+    defaultPayPlaceholder: "Leave empty to follow the event's own rate",
+    defaultPayHint:
+      "Their standing rate for any event they are invited to — copied onto the event at invitation, so changing it later leaves settled events alone. Chair setting is outside this figure: 30,000 for everyone.",
     inactive: 'Inactive',
     eventsWorked: 'Events',
     empty: 'No team members yet',

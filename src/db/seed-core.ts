@@ -203,6 +203,12 @@ const PEOPLE = [
 /** Who is on a monthly company contract rather than on event pay. */
 const SALARIED_NAMES = new Set(['حسن الساعدي']);
 
+/** The few people the company agreed a higher event rate with. */
+const HIGHER_RATES: Record<string, number> = {
+  'زينب الشمري': 40000,
+  'مريم الطائي': 40000,
+};
+
 type Person = { id: string; name: string; code: string };
 
 async function seedPeople(): Promise<Person[]> {
@@ -218,6 +224,12 @@ async function seedPeople(): Promise<Person[]> {
      * events like everyone else; this ledger owes him nothing.
      */
     salaried: SALARIED_NAMES.has(name),
+    /*
+     * The standing rate. Most of the team are on the house figure, which is
+     * what an empty field means; a couple are on a higher one by agreement,
+     * and the man on a monthly contract is on nothing at all.
+     */
+    defaultPay: SALARIED_NAMES.has(name) ? 0 : (HIGHER_RATES[name] ?? null),
     notes: null,
   }));
   await db.insert(teamMembers).values(rows).run();
@@ -527,6 +539,7 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
           status: 'ACTIVE',
           /* Same rule the add-to-event action applies: read off the person. */
           payMode: SALARIED_NAMES.has(name) ? 'SALARIED' : 'EVENT',
+          payAmount: SALARIED_NAMES.has(name) ? 0 : (HIGHER_RATES[name] ?? null),
           token: newMemberToken(),
           tokenExpiresAt: null,
           isReserve: RESERVE.has(name),
@@ -1283,6 +1296,7 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
           status: 'ACTIVE',
           /* Same rule the add-to-event action applies: read off the person. */
           payMode: SALARIED_NAMES.has(name) ? 'SALARIED' : 'EVENT',
+          payAmount: SALARIED_NAMES.has(name) ? 0 : (HIGHER_RATES[name] ?? null),
           token: newMemberToken(),
           tokenExpiresAt: null,
           isReserve: false,

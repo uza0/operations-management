@@ -56,6 +56,7 @@ export async function addMembersToEventAction(
       id: teamMembers.id,
       fullName: teamMembers.fullName,
       salaried: teamMembers.salaried,
+      defaultPay: teamMembers.defaultPay,
     })
     .from(teamMembers)
     .where(inArray(teamMembers.id, ids));
@@ -117,6 +118,12 @@ export async function addMembersToEventAction(
          * must not make January's closed events start owing him money.
          */
         payMode: p.salaried ? 'SALARIED' : 'EVENT',
+        /*
+         * Their standing rate, copied not referenced: what a closed event was
+         * settled at must stay what it was settled at, whatever the person's
+         * rate becomes later. Null here means this event's own default.
+         */
+        payAmount: p.defaultPay ?? null,
         token: newMemberToken(),
         tokenExpiresAt: null,
         isReserve: asReserve,

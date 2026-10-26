@@ -122,6 +122,19 @@ export const teamMembers = sqliteTable(
      * unpaid debt rather than as "not our column".
      */
     salaried: integer('salaried', { mode: 'boolean' }).notNull().default(false),
+    /**
+     * What this person is paid for one event, in dinars.
+     *
+     * Set once on the person rather than argued about per event: most of the
+     * team are on the standard rate, a few are on a higher one by agreement,
+     * and the supervisor's answer to "how much does he get" should be in one
+     * place and change in one place. Null means "whatever this event pays",
+     * which is the right answer for somebody new until a rate is agreed.
+     *
+     * It is copied onto each event membership when they are invited, so the
+     * figure a closed event was settled at stays what it was settled at.
+     */
+    defaultPay: real('default_pay'),
     notes: text('notes'),
     ...timestamps,
   },

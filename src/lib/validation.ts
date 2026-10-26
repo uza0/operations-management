@@ -32,6 +32,20 @@ const date = z.string().regex(DATE_RE, 'invalidDate');
 const shortText = z.string().trim().min(1).max(160);
 const longText = z.string().trim().max(2000).optional().nullable();
 
+/**
+ * What one person is owed for one event, in dinars.
+ *
+ * Whole dinars only — nothing here is priced in fils — and capped, so that a
+ * finger slipping on the keypad cannot put a year's payroll on one line and
+ * have it quietly totalled into the month's report.
+ */
+const dinars = (value: unknown) =>
+  typeof value === 'number' &&
+  Number.isFinite(value) &&
+  Number.isInteger(value) &&
+  value >= 0 &&
+  value <= MAX_EVENT_PAY;
+
 export const eventSchema = z.object({
   name: shortText,
   type: z.enum(EVENT_TYPES),
@@ -95,6 +109,14 @@ export const teamMemberSchema = z.object({
     .optional(),
   active: z.boolean().optional(),
   salaried: z.boolean().optional(),
+  /* Whole dinars, or empty to follow whatever each event pays. */
+  defaultPay: z
+    .string()
+    .trim()
+    .transform((value) => (value === '' ? null : Number(value.replace(/[,\s]/g, ''))))
+    .nullable()
+    .refine((value) => value === null || dinars(value), 'invalidCredit')
+    .optional(),
   notes: longText,
 });
 
@@ -157,20 +179,6 @@ export const attendanceTimesSchema = z.object({
   checkInTime: optionalTime,
   checkOutTime: optionalTime,
 });
-
-/**
- * What one person is owed for one event, in dinars.
- *
- * Whole dinars only — nothing here is priced in fils — and capped, so that a
- * finger slipping on the keypad cannot put a year's payroll on one line and
- * have it quietly totalled into the month's report.
- */
-const dinars = (value: unknown) =>
-  typeof value === 'number' &&
-  Number.isFinite(value) &&
-  Number.isInteger(value) &&
-  value >= 0 &&
-  value <= MAX_EVENT_PAY;
 
 export const creditSchema = z.object({
   eventMemberId: z.string().min(1),

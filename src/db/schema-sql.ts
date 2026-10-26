@@ -1,6 +1,6 @@
 /**
  * GENERATED FILE — do not edit.
- * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql.
+ * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql, 0014_jittery_venus.sql.
  * Regenerate after changing src/db/schema.ts:
  *   npx drizzle-kit generate && node scripts/embed-schema.mjs
  */
@@ -103,4 +103,5 @@ export const SCHEMA_STATEMENTS: string[] = [
   "CREATE INDEX IF NOT EXISTS `seat_setup_members_event_idx` ON `seat_setup_members` (`event_id`)",
   "ALTER TABLE `event_members` ADD `pay_mode` text DEFAULT 'EVENT' NOT NULL",
   "ALTER TABLE `team_members` ADD `salaried` integer DEFAULT false NOT NULL",
+  "ALTER TABLE `team_members` ADD `default_pay` real",
 ];

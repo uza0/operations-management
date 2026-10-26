@@ -400,9 +400,13 @@ await admin.fill('input[name=creditNote]', 'قائد بوابة');
 await admin.click('button:has-text("حفظ المبلغ")');
 await admin.waitForTimeout(2500);
 
+/*
+ * By its note, not by "the first row with a figure on it": people now carry a
+ * standing rate that is copied onto the event, so several rows have one.
+ */
 const credited = await db.prepare(
-  'select pay_amount, credit_note from event_members where pay_amount is not null and event_id=?',
-).get(eventId);
+  'select pay_amount, credit_note from event_members where credit_note = ? and event_id=?',
+).get('قائد بوابة', eventId);
 check('one person can be put on their own rate', Number(credited?.pay_amount) === 45000,
   String(credited?.credit_note ?? ''));
 
@@ -956,6 +960,28 @@ check('gate leader blocked from the leader briefing route too',
   gateLeader.url());
 
 check('gate leader nav omits management sections', !gateNav.includes('التوزيع'));
+
+/* ---- a standing rate per person ---------------------------------------- */
+
+/*
+ * The rate is answered once, on the person, and copied onto each event they
+ * are invited to. The copy is the point: changing somebody's rate in March
+ * must not reprice an event that was settled in January.
+ */
+const higher = await db.prepare(
+  'select id, full_name, default_pay from team_members where default_pay > 0 limit 1').get();
+check('a person can be put on their own standing rate',
+  Number(higher?.default_pay) === 40000, `${higher?.full_name}: ${higher?.default_pay}`);
+
+const copied = await db.prepare(
+  'select pay_amount from event_members where team_member_id=? limit 1').get(higher.id);
+check('their rate is copied onto the event they are invited to',
+  Number(copied?.pay_amount) === Number(higher.default_pay),
+  `${copied?.pay_amount}`);
+
+const house = await db.prepare(`
+  select count(*) as n from team_members where default_pay is null`).get();
+check('most of the team follow the house rate', Number(house.n) > 0, `${house.n}`);
 
 /* ---- the chairs, the day before ---------------------------------------- */
 
