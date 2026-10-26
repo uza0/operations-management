@@ -97,6 +97,8 @@ export type LedgerLine = {
    */
   seatAmount: number | null;
   note: string | null;
+  /** True once this line went out in a handover; it is no longer owed. */
+  paid: boolean;
   /** False while the event is still open — counted separately. */
   closed: boolean;
 };
@@ -108,10 +110,12 @@ export type MemberLedger = {
   phone: string | null;
   active: boolean;
   lines: LedgerLine[];
-  /** From events that are over — the figure payroll pays against. */
+  /** Over, and not yet handed over — the figure payroll pays against. */
   totalAmount: number;
   /** From events still running, kept apart so nothing is paid early. */
   pendingAmount: number;
+  /** Already handed over in an earlier settlement. */
+  paidAmount: number;
   eventsWorked: number;
 };
 
@@ -138,6 +142,7 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
       memberStatus: eventMembers.status,
       payAmount: eventMembers.payAmount,
       payMode: eventMembers.payMode,
+      payoutId: eventMembers.payoutId,
       creditNote: eventMembers.creditNote,
       status: attendance.status,
       checkInTime: attendance.checkInTime,
@@ -200,6 +205,7 @@ function toLine(row: Awaited<ReturnType<typeof ledgerRows>>[number]): LedgerLine
         ? null
         : (row.seatPay ?? SEAT_SETUP_PAY),
     note: row.creditNote,
+    paid: row.payoutId !== null,
     closed: CLOSED_STATUSES.includes(row.eventStatus),
   };
 }
@@ -217,11 +223,16 @@ function summarise(
     active: person.active,
     lines: sorted,
     /* A null line is outside this ledger, so it adds nothing to either total. */
+    /* Owed: the event is over and the money has not gone out yet. */
     totalAmount: sorted
-      .filter((l) => l.closed)
+      .filter((l) => l.closed && !l.paid)
       .reduce((sum, l) => sum + (l.amount ?? 0) + (l.seatAmount ?? 0), 0),
     pendingAmount: sorted
       .filter((l) => !l.closed)
+      .reduce((sum, l) => sum + (l.amount ?? 0) + (l.seatAmount ?? 0), 0),
+    /* Already handed over, and so no longer part of what is owed. */
+    paidAmount: sorted
+      .filter((l) => l.paid)
       .reduce((sum, l) => sum + (l.amount ?? 0) + (l.seatAmount ?? 0), 0),
     eventsWorked: sorted.filter((l) => l.closed && (l.amount ?? 0) > 0).length,
   };

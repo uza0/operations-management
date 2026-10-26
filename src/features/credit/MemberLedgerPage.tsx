@@ -1,6 +1,10 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
+import { desc, eq } from 'drizzle-orm';
+
+import { db } from '@/db';
+import { memberRates, teamMembers } from '@/db/schema';
 import { getT } from '@/lib/i18n/server';
 import { memberLedger } from '@/server/services/credit';
 import { PageHeader, StatTile } from '@/components/ui/panel';
@@ -10,6 +14,8 @@ import { IconCheckCircle } from '@/components/ui/icons';
 import { formatDate, formatTime } from '@/lib/time';
 import type { AttendanceStatus, Task } from '@/lib/constants';
 import { formatAmount, formatMoney } from '@/lib/money';
+
+import { RateForm } from './RateForm';
 
 /**
  * One person's record.
@@ -24,12 +30,38 @@ export async function MemberLedgerPage({ memberId }: { memberId: string }) {
   const ledger = await memberLedger(memberId);
   if (!ledger) notFound();
 
+  const [person, rateHistory] = await Promise.all([
+    db
+      .select({ defaultPay: teamMembers.defaultPay })
+      .from(teamMembers)
+      .where(eq(teamMembers.id, memberId))
+      .get(),
+    db
+      .select()
+      .from(memberRates)
+      .where(eq(memberRates.teamMemberId, memberId))
+      .orderBy(desc(memberRates.effectiveFrom))
+      .limit(12),
+  ]);
+  const today = new Date().toISOString().slice(0, 10);
+
   return (
     <>
       <PageHeader
         title={ledger.name}
         subtitle={`${t.credit.ledgerSubtitle} · ${ledger.employeeCode}`}
       />
+
+      <div className="mb-4">
+        <RateForm
+          t={t}
+          locale={locale}
+          memberId={memberId}
+          current={person?.defaultPay ?? null}
+          today={today}
+          history={rateHistory}
+        />
+      </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatTile

@@ -1,6 +1,6 @@
 /**
  * GENERATED FILE — do not edit.
- * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql, 0014_jittery_venus.sql.
+ * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql, 0014_jittery_venus.sql, 0015_curved_grim_reaper.sql.
  * Regenerate after changing src/db/schema.ts:
  *   npx drizzle-kit generate && node scripts/embed-schema.mjs
  */
@@ -104,4 +104,9 @@ export const SCHEMA_STATEMENTS: string[] = [
   "ALTER TABLE `event_members` ADD `pay_mode` text DEFAULT 'EVENT' NOT NULL",
   "ALTER TABLE `team_members` ADD `salaried` integer DEFAULT false NOT NULL",
   "ALTER TABLE `team_members` ADD `default_pay` real",
+  "CREATE TABLE IF NOT EXISTS `member_rates` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`team_member_id` text NOT NULL,\n\t`amount` real NOT NULL,\n\t`effective_from` text NOT NULL,\n\t`note` text,\n\t`created_by_id` text,\n\t`created_by_name` text NOT NULL,\n\t`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\t`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\tFOREIGN KEY (`team_member_id`) REFERENCES `team_members`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`created_by_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n)",
+  "CREATE INDEX IF NOT EXISTS `member_rates_member_idx` ON `member_rates` (`team_member_id`,`effective_from`)",
+  "CREATE TABLE IF NOT EXISTS `payouts` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`from_date` text NOT NULL,\n\t`to_date` text NOT NULL,\n\t`total_amount` real NOT NULL,\n\t`people_count` integer DEFAULT 0 NOT NULL,\n\t`note` text,\n\t`created_by_id` text,\n\t`created_by_name` text NOT NULL,\n\t`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\t`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\tFOREIGN KEY (`created_by_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n)",
+  "CREATE INDEX IF NOT EXISTS `payouts_range_idx` ON `payouts` (`from_date`,`to_date`)",
+  "ALTER TABLE `event_members` ADD `payout_id` text REFERENCES payouts(id)",
 ];

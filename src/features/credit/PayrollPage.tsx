@@ -6,6 +6,11 @@ import { PageHeader, StatTile } from '@/components/ui/panel';
 import { formatDate, isValidDate } from '@/lib/time';
 import { format } from '@/lib/i18n';
 
+import { db } from '@/db';
+import { payouts as payoutsTable } from '@/db/schema';
+import { desc } from 'drizzle-orm';
+
+import { PayoutPanel } from './PayoutPanel';
 import { RangeForm } from './RangeForm';
 import { formatAmount, formatMoney } from '@/lib/money';
 
@@ -40,6 +45,12 @@ export async function PayrollPage({
     ledgers.flatMap((l) => l.lines.filter((line) => line.closed && (line.amount ?? 0) > 0))
       .map((line) => line.eventId),
   ).size;
+
+  const settlements = await db
+    .select()
+    .from(payoutsTable)
+    .orderBy(desc(payoutsTable.createdAt))
+    .limit(20);
 
   const rangeLabel =
     range.from && range.to
@@ -145,6 +156,16 @@ export async function PayrollPage({
           </table>
         </div>
       </div>
+
+      <PayoutPanel
+        t={t}
+        locale={locale}
+        from={range.from}
+        to={range.to}
+        owedTotal={grandTotal}
+        owedPeople={owed.length}
+        payouts={settlements}
+      />
     </>
   );
 }

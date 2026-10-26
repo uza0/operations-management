@@ -333,6 +333,14 @@ export const eventMembers = sqliteTable(
      * not make January's closed events suddenly owe him money.
      */
     payMode: text('pay_mode').notNull().default('EVENT'),
+    /**
+     * The handing-over this person's pay for this event went out in.
+     *
+     * Null means still owed. It is what makes a balance mean "not yet paid"
+     * rather than "ever earned", and it is what stops a rate correction from
+     * repricing money that has already left the building.
+     */
+    payoutId: text('payout_id').references(() => payouts.id, { onDelete: 'set null' }),
     feedbackAt: integer('feedback_at', { mode: 'timestamp_ms' }),
     notifiedAt: integer('notified_at', { mode: 'timestamp_ms' }),
     notifiedById: text('notified_by_id').references(() => users.id, {
@@ -814,6 +822,74 @@ export const seatSetupMembers = sqliteTable(
     uniqueIndex('seat_setup_members_unique').on(t.detailId, t.eventMemberId),
     index('seat_setup_members_event_idx').on(t.eventId),
   ],
+);
+
+/**
+ * What one person's rate has been, and from when.
+ *
+ * The rate on the person is what the next invitation copies. This is the
+ * record of how it got there — and the thing that makes a correction
+ * possible: "he has been on fifty since the twelfth" is a different statement
+ * from "he is on fifty now", and only the first one can put right an event
+ * that was already invited at the old figure.
+ *
+ * Append-only. A rate that turns out to be wrong is corrected by recording
+ * the right one from the right date, never by editing the line that says what
+ * everybody believed at the time.
+ */
+export const memberRates = sqliteTable(
+  'member_rates',
+  {
+    id: text('id').primaryKey(),
+    teamMemberId: text('team_member_id')
+      .notNull()
+      .references(() => teamMembers.id, { onDelete: 'cascade' }),
+    /** Dinars for one event. Zero is a real answer: see `salaried`. */
+    amount: real('amount').notNull(),
+    /** "YYYY-MM-DD" — events from this date on are worth this. */
+    effectiveFrom: text('effective_from').notNull(),
+    note: text('note'),
+    createdById: text('created_by_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdByName: text('created_by_name').notNull(),
+    ...timestamps,
+  },
+  (t) => [index('member_rates_member_idx').on(t.teamMemberId, t.effectiveFrom)],
+);
+
+/**
+ * One handing-over of wages, covering a span of dates.
+ *
+ * The company does not pay by the month or by the night: several events pile
+ * up and are settled together. So "what is owed" is not a sum of everything
+ * ever worked — it is the sum of what has not yet been handed over, and that
+ * needs a record of each handing-over rather than a date somebody remembers.
+ *
+ * The span is by event date. An event outside it stays owed and joins the
+ * next one by doing nothing at all, which is the behaviour that matters: a
+ * man who worked the twentieth when the payout ran to the nineteenth keeps
+ * his twentieth.
+ */
+export const payouts = sqliteTable(
+  'payouts',
+  {
+    id: text('id').primaryKey(),
+    /** "YYYY-MM-DD", inclusive at both ends. */
+    fromDate: text('from_date').notNull(),
+    toDate: text('to_date').notNull(),
+    /** What it came to, kept as written so a later rate change cannot move it. */
+    totalAmount: real('total_amount').notNull(),
+    /** How many people it covered. */
+    peopleCount: integer('people_count').notNull().default(0),
+    note: text('note'),
+    createdById: text('created_by_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdByName: text('created_by_name').notNull(),
+    ...timestamps,
+  },
+  (t) => [index('payouts_range_idx').on(t.fromDate, t.toDate)],
 );
 
 /* -------------------------------------------------------------------------- */

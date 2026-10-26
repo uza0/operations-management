@@ -983,6 +983,96 @@ const house = await db.prepare(`
   select count(*) as n from team_members where default_pay is null`).get();
 check('most of the team follow the house rate', Number(house.n) > 0, `${house.n}`);
 
+/* ---- a rate with a date, and wages that go out in batches -------------- */
+
+/*
+ * The two halves of how people are actually paid: a rate that can be put
+ * right from a date, and a handover that settles several events at once and
+ * leaves whatever falls outside it still owed.
+ */
+const rateMan = await db.prepare(`
+  select tm.id, tm.full_name, count(em.id) as events
+    from team_members tm
+    join event_members em on em.team_member_id = tm.id
+    join events e on e.id = em.event_id
+   where tm.salaried = 0 and e.status in ('COMPLETED','ARCHIVED')
+   group by tm.id having events >= 1 order by events desc limit 1`).get();
+
+await admin.goto(`${BASE}/admin/team/${rateMan.id}`);
+await admin.waitForLoadState('networkidle');
+// Wait for the form to be interactive, not just present: a server action
+// filled in before React picks it up posts the old-fashioned way.
+await admin.waitForSelector('button:has-text("ثبّت الأجر"):not([disabled])');
+await admin.fill('#rate-amount', '50000');
+await admin.fill('#rate-from', '2020-01-01');
+await admin.locator('button:has-text("ثبّت الأجر")').click();
+await admin.waitForTimeout(3000);
+
+const standing = await db.prepare(
+  'select default_pay from team_members where id=?').get(rateMan.id);
+check('a rate can be set on the person', Number(standing.default_pay) === 50000,
+  `${rateMan.full_name}: ${standing.default_pay}`);
+
+const repriced = await db.prepare(`
+  select count(*) as n from event_members
+   where team_member_id=? and pay_amount=50000 and payout_id is null`).get(rateMan.id);
+check('setting it from a past date reprices the events still owed',
+  Number(repriced.n) > 0, `${repriced.n}`);
+
+const logged = await db.prepare(
+  'select count(*) as n from member_rates where team_member_id=?').get(rateMan.id);
+check('and the change is kept with its date', Number(logged.n) === 1, `${logged.n}`);
+
+/* Now hand wages over for a span, and check what falls outside it survives. */
+const span = await db.prepare(`
+  select min(date) as lo, max(date) as hi from events
+   where status in ('COMPLETED','ARCHIVED')`).get();
+check('there are finished events to settle', Boolean(span.lo), `${span.lo} → ${span.hi}`);
+
+const owedBefore = Number((await db.prepare(`
+  select count(*) as n from event_members em join events e on e.id = em.event_id
+   where em.payout_id is null and e.status in ('COMPLETED','ARCHIVED')`).get()).n);
+
+admin.once('dialog', (d) => d.accept());
+await admin.goto(`${BASE}/admin/credits?from=${span.lo}&to=${span.lo}`);
+await admin.waitForLoadState('networkidle');
+await admin.waitForSelector('button:has-text("سجّل تسليم الرواتب"):not([disabled])');
+await admin.locator('button:has-text("سجّل تسليم الرواتب")').click();
+await admin.waitForTimeout(3500);
+
+const payout = await db.prepare('select * from payouts order by created_at desc limit 1').get();
+check('a handover is recorded with its span and its total',
+  Boolean(payout) && String(payout.from_date) === String(span.lo) &&
+    Number(payout.total_amount) > 0,
+  payout ? `${payout.total_amount}` : 'none');
+
+const owedAfter = Number((await db.prepare(`
+  select count(*) as n from event_members em join events e on e.id = em.event_id
+   where em.payout_id is null and e.status in ('COMPLETED','ARCHIVED')`).get()).n);
+check('only the span is settled; the rest stays owed',
+  owedAfter < owedBefore && owedAfter > 0, `${owedBefore} → ${owedAfter}`);
+
+const settledOutside = Number((await db.prepare(`
+  select count(*) as n from event_members em join events e on e.id = em.event_id
+   where em.payout_id is not null and e.date != ?`).get(span.lo)).n);
+check('nothing outside the span was touched', settledOutside === 0, `${settledOutside}`);
+
+/*
+ * And a rate change can no longer reach the money that went out — the whole
+ * reason the handover is recorded rather than assumed.
+ */
+await admin.goto(`${BASE}/admin/team/${rateMan.id}`);
+await admin.waitForLoadState('networkidle');
+await admin.waitForSelector('button:has-text("ثبّت الأجر"):not([disabled])');
+await admin.fill('#rate-amount', '70000');
+await admin.fill('#rate-from', '2020-01-01');
+await admin.locator('button:has-text("ثبّت الأجر")').click();
+await admin.waitForTimeout(3000);
+const frozen = Number((await db.prepare(
+  'select count(*) as n from event_members where payout_id is not null and pay_amount = 70000')
+  .get()).n);
+check('a settled event keeps the figure it was settled at', frozen === 0, `${frozen}`);
+
 /* ---- the chairs, the day before ---------------------------------------- */
 
 /*

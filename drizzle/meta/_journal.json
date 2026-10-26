@@ -106,6 +106,13 @@
       "when": 1793021515591,
       "tag": "0014_jittery_venus",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "6",
+      "when": 1793022656176,
+      "tag": "0015_curved_grim_reaper",
+      "breakpoints": true
     }
   ]
 }
