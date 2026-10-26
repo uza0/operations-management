@@ -41,71 +41,139 @@ export function SeatSetupManager({
   defaultDate: string;
 }) {
   const router = useRouter();
-  const [editing, setEditing] = useState(false);
-  const [picking, setPicking] = useState(false);
-  const [removeState, remove] = useActionState(removeSeatSetupAction, idle);
+  /** Which shift the dialogs are about: a shift object, 'new', or nothing. */
+  const [editing, setEditing] = useState<SeatSetupData['shifts'][number] | 'new' | null>(null);
+  const [picking, setPicking] = useState<SeatSetupData['shifts'][number] | null>(null);
 
-  useEffect(() => {
-    if (removeState.status === 'success') router.refresh();
-  }, [removeState, router]);
+  const refresh = () => {
+    setEditing(null);
+    setPicking(null);
+    router.refresh();
+  };
 
-  const detail = data.detail;
-  const attended = data.people.filter((p) => p.attended).length;
-  const total = attended * (detail?.payAmount ?? 0);
-
-  if (!detail) {
-    return (
-      <>
-        <EmptyState
-          title={t.seatSetup.none}
-          hint={t.seatSetup.noneHint}
-          icon={<IconUsers width={20} height={20} />}
-          action={
-            <button type="button" className="btn-primary btn-sm" onClick={() => setEditing(true)}>
-              <IconPlus width={15} height={15} />
-              {t.seatSetup.add}
-            </button>
-          }
-        />
-        {editing ? (
-          <ShiftDialog
-            t={t}
-            eventId={eventId}
-            detail={null}
-            defaultDate={defaultDate}
-            onDone={() => {
-              setEditing(false);
-              router.refresh();
-            }}
-          />
-        ) : null}
-      </>
-    );
-  }
+  const total = data.shifts.reduce(
+    (sum, shift) => sum + shift.people.filter((p) => p.attended).length * shift.payAmount,
+    0,
+  );
 
   return (
     <>
       <div className="flex flex-wrap items-center gap-3 border-b border-ink-800 p-4">
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-semibold text-ink-100">
-            {formatDate(detail.date, locale)}
+          <p className="text-[13px] font-semibold text-ink-200">
+            {format(t.seatSetup.dayCount, { n: data.shifts.length })}
           </p>
-          <p className="nums mt-0.5 text-[13px] text-ink-400">
-            {detail.startTime}
-            {detail.endTime ? ` → ${detail.endTime}` : ''}
+          <p className="mt-0.5 text-[12px] leading-5 text-ink-500">{t.seatSetup.daysHint}</p>
+        </div>
+        <p className="nums text-[13px] text-ink-300">
+          {t.seatSetup.total}: <span className="font-semibold">{formatAmount(total)}</span>{' '}
+          {t.credit.currency}
+        </p>
+        <button type="button" className="btn-primary btn-sm" onClick={() => setEditing('new')}>
+          <IconPlus width={15} height={15} />
+          {t.seatSetup.add}
+        </button>
+      </div>
+
+      {data.shifts.length === 0 ? (
+        <EmptyState
+          title={t.seatSetup.none}
+          hint={t.seatSetup.noneHint}
+          icon={<IconUsers width={20} height={20} />}
+        />
+      ) : (
+        data.shifts.map((shift) => (
+          <ShiftBlock
+            key={shift.id}
+            t={t}
+            locale={locale}
+            eventId={eventId}
+            shift={shift}
+            onEdit={() => setEditing(shift)}
+            onPick={() => setPicking(shift)}
+            onDone={refresh}
+          />
+        ))
+      )}
+
+      {editing ? (
+        <ShiftDialog
+          t={t}
+          eventId={eventId}
+          detail={editing === 'new' ? null : editing}
+          defaultDate={defaultDate}
+          onDone={refresh}
+        />
+      ) : null}
+
+      {picking ? (
+        <CrewDialog
+          t={t}
+          locale={locale}
+          eventId={eventId}
+          shift={picking}
+          data={data}
+          onDone={refresh}
+        />
+      ) : null}
+    </>
+  );
+}
+
+/** One chair day: its hours, its rate, and who stood in the room. */
+function ShiftBlock({
+  t,
+  locale,
+  eventId,
+  shift,
+  onEdit,
+  onPick,
+  onDone,
+}: {
+  t: Dictionary;
+  locale: Locale;
+  eventId: string;
+  shift: SeatSetupData['shifts'][number];
+  onEdit: () => void;
+  onPick: () => void;
+  onDone: () => void;
+}) {
+  const [removeState, remove] = useActionState(removeSeatSetupAction, idle);
+  const attended = shift.people.filter((p) => p.attended).length;
+
+  useEffect(() => {
+    if (removeState.status === 'success') onDone();
+  }, [removeState, onDone]);
+
+  return (
+    <section className="border-b border-ink-800">
+      <div className="flex flex-wrap items-center gap-3 bg-ink-900/40 px-4 py-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-[14.5px] font-semibold text-ink-100">
+            {formatDate(shift.date, locale)}
+          </p>
+          <p className="nums mt-0.5 text-[12.5px] text-ink-400">
+            {shift.startTime}
+            {shift.endTime ? ` → ${shift.endTime}` : ''}
             <span className="mx-1.5 text-ink-600">·</span>
-            {formatAmount(detail.payAmount)} {t.credit.currency}
+            {formatAmount(shift.payAmount)} {t.credit.currency}
+            <span className="mx-1.5 text-ink-600">·</span>
+            {format(t.seatSetup.attendedCount, { n: attended })} / {shift.people.length}
           </p>
-          {detail.notes ? (
-            <p className="mt-1 text-[12.5px] leading-5 text-ink-500">{detail.notes}</p>
+          {shift.notes ? (
+            <p className="mt-1 text-[12.5px] leading-5 text-ink-500">{shift.notes}</p>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className="btn-ghost btn-sm" onClick={() => setEditing(true)}>
+          <button type="button" className="btn-secondary btn-sm" onClick={onPick}>
+            {t.seatSetup.pick}
+          </button>
+          <button type="button" className="btn-ghost btn-sm" onClick={onEdit}>
             {t.seatSetup.edit}
           </button>
           <form action={remove}>
             <input type="hidden" name="eventId" value={eventId} />
+            <input type="hidden" name="detailId" value={shift.id} />
             <ConfirmSubmit
               className="btn-ghost btn-sm text-crit-text"
               message={t.seatSetup.removeConfirm}
@@ -116,59 +184,16 @@ export function SeatSetupManager({
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-3 border-b border-ink-800 px-4 py-3">
-        <p className="text-[13px] font-semibold text-ink-200">
-          {format(t.seatSetup.crewCount, { n: data.people.length })}
-          <span className="mx-1.5 text-ink-600">·</span>
-          <span className="font-normal text-ink-400">
-            {format(t.seatSetup.attendedCount, { n: attended })}
-          </span>
-        </p>
-        <p className="nums ms-auto text-[13px] text-ink-300">
-          {t.seatSetup.total}: <span className="font-semibold">{formatAmount(total)}</span>{' '}
-          {t.credit.currency}
-        </p>
-        <button type="button" className="btn-secondary btn-sm" onClick={() => setPicking(true)}>
-          {t.seatSetup.pick}
-        </button>
-      </div>
-
-      {data.people.length === 0 ? (
-        <EmptyState title={t.seatSetup.empty} hint={t.seatSetup.needsShift} />
+      {shift.people.length === 0 ? (
+        <p className="px-4 py-3 text-[12.5px] text-ink-500">{t.seatSetup.empty}</p>
       ) : (
         <ul className="divide-y divide-ink-800">
-          {data.people.map((person) => (
+          {shift.people.map((person) => (
             <PersonRow key={person.id} t={t} eventId={eventId} person={person} />
           ))}
         </ul>
       )}
-
-      {editing ? (
-        <ShiftDialog
-          t={t}
-          eventId={eventId}
-          detail={detail}
-          defaultDate={defaultDate}
-          onDone={() => {
-            setEditing(false);
-            router.refresh();
-          }}
-        />
-      ) : null}
-
-      {picking ? (
-        <CrewDialog
-          t={t}
-          locale={locale}
-          eventId={eventId}
-          data={data}
-          onDone={() => {
-            setPicking(false);
-            router.refresh();
-          }}
-        />
-      ) : null}
-    </>
+    </section>
   );
 }
 
@@ -182,7 +207,7 @@ function ShiftDialog({
 }: {
   t: Dictionary;
   eventId: string;
-  detail: SeatSetupData['detail'];
+  detail: SeatSetupData['shifts'][number] | null;
   defaultDate: string;
   onDone: () => void;
 }) {
@@ -196,6 +221,7 @@ function ShiftDialog({
     <Dialog open onClose={onDone} title={t.seatSetup.title} description={t.seatSetup.subtitle}>
       <form action={action} className="space-y-3">
         <input type="hidden" name="eventId" value={eventId} />
+        {detail ? <input type="hidden" name="detailId" value={detail.id} /> : null}
 
         <div>
           <label className="field-label" htmlFor="ss-date">
@@ -275,18 +301,21 @@ function CrewDialog({
   t,
   locale,
   eventId,
+  shift,
   data,
   onDone,
 }: {
   t: Dictionary;
   locale: Locale;
   eventId: string;
+  shift: SeatSetupData['shifts'][number];
   data: SeatSetupData;
   onDone: () => void;
 }) {
   const [state, action] = useActionState(setSeatSetupCrewAction, idle);
+  /* Picked for THIS day. The same person may be on one day and not the next. */
   const [picked, setPicked] = useState<Set<string>>(
-    () => new Set(data.candidates.filter((c) => c.picked).map((c) => c.eventMemberId)),
+    () => new Set(shift.people.map((p) => p.eventMemberId)),
   );
 
   useEffect(() => {
@@ -300,6 +329,7 @@ function CrewDialog({
     <Dialog open onClose={onDone} title={t.seatSetup.pick} description={t.seatSetup.subtitle}>
       <form action={action} className="space-y-3">
         <input type="hidden" name="eventId" value={eventId} />
+        <input type="hidden" name="detailId" value={shift.id} />
 
         {/*
           The same dozen names do most of these, so they are one tap away.
@@ -377,7 +407,7 @@ function PersonRow({
 }: {
   t: Dictionary;
   eventId: string;
-  person: SeatSetupData['people'][number];
+  person: SeatSetupData['shifts'][number]['people'][number];
 }) {
   const router = useRouter();
   const [state, action] = useActionState(setSeatSetupPersonAction, idle);

@@ -49,16 +49,23 @@ export type SeatSetupCandidate = {
   picked: boolean;
 };
 
-export type SeatSetupData = {
-  detail: {
-    id: string;
-    date: string;
-    startTime: string;
-    endTime: string | null;
-    notes: string | null;
-    payAmount: number;
-  } | null;
+export type SeatSetupShift = {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string | null;
+  notes: string | null;
+  payAmount: number;
   people: SeatSetupPerson[];
+};
+
+export type SeatSetupData = {
+  /**
+   * Every chair day this event has, earliest first. A hall of six thousand
+   * seats is not laid out in an afternoon, so the big events have two or
+   * three — each its own day's work, its own crew and its own day's pay.
+   */
+  shifts: SeatSetupShift[];
   candidates: SeatSetupCandidate[];
   /**
    * The crew from the last event at this venue that had one, so the same
@@ -144,9 +151,11 @@ export async function buildSeatSetup(eventId: string): Promise<SeatSetupData> {
     .where(eq(events.id, eventId))
     .get();
 
-  const detail = await db.query.seatSetupDetails.findFirst({
-    where: eq(seatSetupDetails.eventId, eventId),
-  });
+  const details = await db
+    .select()
+    .from(seatSetupDetails)
+    .where(eq(seatSetupDetails.eventId, eventId))
+    .orderBy(asc(seatSetupDetails.date), asc(seatSetupDetails.startTime));
 
   const [roster, places] = await Promise.all([
     db
@@ -167,81 +176,65 @@ export async function buildSeatSetup(eventId: string): Promise<SeatSetupData> {
     ? await lastCrewFor(eventId, event.venueId, event.date)
     : { eventName: '', eventDate: '', eventMemberIds: [] };
 
-  if (!detail) {
-    return {
-      detail: null,
-      people: [],
-      candidates: active
-        .map((row) => ({
-          eventMemberId: row.eventMemberId,
-          name: row.name,
-          employeeCode: row.employeeCode,
-          normalPlace: places.get(row.eventMemberId) ?? null,
-          picked: false,
-        }))
-        .sort(byName),
-      lastCrew,
-    };
+  const candidates = active
+    .map((row) => ({
+      eventMemberId: row.eventMemberId,
+      name: row.name,
+      employeeCode: row.employeeCode,
+      normalPlace: places.get(row.eventMemberId) ?? null,
+      picked: false,
+    }))
+    .sort(byName);
+
+  if (details.length === 0) {
+    return { shifts: [], candidates, lastCrew };
   }
 
   const rows = await db
     .select({
       id: seatSetupMembers.id,
+      detailId: seatSetupMembers.detailId,
       eventMemberId: seatSetupMembers.eventMemberId,
       attended: seatSetupMembers.attended,
       checkInTime: seatSetupMembers.checkInTime,
       checkOutTime: seatSetupMembers.checkOutTime,
       notes: seatSetupMembers.notes,
-      sortOrder: seatSetupMembers.sortOrder,
       name: teamMembers.fullName,
       employeeCode: teamMembers.employeeCode,
     })
     .from(seatSetupMembers)
     .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
     .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
-    .where(eq(seatSetupMembers.detailId, detail.id))
+    .where(eq(seatSetupMembers.eventId, eventId))
     .orderBy(asc(seatSetupMembers.sortOrder));
 
-  const people: SeatSetupPerson[] = rows
-    .map((row) => ({
-      id: row.id,
-      eventMemberId: row.eventMemberId,
-      name: row.name,
-      employeeCode: row.employeeCode,
-      attended: row.attended,
-      checkInTime: row.checkInTime,
-      checkOutTime: row.checkOutTime,
-      notes: row.notes,
-      normalPlace: places.get(row.eventMemberId) ?? null,
-    }))
-    .sort(byName);
-
-  const picked = new Set(people.map((p) => p.eventMemberId));
-
-  return {
-    detail: {
-      id: detail.id,
-      date: detail.date,
-      startTime: detail.startTime,
-      endTime: detail.endTime,
-      notes: detail.notes,
-      payAmount: detail.payAmount ?? SEAT_SETUP_PAY,
-    },
-    people,
-    candidates: active
+  const shifts: SeatSetupShift[] = details.map((detail) => ({
+    id: detail.id,
+    date: detail.date,
+    startTime: detail.startTime,
+    endTime: detail.endTime,
+    notes: detail.notes,
+    payAmount: detail.payAmount ?? SEAT_SETUP_PAY,
+    people: rows
+      .filter((row) => row.detailId === detail.id)
       .map((row) => ({
+        id: row.id,
         eventMemberId: row.eventMemberId,
         name: row.name,
         employeeCode: row.employeeCode,
+        attended: row.attended,
+        checkInTime: row.checkInTime,
+        checkOutTime: row.checkOutTime,
+        notes: row.notes,
         normalPlace: places.get(row.eventMemberId) ?? null,
-        picked: picked.has(row.eventMemberId),
       }))
       .sort(byName),
-    lastCrew,
-  };
+  }));
+
+  return { shifts, candidates, lastCrew };
 }
 
-/** The day before the event — what the date field starts at. */
+/** The day before the event — what a new shift's date starts at. */
 export function dayBefore(date: string): string {
   const d = new Date(`${date}T12:00:00Z`);
   d.setUTCDate(d.getUTCDate() - 1);
@@ -265,8 +258,8 @@ export type MySeatSetup = {
 export async function seatSetupForMember(
   eventId: string,
   eventMemberId: string,
-): Promise<MySeatSetup | null> {
-  const row = await db
+): Promise<MySeatSetup[]> {
+  const rows = await db
     .select({
       date: seatSetupDetails.date,
       startTime: seatSetupDetails.startTime,
@@ -281,7 +274,7 @@ export async function seatSetupForMember(
         eq(seatSetupMembers.eventMemberId, eventMemberId),
       ),
     )
-    .get();
+    .orderBy(asc(seatSetupDetails.date));
 
-  return row ?? null;
+  return rows;
 }

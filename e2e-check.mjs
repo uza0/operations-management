@@ -1084,10 +1084,26 @@ const seatEvent = await db.prepare(
   'select event_id as id, pay_amount as pay from seat_setup_details limit 1').get();
 check('an event can have a chair-setting shift', Boolean(seatEvent), '');
 
+/*
+ * More than one day, because a big hall is not laid out in an afternoon —
+ * and each day pays on its own, which is the arithmetic worth checking.
+ */
+const seatDays = await db.prepare(
+  'select count(*) as n from seat_setup_details where event_id=?').get(seatEvent.id);
+check('an event can have several chair days', Number(seatDays.n) > 1, `${seatDays.n}`);
+
+const twoDayMan = await db.prepare(`
+  select sm.event_member_id as id, count(*) as days
+    from seat_setup_members sm
+   where sm.event_id = ? and sm.attended = 1
+   group by sm.event_member_id having days > 1 limit 1`).get(seatEvent.id);
+check('somebody worked more than one of them', Boolean(twoDayMan), `${twoDayMan?.days}`);
+
 const seatCrew = await db.prepare(
-  'select count(*) as n from seat_setup_members where event_id=?').get(seatEvent.id);
+  'select count(*) as n from seat_setup_members where event_id=? and detail_id = (select id from seat_setup_details where event_id=? order by date limit 1)')
+  .get(seatEvent.id, seatEvent.id);
 const seatCame = await db.prepare(
-  'select count(*) as n from seat_setup_members where event_id=? and attended=1')
+  'select count(*) as n from seat_setup_members where attended=1 and detail_id = (select id from seat_setup_details where event_id=? order by date limit 1)')
   .get(seatEvent.id);
 check('the crew is recorded, and who turned up with it',
   Number(seatCrew.n) > Number(seatCame.n) && Number(seatCame.n) > 0,

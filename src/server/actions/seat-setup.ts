@@ -78,9 +78,15 @@ export async function saveSeatSetupAction(
     return fail(t.errors.invalidCredit);
   }
 
-  const existing = await db.query.seatSetupDetails.findFirst({
-    where: eq(seatSetupDetails.eventId, eventId),
-  });
+  /*
+   * One of possibly several days. Editing addresses a day by id; adding one
+   * sends no id at all, which is how the same form does both.
+   */
+  const detailId = str(form, 'detailId');
+  const existing = detailId
+    ? await db.query.seatSetupDetails.findFirst({ where: eq(seatSetupDetails.id, detailId) })
+    : null;
+  if (detailId && (!existing || existing.eventId !== eventId)) return fail(t.errors.notFound);
 
   if (existing) {
     await db
@@ -135,10 +141,12 @@ export async function removeSeatSetupAction(
   const user = await assertEventManager(eventId).catch(() => null);
   if (!user) return fail(t.errors.forbidden);
 
+  const detailId = str(form, 'detailId');
+  if (!detailId) return fail(t.errors.notFound);
   const existing = await db.query.seatSetupDetails.findFirst({
-    where: eq(seatSetupDetails.eventId, eventId),
+    where: eq(seatSetupDetails.id, detailId),
   });
-  if (!existing) return ok();
+  if (!existing || existing.eventId !== eventId) return ok();
 
   await db.delete(seatSetupDetails).where(eq(seatSetupDetails.id, existing.id));
 
@@ -174,10 +182,12 @@ export async function setSeatSetupCrewAction(
   const user = await assertEventManager(eventId).catch(() => null);
   if (!user) return fail(t.errors.forbidden);
 
+  const detailId = str(form, 'detailId');
+  if (!detailId) return fail(t.seatSetup.needsShift);
   const detail = await db.query.seatSetupDetails.findFirst({
-    where: eq(seatSetupDetails.eventId, eventId),
+    where: eq(seatSetupDetails.id, detailId),
   });
-  if (!detail) return fail(t.seatSetup.needsShift);
+  if (!detail || detail.eventId !== eventId) return fail(t.seatSetup.needsShift);
 
   const wanted = [...new Set(form.getAll('eventMemberId').map(String).filter(Boolean))];
 

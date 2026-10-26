@@ -789,7 +789,12 @@ export const seatSetupDetails = sqliteTable(
     payAmount: real('pay_amount').notNull().default(30000),
     ...timestamps,
   },
-  (t) => [uniqueIndex('seat_setup_details_event_unique').on(t.eventId)],
+  /*
+   * Several shifts per event, not one. A hall of six thousand seats is not
+   * laid out in an afternoon: the big events are built over two or three
+   * days, each of them a day's work and a day's pay for whoever turns up.
+   */
+  (t) => [index('seat_setup_details_event_idx').on(t.eventId, t.date)],
 );
 
 export const seatSetupMembers = sqliteTable(

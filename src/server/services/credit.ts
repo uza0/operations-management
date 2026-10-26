@@ -133,6 +133,7 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
   return db
     .select({
       teamMemberId: eventMembers.teamMemberId,
+      eventMemberId: eventMembers.id,
       eventId: events.id,
       eventName: events.name,
       eventDate: events.date,
@@ -150,13 +151,6 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
       gateName: gates.name,
       workingPointName: workingPoints.name,
       task: assignments.task,
-      /*
-       * The chair-setting shift, if they were on it. `attended` is what makes
-       * it payable: being picked for the crew is a plan, turning up is the
-       * fact.
-       */
-      seatAttended: seatSetupMembers.attended,
-      seatPay: seatSetupDetails.payAmount,
     })
     .from(eventMembers)
     .innerJoin(events, eq(eventMembers.eventId, events.id))
@@ -171,13 +165,38 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
     )
     .leftJoin(gates, eq(assignments.gateId, gates.id))
     .leftJoin(workingPoints, eq(assignments.workingPointId, workingPoints.id))
-    .leftJoin(seatSetupMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
-    .leftJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .all();
 }
 
-function toLine(row: Awaited<ReturnType<typeof ledgerRows>>[number]): LedgerLine {
+/**
+ * What each person is owed for setting out chairs, per event membership.
+ *
+ * Summed in its own query rather than joined onto the ledger: a big event is
+ * built over two or three days, and a join would hand back the event's own
+ * line once per chair day and quietly pay it twice.
+ */
+async function seatPayByMember(): Promise<Map<string, number>> {
+  const rows = await db
+    .select({
+      eventMemberId: seatSetupMembers.eventMemberId,
+      pay: seatSetupDetails.payAmount,
+    })
+    .from(seatSetupMembers)
+    .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
+    .where(eq(seatSetupMembers.attended, true));
+
+  const map = new Map<string, number>();
+  for (const row of rows) {
+    map.set(row.eventMemberId, (map.get(row.eventMemberId) ?? 0) + row.pay);
+  }
+  return map;
+}
+
+function toLine(
+  row: Awaited<ReturnType<typeof ledgerRows>>[number],
+  seatPay: Map<string, number>,
+): LedgerLine {
   const status = (row.status ?? 'PENDING') as AttendanceStatus;
   return {
     eventId: row.eventId,
@@ -201,9 +220,7 @@ function toLine(row: Awaited<ReturnType<typeof ledgerRows>>[number]): LedgerLine
      * is event pay by another name, and their pay is settled elsewhere.
      */
     seatAmount:
-      row.payMode === 'SALARIED' || !row.seatAttended
-        ? null
-        : (row.seatPay ?? SEAT_SETUP_PAY),
+      row.payMode === 'SALARIED' ? null : (seatPay.get(row.eventMemberId) ?? null),
     note: row.creditNote,
     paid: row.payoutId !== null,
     closed: CLOSED_STATUSES.includes(row.eventStatus),
@@ -248,8 +265,14 @@ export async function memberLedger(
   });
   if (!person) return null;
 
-  const rows = await ledgerRows({ memberIds: [teamMemberId], range });
-  return summarise(person, rows.map(toLine));
+  const [rows, seatPay] = await Promise.all([
+    ledgerRows({ memberIds: [teamMemberId], range }),
+    seatPayByMember(),
+  ]);
+  return summarise(
+    person,
+    rows.map((row) => toLine(row, seatPay)),
+  );
 }
 
 /**
@@ -261,12 +284,12 @@ export async function memberLedger(
  */
 export async function payrollLedger(range?: Range): Promise<MemberLedger[]> {
   const people = await db.select().from(teamMembers).all();
-  const rows = await ledgerRows({ range });
+  const [rows, seatPay] = await Promise.all([ledgerRows({ range }), seatPayByMember()]);
 
   const byMember = new Map<string, LedgerLine[]>();
   for (const row of rows) {
     const list = byMember.get(row.teamMemberId) ?? [];
-    list.push(toLine(row));
+    list.push(toLine(row, seatPay));
     byMember.set(row.teamMemberId, list);
   }
 

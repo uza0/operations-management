@@ -26,6 +26,8 @@ Out:  public/icons/{icon-192,icon-512,icon-maskable-512,apple-touch-icon,
       public/icons/mark.svg   public/favicon.ico
 """
 
+import math
+
 from PIL import Image, ImageDraw
 import os
 
@@ -38,7 +40,7 @@ WHITE = (255, 255, 255)
 SS = 8  # supersampling: draw large, shrink once, so every curve is clean
 
 
-def plate(size, bg, radius_ratio=0.225):
+def plate(size, bg, radius_ratio=0.28):
     img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
     d = ImageDraw.Draw(img)
     d.rounded_rectangle([0, 0, size - 1, size - 1],
@@ -46,84 +48,73 @@ def plate(size, bg, radius_ratio=0.225):
     return img, d
 
 
-def gate(d, box, mark, hole, dots=3, wall_ratio=0.135, lead=WHITE):
+def mark(d, size, ink, pad_ratio=0.17, bracket=True):
     """
-    Draws the gate inside `box` = (x0, y0, x1, y1).
+    The Ticket Zone mark: a star held between two brackets.
 
-    `mark` paints the gate, `hole` paints what shows through it — on the dark
-    plate that is the plate itself, which is why the colour is passed in
-    rather than punched out as transparency: a hole would also cut the dots.
+    The brackets are the gate seen from above and the star is what is going on
+    inside it, which is the company's own mark and the one people already
+    recognise. Drawn here rather than scaled from a file so that the small
+    sizes can leave the brackets off: at sixteen pixels two 2-pixel uprights
+    either side of a star are three grey smudges, and the star alone still
+    reads as this app.
     """
-    x0, y0, x1, y1 = box
-    w, h = x1 - x0, y1 - y0
-    wall = int(w * wall_ratio)
-    r_out = int(w * 0.20)
+    pad = int(size * pad_ratio)
+    inner = size - pad * 2
+    stroke = max(2, int(inner * 0.085))
+    r = stroke // 2
 
-    foot_h = int(h * 0.085)
-    body_bottom = y1 - foot_h
+    if bracket:
+        arm = int(inner * 0.20)
+        top = pad + int(inner * 0.06)
+        bottom = pad + inner - int(inner * 0.06)
+        for x0, x1 in ((pad, pad + arm), (pad + inner - arm, pad + inner)):
+            # the upright
+            ux = x0 if x0 == pad else x1 - stroke
+            d.rounded_rectangle([ux, top, ux + stroke, bottom], radius=r, fill=ink)
+            # the two returns
+            d.rounded_rectangle([x0, top, x1, top + stroke], radius=r, fill=ink)
+            d.rounded_rectangle([x0, bottom - stroke, x1, bottom], radius=r, fill=ink)
 
-    # The arch: a rounded block, squared off along the bottom so the gate
-    # stands ON its foot instead of hovering a hair above it, then the inner
-    # volume painted back over it.
-    d.rounded_rectangle([x0, y0, x1, body_bottom], radius=r_out, fill=mark)
-    d.rectangle([x0, body_bottom - r_out, x1, body_bottom], fill=mark)
-    d.rounded_rectangle(
-        [x0 + wall, y0 + wall, x1 - wall, body_bottom - wall],
-        radius=int(r_out * 0.55), fill=hole,
-    )
-
-    # The foot: a little wider than the gate, so the mark sits down rather
-    # than floats.
-    foot = int(w * 0.055)
-    d.rounded_rectangle([x0 - foot, body_bottom, x1 + foot, y1],
-                        radius=foot_h // 2, fill=mark)
-
-    # The team, standing on the floor of the gate.
-    cy = y1 - int(h * 0.085) - wall - int(w * 0.105)
-    cx = (x0 + x1) // 2
-    r_side = int(w * 0.082)
-    r_lead = int(w * 0.098)
-    gap = int(w * 0.215)
-    if dots == 3:
-        for sx in (-1, 1):
-            d.ellipse([cx + sx * gap - r_side, cy - r_side,
-                       cx + sx * gap + r_side, cy + r_side], fill=mark)
-    d.ellipse([cx - r_lead, cy - r_lead, cx + r_lead, cy + r_lead], fill=lead)
+    # The star, centred, sized to sit inside the brackets with room to breathe.
+    cx, cy = size / 2, size / 2
+    outer = inner * (0.30 if bracket else 0.42)
+    innerr = outer * 0.46
+    points = []
+    for i in range(10):
+        angle = -math.pi / 2 + i * math.pi / 5
+        radius = outer if i % 2 == 0 else innerr
+        points.append((cx + radius * math.cos(angle), cy + radius * math.sin(angle)))
+    d.polygon(points, fill=ink)
 
 
-def render(size, bg, mark, pad_ratio=0.17, dots=3, wall_ratio=0.135,
-           radius_ratio=0.225, lead=WHITE):
+def render(size, bg, ink, pad_ratio=0.17, bracket=True, radius_ratio=0.28):
     s = size * SS
     img, d = plate(s, bg, radius_ratio)
-    pad = int(s * pad_ratio)
-    gate(d, (pad, int(s * 0.145), s - pad, s - int(s * 0.17)),
-         mark, bg, dots=dots, wall_ratio=wall_ratio, lead=lead)
+    mark(d, s, ink, pad_ratio=pad_ratio, bracket=bracket)
     return img.resize((size, size), Image.LANCZOS)
 
 
 os.makedirs(OUT, exist_ok=True)
 
 # The full mark, for anywhere there is room for it.
-render(512, INK, BRAND).save(f"{OUT}/icon-512.png")
-render(192, INK, BRAND).save(f"{OUT}/icon-192.png")
-render(180, INK, BRAND).save(f"{OUT}/apple-touch-icon.png")
-render(64, INK, BRAND).save(f"{OUT}/favicon.png")
-render(48, INK, BRAND, pad_ratio=0.15).save(f"{OUT}/favicon-48.png")
+render(512, BRAND, WHITE).save(f"{OUT}/icon-512.png")
+render(192, BRAND, WHITE).save(f"{OUT}/icon-192.png")
+render(180, BRAND, WHITE).save(f"{OUT}/apple-touch-icon.png")
+render(64, BRAND, WHITE).save(f"{OUT}/favicon.png")
+render(48, BRAND, WHITE, pad_ratio=0.15).save(f"{OUT}/favicon-48.png")
 
-# Android crops a maskable icon to a circle, so the mark pulls in to the
-# middle 80% and the red fills the plate — a dark square cropped round reads
-# as a hole in the launcher.
-# The leader is whatever the gate is not: white inside a red gate, and the
-# plate's own colour when the gate itself is white — otherwise the three
-# figures melt into one.
-render(512, BRAND, WHITE, pad_ratio=0.275, radius_ratio=0.5, lead=BRAND)\
+# A maskable icon is cropped by the launcher into whatever shape that
+# launcher uses, so it fills the square corner to corner — rounding it here
+# would leave four transparent notches under a squircle mask — and the mark
+# pulls into the middle 80% where no crop can reach it.
+render(512, BRAND, WHITE, pad_ratio=0.26, radius_ratio=0)\
     .save(f"{OUT}/icon-maskable-512.png")
 
-# Drawn, not shrunk: thicker walls, wider gaps, and at 16px one figure only.
-render(32, INK, BRAND, pad_ratio=0.12, wall_ratio=0.17, dots=3)\
-    .save(f"{OUT}/favicon-32.png")
-render(16, INK, BRAND, pad_ratio=0.08, wall_ratio=0.21, dots=1)\
-    .save(f"{OUT}/favicon-16.png")
+# Drawn, not shrunk. At 32 the brackets survive; at 16 they would be three
+# grey smudges either side of the star, so the star stands alone.
+render(32, BRAND, WHITE, pad_ratio=0.13).save(f"{OUT}/favicon-32.png")
+render(16, BRAND, WHITE, pad_ratio=0.10, bracket=False).save(f"{OUT}/favicon-16.png")
 
 # One .ico carrying all three, for the tab, the bookmark bar and Windows.
 Image.open(f"{OUT}/favicon-16.png").save(
@@ -136,16 +127,14 @@ Image.open(f"{OUT}/favicon-16.png").save(
 # The same mark as vector, for print and anywhere it has to scale.
 open(f"{OUT}/mark.svg", "w", encoding="utf-8").write(
     '<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" '
-    'viewBox="0 0 512 512" fill="none">\n'
-    '  <rect width="512" height="512" rx="115" fill="#0A0908"/>\n'
-    '  <path d="M87 174a102 102 0 0 1 102-102h134a102 102 0 0 1 102 102v202H87z" '
-    'fill="#E4584A"/>\n'
-    '  <path d="M145 212a57 57 0 0 1 57-57h108a57 57 0 0 1 57 57v164H145z" '
-    'fill="#0A0908"/>\n'
-    '  <rect x="64" y="376" width="384" height="46" rx="23" fill="#E4584A"/>\n'
-    '  <circle cx="168" cy="330" r="34" fill="#E4584A"/>\n'
-    '  <circle cx="344" cy="330" r="34" fill="#E4584A"/>\n'
-    '  <circle cx="256" cy="330" r="41" fill="#fff"/>\n'
+    'viewBox="0 0 32 32" fill="none">\n'
+    '  <rect width="32" height="32" rx="9" fill="#E4584A"/>\n'
+    '  <path d="M9.5 8.5H7.25C6.56 8.5 6 9.06 6 9.75v12.5c0 .69.56 1.25 1.25 '
+    '1.25H9.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>\n'
+    '  <path d="M22.5 8.5h2.25c.69 0 1.25.56 1.25 1.25v12.5c0 .69-.56 1.25-1.25 '
+    '1.25H22.5" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>\n'
+    '  <path d="M16 9.6l1.84 3.84 4.12.62-2.98 2.99.7 4.23L16 19.29l-3.68 '
+    '1.99.7-4.23-2.98-2.99 4.12-.62L16 9.6z" fill="#fff"/>\n'
     '</svg>\n'
 )
 

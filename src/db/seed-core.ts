@@ -1514,17 +1514,29 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
    * flag worth having.
    */
   const seatDetailId = newId();
+  const seatDetailId2 = newId();
   await db
     .insert(seatSetupDetails)
-    .values({
-      id: seatDetailId,
-      eventId: eventCId,
-      date: addDays(-15),
-      startTime: '16:00',
-      endTime: '19:30',
-      notes: 'ترتيب قاعة المسرح قبل الحفلة.',
-      payAmount: 30000,
-    })
+    .values([
+      {
+        id: seatDetailId,
+        eventId: eventCId,
+        date: addDays(-16),
+        startTime: '16:00',
+        endTime: '19:30',
+        notes: 'اليوم الأول — ترتيب الصفوف الأمامية.',
+        payAmount: 30000,
+      },
+      {
+        id: seatDetailId2,
+        eventId: eventCId,
+        date: addDays(-15),
+        startTime: '15:00',
+        endTime: null,
+        notes: 'اليوم الثاني — إكمال القاعة.',
+        payAmount: 30000,
+      },
+    ])
     .run();
 
   const seatCrew = [
@@ -1548,6 +1560,26 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
           attended,
           checkInTime: attended ? '16:05' : null,
           checkOutTime: attended ? '19:20' : null,
+          sortOrder: i,
+        })),
+    )
+    .run();
+
+  /* The second day: a shorter crew, which is how these actually go. */
+  await db
+    .insert(seatSetupMembers)
+    .values(
+      seatCrew
+        .slice(0, 3)
+        .filter(([name]) => cEmIds[name])
+        .map(([name], i) => ({
+          id: newId(),
+          detailId: seatDetailId2,
+          eventId: eventCId,
+          eventMemberId: cEmIds[name]!,
+          attended: true,
+          checkInTime: '15:10',
+          checkOutTime: '18:40',
           sortOrder: i,
         })),
     )

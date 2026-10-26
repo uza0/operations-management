@@ -510,6 +510,8 @@ export const en: Dictionary = {
     title: 'Chair setting',
     subtitle: 'A shift before the event — setting out the chairs so the day itself starts ready.',
     none: 'This event has no chair-setting shift.',
+    dayCount: '{n} chair days',
+    daysHint: 'Add as many days as the room needs — a big hall takes more than an afternoon, and each day pays on its own.',
     noneHint: 'Optional — add one only for the events that need the room built the day before.',
     add: 'Add a chair-setting shift',
     edit: 'Edit the shift',

@@ -20,7 +20,7 @@
  * would otherwise keep showing them for as long as the app stays installed —
  * which is why a new mark needs a new version here, not only new files.
  */
-const VERSION = 'ops-v2';
+const VERSION = 'ops-v3';
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const OFFLINE_URL = '/offline.html';

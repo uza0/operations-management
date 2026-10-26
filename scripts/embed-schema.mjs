@@ -37,7 +37,14 @@ const safe = statements.map((s) =>
   s
     .replace(/^CREATE TABLE\s+`/i, 'CREATE TABLE IF NOT EXISTS `')
     .replace(/^CREATE UNIQUE INDEX\s+`/i, 'CREATE UNIQUE INDEX IF NOT EXISTS `')
-    .replace(/^CREATE INDEX\s+`/i, 'CREATE INDEX IF NOT EXISTS `'),
+    .replace(/^CREATE INDEX\s+`/i, 'CREATE INDEX IF NOT EXISTS `')
+    /*
+     * A dropped index is dropped once. On a database that never had it — a
+     * fresh one, or one set up after the change — "no such index" is not a
+     * failure, and IF EXISTS says so in the statement rather than leaving the
+     * setup route to recognise the wording of an error message.
+     */
+    .replace(/^DROP INDEX\s+`/i, 'DROP INDEX IF EXISTS `'),
 );
 
 const out = `/**

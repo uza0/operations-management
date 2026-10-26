@@ -267,29 +267,37 @@ export default async function MemberPortalPage({
           </section>
         ) : null}
 
-        {/* 4b — the day before, for whoever sets out the chairs --------- */}
-        {data.seatSetup ? (
+        {/* 4b — the days before, for whoever sets out the chairs -------- */}
+        {data.seatSetup.length > 0 ? (
           <section className="rounded-card border border-ink-700 bg-ink-850 p-4">
             <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-ink-400">
               {t.seatSetup.memberTitle}
             </p>
-            <p className="mt-1 text-[17px] font-bold leading-tight text-ink-100">
-              {formatDate(data.seatSetup.date, locale)}
-            </p>
-            <p className="nums mt-1 text-[15px] font-semibold text-ink-100">
-              {formatTime(data.seatSetup.startTime, locale)}
-              {data.seatSetup.endTime
-                ? ` – ${formatTime(data.seatSetup.endTime, locale)}`
-                : ''}
-            </p>
+            {/*
+              One line per day. A big hall is built over two or three
+              afternoons, and a man on all of them needs all of them.
+            */}
+            <ul className="mt-1.5 space-y-2">
+              {data.seatSetup.map((shift) => (
+                <li key={`${shift.date}-${shift.startTime}`}>
+                  <p className="text-[16px] font-bold leading-tight text-ink-100">
+                    {formatDate(shift.date, locale)}
+                  </p>
+                  <p className="nums mt-0.5 text-[14px] font-semibold text-ink-200">
+                    {formatTime(shift.startTime, locale)}
+                    {shift.endTime ? ` – ${formatTime(shift.endTime, locale)}` : ''}
+                  </p>
+                  {shift.notes ? (
+                    <p className="mt-0.5 text-[12.5px] leading-5 text-ink-400">
+                      {shift.notes}
+                    </p>
+                  ) : null}
+                </li>
+              ))}
+            </ul>
             <p className="mt-2 text-[12.5px] leading-5 text-ink-400">
               {t.seatSetup.memberHint}
             </p>
-            {data.seatSetup.notes ? (
-              <p className="mt-1 text-[12.5px] leading-5 text-ink-400">
-                {data.seatSetup.notes}
-              </p>
-            ) : null}
           </section>
         ) : null}
 
