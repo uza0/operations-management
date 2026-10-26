@@ -957,6 +957,49 @@ check('gate leader blocked from the leader briefing route too',
 
 check('gate leader nav omits management sections', !gateNav.includes('التوزيع'));
 
+/* ---- the chairs, the day before ---------------------------------------- */
+
+/*
+ * A separate day at a flat rate, added to what the person earns on the night
+ * rather than replacing it. The check is on the arithmetic, because that is
+ * the part somebody would notice at the end of the month.
+ */
+const seatEvent = await db.prepare(
+  'select event_id as id, pay_amount as pay from seat_setup_details limit 1').get();
+check('an event can have a chair-setting shift', Boolean(seatEvent), '');
+
+const seatCrew = await db.prepare(
+  'select count(*) as n from seat_setup_members where event_id=?').get(seatEvent.id);
+const seatCame = await db.prepare(
+  'select count(*) as n from seat_setup_members where event_id=? and attended=1')
+  .get(seatEvent.id);
+check('the crew is recorded, and who turned up with it',
+  Number(seatCrew.n) > Number(seatCame.n) && Number(seatCame.n) > 0,
+  `${seatCame.n}/${seatCrew.n}`);
+
+// One person's ledger carries both days, as two figures and one total.
+const seatPerson = await db.prepare(`
+  select em.team_member_id as id, tm.full_name as name
+    from seat_setup_members sm
+    join event_members em on em.id = sm.event_member_id
+    join team_members tm on tm.id = em.team_member_id
+   where sm.event_id = ? and sm.attended = 1 and tm.salaried = 0 limit 1`).get(seatEvent.id);
+await admin.goto(`${BASE}/admin/team/${seatPerson.id}`);
+await admin.waitForLoadState('networkidle');
+const seatLedgerText = await admin.textContent('main');
+check("the chair fee shows beside the event's own figure",
+  seatLedgerText.includes('ترتيب الكراسي'), String(seatPerson.name));
+
+/*
+ * And it is the flat rate for everyone on that shift, whatever they earn on
+ * the night — which is the whole arrangement, and the one thing that would
+ * cause an argument if it drifted.
+ */
+const rates = await db.prepare(`
+  select distinct d.pay_amount as pay from seat_setup_details d`).all();
+check('one rate for the whole chair-setting crew',
+  rates.length === 1 && Number(rates[0].pay) === 30000, `${rates.length} rate(s)`);
+
 /* ---- a man on the company payroll is counted, not credited ------------- */
 
 /*
@@ -1018,7 +1061,7 @@ await handset.close();
  * leader is usually a promoter with a radio, standing next to the people
  * whose pay is on that page.
  */
-for (const [name, path] of [['closing report', 'reports'], ['activity log', 'activity']]) {
+for (const [name, path] of [['closing report', 'reports'], ['activity log', 'activity'], ['chair-setting shift', 'seats']]) {
   for (const base of ['admin', 'leader']) {
     await gateLeader.goto(`${BASE}/${base}/events/${eventId}/${path}`);
     await gateLeader.waitForLoadState('networkidle');

@@ -135,6 +135,16 @@ export async function MemberLedgerPage({ memberId }: { memberId: string }) {
                           {formatAmount(line.amount)}
                         </span>
                       )}
+                      {/*
+                        The chairs are a second day at a second rate, shown
+                        beside the event's own figure rather than added into
+                        it — a merged number is one nobody can check.
+                      */}
+                      {line.seatAmount ? (
+                        <span className="nums block text-[11.5px] leading-4 text-ink-500">
+                          + {formatAmount(line.seatAmount)} · {t.seatSetup.title}
+                        </span>
+                      ) : null}
                       {line.note ? (
                         <span className="block max-w-[220px] text-[11.5px] leading-4 text-ink-500">
                           {line.note}

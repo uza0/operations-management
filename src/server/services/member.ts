@@ -4,6 +4,7 @@ import { and, asc, desc, eq, ne, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { mainGateForMember } from '@/server/services/main-gate';
+import { seatSetupForMember } from '@/server/services/seat-setup';
 import {
   announcements,
   assignmentChanges,
@@ -188,6 +189,9 @@ export async function getMemberPortal(token: string) {
    */
   const mainGate = await mainGateForMember(membership.eventId, membership.id);
 
+  /* The day before, for whoever is on the crew that sets out the chairs. */
+  const seatSetup = await seatSetupForMember(membership.eventId, membership.id);
+
   /*
    * Whether this person has already answered the questionnaire — not what
    * they answered, which is deliberately unreachable from here. The page
@@ -261,6 +265,7 @@ export async function getMemberPortal(token: string) {
     gateLeaderName,
     teamLeaderName: teamLeader?.name ?? null,
     mainGate,
+    seatSetup,
     answeredFeedback,
     attendance: attendanceRow ?? null,
     announcements: announcementRows,

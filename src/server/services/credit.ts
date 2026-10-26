@@ -9,10 +9,13 @@ import {
   eventMembers,
   events,
   gates,
+  seatSetupDetails,
+  seatSetupMembers,
   teamMembers,
   venues,
   workingPoints,
 } from '@/db/schema';
+import { SEAT_SETUP_PAY } from '@/lib/money';
 import type { AttendanceStatus } from '@/lib/constants';
 
 /**
@@ -86,6 +89,13 @@ export type LedgerLine = {
   checkOutTime: string | null;
   /** null when the company pays this person monthly — see creditFor. */
   amount: number | null;
+  /**
+   * The flat fee for setting out the chairs the day before, when they were on
+   * that crew and turned up. Kept beside the event's own figure rather than
+   * folded into it: they are two days' work at two different rates, and a
+   * single merged number is one nobody can check.
+   */
+  seatAmount: number | null;
   note: string | null;
   /** False while the event is still open — counted separately. */
   closed: boolean;
@@ -135,6 +145,13 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
       gateName: gates.name,
       workingPointName: workingPoints.name,
       task: assignments.task,
+      /*
+       * The chair-setting shift, if they were on it. `attended` is what makes
+       * it payable: being picked for the crew is a plan, turning up is the
+       * fact.
+       */
+      seatAttended: seatSetupMembers.attended,
+      seatPay: seatSetupDetails.payAmount,
     })
     .from(eventMembers)
     .innerJoin(events, eq(eventMembers.eventId, events.id))
@@ -149,6 +166,8 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
     )
     .leftJoin(gates, eq(assignments.gateId, gates.id))
     .leftJoin(workingPoints, eq(assignments.workingPointId, workingPoints.id))
+    .leftJoin(seatSetupMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
+    .leftJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
     .where(conditions.length > 0 ? and(...conditions) : undefined)
     .all();
 }
@@ -172,6 +191,14 @@ function toLine(row: Awaited<ReturnType<typeof ledgerRows>>[number]): LedgerLine
       eventDefault: row.eventDefault,
       payMode: row.payMode,
     }),
+    /*
+     * Salaried people are outside this ledger for the chairs too: the flat fee
+     * is event pay by another name, and their pay is settled elsewhere.
+     */
+    seatAmount:
+      row.payMode === 'SALARIED' || !row.seatAttended
+        ? null
+        : (row.seatPay ?? SEAT_SETUP_PAY),
     note: row.creditNote,
     closed: CLOSED_STATUSES.includes(row.eventStatus),
   };
@@ -192,10 +219,10 @@ function summarise(
     /* A null line is outside this ledger, so it adds nothing to either total. */
     totalAmount: sorted
       .filter((l) => l.closed)
-      .reduce((sum, l) => sum + (l.amount ?? 0), 0),
+      .reduce((sum, l) => sum + (l.amount ?? 0) + (l.seatAmount ?? 0), 0),
     pendingAmount: sorted
       .filter((l) => !l.closed)
-      .reduce((sum, l) => sum + (l.amount ?? 0), 0),
+      .reduce((sum, l) => sum + (l.amount ?? 0) + (l.seatAmount ?? 0), 0),
     eventsWorked: sorted.filter((l) => l.closed && (l.amount ?? 0) > 0).length,
   };
 }

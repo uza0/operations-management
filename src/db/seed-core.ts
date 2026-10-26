@@ -64,6 +64,8 @@ const {
   mainGateDetails,
   mainGateMembers,
   feedbackResponses,
+  seatSetupDetails,
+  seatSetupMembers,
 } = schema;
 
 const MINUTES = 60 * 1000;
@@ -1491,6 +1493,51 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
       .where(eq(eventMembers.id, id))
       .run();
   }
+
+  /*
+   * The chairs for event C, set out the afternoon before by five of the team.
+   * Four of them turned up; one did not, which is what makes the attended
+   * flag worth having.
+   */
+  const seatDetailId = newId();
+  await db
+    .insert(seatSetupDetails)
+    .values({
+      id: seatDetailId,
+      eventId: eventCId,
+      date: addDays(-15),
+      startTime: '16:00',
+      endTime: '19:30',
+      notes: 'ترتيب قاعة المسرح قبل الحفلة.',
+      payAmount: 30000,
+    })
+    .run();
+
+  const seatCrew = [
+    ['أمير عبد الله', true],
+    ['زينب الشمري', true],
+    ['حسن الساعدي', true],
+    ['علي الزبيدي', true],
+    ['رغد العزاوي', false],
+  ] as const;
+
+  await db
+    .insert(seatSetupMembers)
+    .values(
+      seatCrew
+        .filter(([name]) => cEmIds[name])
+        .map(([name, attended], i) => ({
+          id: newId(),
+          detailId: seatDetailId,
+          eventId: eventCId,
+          eventMemberId: cEmIds[name]!,
+          attended,
+          checkInTime: attended ? '16:05' : null,
+          checkOutTime: attended ? '19:20' : null,
+          sortOrder: i,
+        })),
+    )
+    .run();
 
   /* ---- done ------------------------------------------------------------- */
   const amirToken = (

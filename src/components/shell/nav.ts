@@ -70,6 +70,12 @@ export function eventNav(
     { href: `${root}/board`, label: t.nav.board, icon: 'gate' },
     { href: `${root}/assignments`, label: t.nav.assignments, icon: 'clipboard' },
     { href: `${root}/attendance`, label: t.nav.attendance, icon: 'checkCircle' },
+    /*
+     * The day before, for the events that are built before they happen. It
+     * sits after attendance because that is the order the work happens in on
+     * the screen: the chairs are set, then the night is worked.
+     */
+    { href: `${root}/seats`, label: t.seatSetup.title, icon: 'clipboard' },
   ];
   const ops: NavItem[] = [
     { href: `${root}/notify`, label: t.nav.notify, icon: 'megaphone' },
