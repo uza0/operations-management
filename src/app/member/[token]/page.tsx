@@ -267,6 +267,21 @@ export default async function MemberPortalPage({
           </section>
         ) : null}
 
+        {/*
+          And the questionnaire directly under it, because by then it is the
+          only thing left to do.
+
+          It used to sit at the very bottom, below the instructions, the
+          running order and the list of problems he reported — all of which
+          are about an evening that is now over. A man who opens his link the
+          morning after reads "one thing left: your opinion" and then two
+          screens of things that are not it, which is how a form nobody ever
+          found ends up looking like a form nobody wanted to fill in.
+        */}
+        {membership.eventStatus === 'COMPLETED' || membership.eventStatus === 'ARCHIVED' ? (
+          <FeedbackForm t={t} token={token} answered={data.answeredFeedback} />
+        ) : null}
+
         {/* 2b — who I am on this event --------------------------------- */}
         <section className="flex items-center gap-3 rounded-card border border-ink-700 bg-ink-850 px-4 py-3.5">
           <span
@@ -628,11 +643,6 @@ export default async function MemberPortalPage({
 
         {/* The end of his evening, in his own words. */}
         {data.stage === 'ON_DUTY' ? <DepartureButton t={t} token={token} /> : null}
-
-        {/* Asked last, and only once the evening is actually over. */}
-        {membership.eventStatus === 'COMPLETED' || membership.eventStatus === 'ARCHIVED' ? (
-          <FeedbackForm t={t} token={token} answered={data.answeredFeedback} />
-        ) : null}
 
         <p className="pb-2 text-center text-[11.5px] text-ink-600">
           {t.member.savedOffline}
