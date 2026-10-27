@@ -167,19 +167,15 @@ export function SheetDocument({
         </section>
       ) : null}
 
-      <div className="report-signatures">
-        {[t.report.preparedSignature, t.report.reviewedSignature, t.report.approvedSignature].map(
-          (role) => (
-            <div key={role} className="report-signature">
-              <p className="report-signature-role">{role}</p>
-              <p className="report-signature-line" />
-              <p className="report-signature-meta">{t.report.nameAndTitle}</p>
-              <p className="report-signature-line" />
-              <p className="report-signature-meta">{t.report.signature}</p>
-            </div>
-          ),
-        )}
-      </div>
+      {/*
+        No signature block here, deliberately.
+
+        The closing report is a document that leaves the room and is signed
+        off; this sheet is a working list somebody holds at a gate, reads off
+        and throws away. Three empty signature boxes under it were a page of
+        ceremony nobody ever filled in, and on a phone they were most of what
+        was on the screen.
+      */}
     </article>
   );
 }
