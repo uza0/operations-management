@@ -144,6 +144,21 @@ const memberCtx = await browser.newContext({
   viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true,
 });
 const member = await memberCtx.newPage();
+
+/*
+ * These checks are about the screen a promoter reads BEFORE the evening —
+ * which event, where, when, where he will stand and who with. The seed has
+ * Amir already marked present on a live match, which is a later screen
+ * entirely, so his attendance is put back to not-yet-arrived for the length
+ * of this block. The attendance checks further down set it again through the
+ * supervisor's page, which is where it belongs.
+ */
+await db.exec(
+  `update attendance set status='PENDING', reported_arrival_at=null, approved_at=null,
+     approved_by_id=null, check_in_time=null where event_member_id=?`,
+  amir.id,
+);
+
 await member.goto(`${BASE}/member/${amir.token}`);
 await member.waitForLoadState('networkidle');
 const memberText = await member.textContent('main');
@@ -2130,10 +2145,25 @@ check('the board comes before the list it produces',
 
 /* ---- draft and ready: nobody sees a place that is still being moved ----- */
 const draftMember = await db.prepare(
-  `select em.token from event_members em
+  `select em.id, em.token from event_members em
      join assignments a on a.event_member_id = em.id and a.status != 'CANCELLED'
     where em.event_id = ? limit 1`,
 ).get(eventId);
+
+/*
+ * What a draft board looks like is a question about the screen BEFORE the
+ * evening: a man who has already worked the night is told about his opinion,
+ * not about where he will stand. The seeded match is finished by this point
+ * in the suite, so it is put back to the night itself for the length of this
+ * block — and restored at the end of it, because everything after expects a
+ * finished event.
+ */
+await db.exec("update events set status='LIVE' where id=?", eventId);
+await db.exec(
+  `update attendance set status='PENDING', reported_arrival_at=null, approved_at=null,
+     approved_by_id=null where event_member_id=?`,
+  draftMember.id,
+);
 
 await admin.goto(`${BASE}/admin/events/${eventId}/board`);
 await admin.waitForLoadState('networkidle');
@@ -2174,6 +2204,24 @@ await draftView.waitForLoadState('networkidle');
 const liveText = await draftView.textContent('main');
 check('publishing gives the promoter his place back',
   liveText.includes('وقت وصولك'), '');
+
+/*
+ * And the three screens really do replace each other: once his arrival is
+ * approved, the place card and the chair invitations are gone and the
+ * evening's own tools are there instead.
+ */
+await db.exec(
+  `update attendance set status='PRESENT', reported_arrival_at=unixepoch()*1000,
+     approved_at=unixepoch()*1000 where event_member_id=?`,
+  draftMember.id,
+);
+await draftView.reload();
+await draftView.waitForLoadState('networkidle');
+const onDutyText = await draftView.textContent('main');
+check('the evening replaces the screen before it, it does not join it',
+  !onDutyText.includes('وقت وصولك') && onDutyText.includes('نداء طوارئ'), '');
+
+await db.exec("update events set status='COMPLETED' where id=?", eventId);
 await draftView.close();
 
 /* ---- removing somebody from the event, for good ------------------------ */

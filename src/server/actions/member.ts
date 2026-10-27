@@ -6,6 +6,7 @@ import { and, eq, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   assignments,
+  attendance,
   eventMembers,
   events,
   feedbackResponses,
@@ -340,4 +341,135 @@ export async function memberReopenIssueAction(
     revalidatePath(`${base}/events/${member.eventId}/issues`);
   }
   return ok(t.member.reopened);
+}
+
+/**
+ * The panic button.
+ *
+ * Not a report with the priority turned up: a separate sentence, with its own
+ * type, that says a named person at a named post is asking for somebody to
+ * come. The gate leader is not always at the gate — he has six of them — and
+ * the alternative a promoter actually uses is to walk off his post looking
+ * for him, which is how a gate ends up unmanned at the worst moment.
+ *
+ * It carries his name and his gate because the supervisor's first two
+ * questions are who and where, and because an anonymous alarm is one nobody
+ * can answer. A line of explanation is offered and never demanded — a man
+ * with a crowd pushing at a barrier does not type.
+ *
+ * It refuses outside the evening. Before he has been confirmed at his post
+ * there is nothing to come to, and the button is not on the screen either.
+ */
+export async function memberPanicAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const token = String(form.get('token') ?? '');
+
+  const member = await resolveMemberByToken(token);
+  if (!member) return fail(t.member.invalidToken);
+  if (member.status === 'CANCELLED') return fail(t.member.cancelled);
+  if (member.tokenExpiresAt && member.tokenExpiresAt.getTime() < Date.now()) {
+    return fail(t.member.expiredToken);
+  }
+
+  const att = await db
+    .select({ approvedAt: attendance.approvedAt, status: attendance.status })
+    .from(attendance)
+    .where(eq(attendance.eventMemberId, member.id))
+    .get();
+  const onDuty =
+    Boolean(att?.approvedAt) || att?.status === 'PRESENT' || att?.status === 'LATE';
+  if (!onDuty) return fail(t.journey.notOnDuty);
+
+  const assignment = await db
+    .select({ gateId: assignments.gateId, workingPointId: assignments.workingPointId })
+    .from(assignments)
+    .where(
+      and(
+        eq(assignments.eventMemberId, member.id),
+        eq(assignments.eventId, member.eventId),
+        ne(assignments.status, 'CANCELLED'),
+      ),
+    )
+    .get();
+
+  let locationName: string | null = null;
+  if (assignment?.gateId) {
+    locationName =
+      (await db.query.gates.findFirst({ where: eq(gates.id, assignment.gateId) }))?.name ??
+      null;
+  } else if (assignment?.workingPointId) {
+    locationName =
+      (
+        await db.query.workingPoints.findFirst({
+          where: eq(workingPoints.id, assignment.workingPointId),
+        })
+      )?.name ?? null;
+  }
+
+  /*
+   * One open call at a time. Pressing it again while somebody is already on
+   * the way adds a second red line to the board and no information.
+   */
+  const already = await db.query.issues.findFirst({
+    where: and(
+      eq(issues.eventId, member.eventId),
+      eq(issues.reportedByMemberId, member.id),
+      eq(issues.type, 'EMERGENCY'),
+      ne(issues.status, 'RESOLVED'),
+    ),
+  });
+  if (already) return ok(t.member.panicAlready);
+
+  const note = str(form, 'description');
+  const routed = await routeNewIssue({
+    eventId: member.eventId,
+    gateId: assignment?.gateId ?? null,
+    priority: 'CRITICAL',
+  });
+
+  const id = newId();
+  await db.insert(issues).values({
+    id,
+    eventId: member.eventId,
+    type: 'EMERGENCY',
+    description:
+      note ??
+      `${t.member.panicTitle} — ${member.name}${locationName ? ` · ${locationName}` : ''}`,
+    priority: 'CRITICAL',
+    status: 'OPEN',
+    gateId: assignment?.gateId ?? null,
+    workingPointId: assignment?.workingPointId ?? null,
+    reportedByMemberId: member.id,
+    reportedByUserId: null,
+    reporterName: member.name,
+    clientId: null,
+    assigneeUserId: routed.assigneeUserId,
+    assignedAt: routed.assignedAt,
+    dueAt: routed.dueAt,
+  });
+
+  await recordAudit({
+    eventId: member.eventId,
+    actorId: null,
+    actorName: member.name,
+    action: 'ISSUE',
+    entity: 'ISSUE',
+    entityId: id,
+    entityLabel: t.enums.issueType.EMERGENCY,
+    newValues: { location: locationName },
+    summary: `${t.member.panicTitle}: ${member.name}${
+      locationName ? ` (${locationName})` : ''
+    }`,
+  });
+
+  for (const base of ['/admin', '/leader']) {
+    revalidatePath(`${base}/events/${member.eventId}/issues`);
+    revalidatePath(`${base}/events/${member.eventId}`);
+  }
+  revalidatePath(`/member/${token}`);
+
+  return ok(t.member.panicSent);
 }

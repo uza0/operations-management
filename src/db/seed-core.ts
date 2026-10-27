@@ -77,12 +77,42 @@ const MINUTES = 60 * 1000;
  * 2026.
  */
 const pad = (n: number) => String(n).padStart(2, '0');
+
+/**
+ * Everything the demo calls a date or a clock is a VENUE date and a VENUE
+ * clock.
+ *
+ * The app reads every stored "HH:mm" as Baghdad time (see venueMoment), so a
+ * seed that writes the server's own hours disagrees with it by three — which
+ * is invisible for most of the day and then, seeded between midnight and
+ * three in the morning UTC, puts the match on one date with an arrival time
+ * belonging to the day before. The screens then argue with each other about
+ * when the team is due.
+ */
+const VENUE_TZ = 'Asia/Baghdad';
+const venueParts = (d: Date) => {
+  const f = new Intl.DateTimeFormat('en-CA', {
+    timeZone: VENUE_TZ,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(d);
+  const get = (type: string) => f.find((part) => part.type === type)!.value;
+  return {
+    date: `${get('year')}-${get('month')}-${get('day')}`,
+    time: `${get('hour') === '24' ? '00' : get('hour')}:${get('minute')}`,
+  };
+};
+
 const today = new Date();
-const EVENT_DATE = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
-const eventDay = new Date(`${EVENT_DATE}T00:00:00`);
+const EVENT_DATE = venueParts(today).date;
+const eventDay = new Date(`${EVENT_DATE}T00:00:00Z`);
 const addDays = (days: number) => {
   const d = new Date(eventDay.getTime() + days * 24 * 60 * 60 * 1000);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return d.toISOString().slice(0, 10);
 };
 /**
  * Seeded record timestamps are written RELATIVE to "now", anchored so the
@@ -105,10 +135,8 @@ const at = (hhmm: string, offsetMinutes = 0) => {
  * agrees with itself: the team arrived ninety minutes ago, kick-off is an hour
  * away, and the recorded check-in times sit just before the arrival time.
  */
-const sched = (hhmm: string, offsetMinutes = 0) => {
-  const d = at(hhmm, offsetMinutes);
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
-};
+const sched = (hhmm: string, offsetMinutes = 0) =>
+  venueParts(at(hhmm, offsetMinutes)).time;
 
 /**
  * A literal clock string, shifted by minutes.

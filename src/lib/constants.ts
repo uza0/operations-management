@@ -141,6 +141,13 @@ export const AUDIENCES = ['EVENT', 'GATE', 'WORKING_POINT', 'MEMBER'] as const;
 export type Audience = (typeof AUDIENCES)[number];
 
 export const ISSUE_TYPES = [
+  /*
+   * The panic button's own type, and the reason it is a type at all: a
+   * supervisor scanning the board at ten past eight needs "somebody at gate 6
+   * is calling for help" to be one word, not a priority flag on a report
+   * about a scanner.
+   */
+  'EMERGENCY',
   'SCANNER',
   'CROWD_CONGESTION',
   'MISSING_STAFF',

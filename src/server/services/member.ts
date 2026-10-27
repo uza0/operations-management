@@ -137,6 +137,40 @@ export async function getMemberPortal(token: string) {
     gateLeaderName = leader?.name ?? null;
   }
 
+  /*
+   * Who else is standing here.
+   *
+   * Names and tasks, and nothing else — no phone numbers, no codes, no way
+   * to ask for somebody who is not at this gate. It is the answer to the
+   * question a man actually has when he arrives ("who am I with, and who is
+   * in charge here"), and it stops at the edge of his own post: the query is
+   * keyed to his gate, so a member with no assignment gets an empty list
+   * rather than the roster.
+   */
+  const mates =
+    boardPublished && assignment && (assignment.gateId || assignment.workingPointId)
+      ? await db
+          .select({
+            id: eventMembers.id,
+            name: teamMembers.fullName,
+            task: assignments.task,
+            isGateLeader: assignments.isGateLeader,
+          })
+          .from(assignments)
+          .innerJoin(eventMembers, eq(assignments.eventMemberId, eventMembers.id))
+          .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+          .where(
+            and(
+              eq(assignments.eventId, membership.eventId),
+              assignment.gateId
+                ? eq(assignments.gateId, assignment.gateId)
+                : eq(assignments.workingPointId, assignment.workingPointId!),
+              ne(assignments.status, 'CANCELLED'),
+              ne(eventMembers.status, 'CANCELLED'),
+            ),
+          )
+      : [];
+
   const teamLeader = await db
     .select({ name: users.name })
     .from(eventAccess)
@@ -288,6 +322,8 @@ export async function getMemberPortal(token: string) {
     cancelled: membership.status === 'CANCELLED',
     assignment,
     gateLeaderName,
+    /** The people at his own post: see above. Empty before the board is out. */
+    mates,
     teamLeaderName: teamLeader?.name ?? null,
     mainGate,
     seatSetup,

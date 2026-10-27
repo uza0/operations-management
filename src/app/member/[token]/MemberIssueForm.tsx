@@ -214,7 +214,8 @@ export function MemberIssueForm({ t, token }: { t: Dictionary; token: string }) 
           {t.issue.issueType}
         </label>
         <select id="m-type" name="type" className="field" defaultValue="SCANNER">
-          {ISSUE_TYPES.map((type) => (
+          {/* Emergencies have their own button; this list is for the rest. */}
+          {ISSUE_TYPES.filter((type) => type !== 'EMERGENCY').map((type) => (
             <option key={type} value={type}>
               {t.enums.issueType[type as IssueType]}
             </option>

@@ -60,7 +60,7 @@ export function SeatSetupManager({
 
   return (
     <>
-      <div className="flex flex-wrap items-center gap-3 border-b border-ink-800 p-4">
+      <div className="flex flex-col gap-3 border-b border-ink-800 p-4 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
           <p className="text-[13px] font-semibold text-ink-200">
             {format(t.seatSetup.dayCount, { n: data.shifts.length })}
@@ -71,7 +71,11 @@ export function SeatSetupManager({
           {t.seatSetup.total}: <span className="font-semibold">{formatAmount(total)}</span>{' '}
           {t.credit.currency}
         </p>
-        <button type="button" className="btn-primary btn-sm" onClick={() => setEditing('new')}>
+        <button
+          type="button"
+          className="btn-primary btn-sm w-full justify-center sm:w-auto"
+          onClick={() => setEditing('new')}
+        >
           <IconPlus width={15} height={15} />
           {t.seatSetup.add}
         </button>
@@ -149,18 +153,33 @@ function ShiftBlock({
 
   return (
     <section className="border-b border-ink-800">
-      <div className="flex flex-wrap items-center gap-3 bg-ink-900/40 px-4 py-3">
+      {/*
+        Stacked on a phone, side by side on a desk.
+
+        One flex-wrap row did both, and on a 390px screen the three buttons
+        took the width while the date was squeezed into a column one word
+        wide — the day of the shift, which is the only thing on this header
+        anybody reads first.
+      */}
+      <div className="flex flex-col gap-3 bg-ink-900/40 px-4 py-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
-          <p className="text-[14.5px] font-semibold text-ink-100">
+          <p className="text-[15px] font-semibold text-ink-100">
             {formatDate(shift.date, locale)}
           </p>
-          <p className="nums mt-0.5 text-[12.5px] text-ink-400">
-            {shift.startTime}
-            {shift.endTime ? ` → ${shift.endTime}` : ''}
-            <span className="mx-1.5 text-ink-600">·</span>
-            {formatAmount(shift.payAmount)} {t.credit.currency}
-            <span className="mx-1.5 text-ink-600">·</span>
-            {format(t.seatSetup.attendedCount, { n: attended })} / {shift.people.length}
+          {/* Each fact its own chip, so none of them has to fit on one line. */}
+          <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-ink-400">
+            <span className="nums">
+              {shift.startTime}
+              {shift.endTime ? ` → ${shift.endTime}` : ''}
+            </span>
+            <span aria-hidden className="text-ink-600">·</span>
+            <span className="nums">
+              {formatAmount(shift.payAmount)} {t.credit.currency}
+            </span>
+            <span aria-hidden className="text-ink-600">·</span>
+            <span className="nums">
+              {format(t.seatSetup.attendedCount, { n: attended })} / {shift.people.length}
+            </span>
           </p>
           {shift.notes ? (
             <p className="mt-1 text-[12.5px] leading-5 text-ink-500">{shift.notes}</p>
@@ -451,12 +470,25 @@ function PersonRow({
         ) : null}
         {person.approvedAt ? <Badge tone="ok">{t.journey.approved}</Badge> : null}
       </div>
-      <form action={action} className="flex flex-wrap items-end gap-2.5">
+      {/*
+        Stacked on a phone, in a row on a desk.
+
+        It used to be one flex-wrap row for both. On a 390px screen the name
+        column was squeezed to a word per line, the two time fields and the
+        checkbox fought over what was left, and the whole crew list came out
+        as the unreadable thing a supervisor was looking at in the hall. The
+        name is now its own line, the controls are a grid under it, and
+        nothing has a fixed width.
+      */}
+      <form action={action} className="space-y-2.5">
         <input type="hidden" name="eventId" value={eventId} />
         <input type="hidden" name="id" value={person.id} />
 
-        <div className="min-w-0 flex-1">
-          <p className="font-medium text-ink-100" style={{ unicodeBidi: 'plaintext' }}>
+        <div className="min-w-0">
+          <p
+            className="text-[14.5px] font-semibold text-ink-100"
+            style={{ unicodeBidi: 'plaintext' }}
+          >
             {person.name}
           </p>
           <p className="text-[12px] text-ink-500">
@@ -465,7 +497,7 @@ function PersonRow({
           </p>
         </div>
 
-        <label className="flex min-h-[44px] items-center gap-2 text-[13px] text-ink-200">
+        <label className="flex min-h-[44px] items-center gap-2 text-[13.5px] text-ink-200">
           <input
             type="checkbox"
             name="attended"
@@ -475,32 +507,36 @@ function PersonRow({
           {t.seatSetup.attended}
         </label>
 
-        <div>
-          <label className="field-label" htmlFor={`in-${person.id}`}>
-            {t.seatSetup.checkIn}
-          </label>
-          <input
-            id={`in-${person.id}`}
-            name="checkInTime"
-            type="time"
-            className="field w-[120px]"
-            defaultValue={person.checkInTime ?? ''}
-          />
-        </div>
-        <div>
-          <label className="field-label" htmlFor={`out-${person.id}`}>
-            {t.seatSetup.checkOut}
-          </label>
-          <input
-            id={`out-${person.id}`}
-            name="checkOutTime"
-            type="time"
-            className="field w-[120px]"
-            defaultValue={person.checkOutTime ?? ''}
-          />
+        <div className="grid grid-cols-2 gap-2.5">
+          <div className="min-w-0">
+            <label className="field-label" htmlFor={`in-${person.id}`}>
+              {t.seatSetup.checkIn}
+            </label>
+            <input
+              id={`in-${person.id}`}
+              name="checkInTime"
+              type="time"
+              className="field w-full"
+              defaultValue={person.checkInTime ?? ''}
+            />
+          </div>
+          <div className="min-w-0">
+            <label className="field-label" htmlFor={`out-${person.id}`}>
+              {t.seatSetup.checkOut}
+            </label>
+            <input
+              id={`out-${person.id}`}
+              name="checkOutTime"
+              type="time"
+              className="field w-full"
+              defaultValue={person.checkOutTime ?? ''}
+            />
+          </div>
         </div>
 
-        <SubmitButton className="btn-ghost btn-sm">{t.common.save}</SubmitButton>
+        <SubmitButton className="btn-secondary btn-sm w-full justify-center sm:w-auto">
+          {t.common.save}
+        </SubmitButton>
       </form>
       {state.status === 'error' ? <FormError message={state.message} /> : null}
     </li>
