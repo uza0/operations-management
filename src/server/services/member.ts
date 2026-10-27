@@ -4,6 +4,7 @@ import { and, asc, desc, eq, ne, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { ARRIVAL_WINDOW_HOURS, stageFor } from '@/lib/journey';
+import { effectiveRate } from '@/server/services/credit';
 import { mainGateForMember } from '@/server/services/main-gate';
 import { seatSetupForMember } from '@/server/services/seat-setup';
 import {
@@ -50,6 +51,10 @@ export async function getMemberPortal(token: string) {
       notifiedAt: eventMembers.notifiedAt,
       payAmount: eventMembers.payAmount,
       payMode: eventMembers.payMode,
+      payoutId: eventMembers.payoutId,
+      /* What he is on today, for an event not yet settled — see effectiveRate. */
+      personSalaried: teamMembers.salaried,
+      personDefaultPay: teamMembers.defaultPay,
       eventRole: eventMembers.eventRole,
       memberName: teamMembers.fullName,
       /* Shown on the member's own card: at a gate it is what a supervisor
@@ -335,11 +340,21 @@ export async function getMemberPortal(token: string) {
       confirmedAt: membership.confirmedAt,
       declinedAt: membership.declinedAt,
       declineReason: membership.declineReason,
-      /* What this night is worth to him, and only to him. */
-      payAmount:
-        membership.payMode === 'SALARIED'
-          ? null
-          : (membership.payAmount ?? membership.eventPayDefault),
+      /*
+       * What this night is worth to him, and only to him.
+       *
+       * Resolved rather than read: a membership created by cloning last
+       * month's event carries no figure at all, and the answer he needs is
+       * the rate standing on him today. See effectiveRate.
+       */
+      payAmount: effectiveRate({
+        paid: membership.payoutId !== null,
+        payMode: membership.payMode,
+        payAmount: membership.payAmount,
+        personSalaried: membership.personSalaried,
+        personDefaultPay: membership.personDefaultPay,
+        eventDefault: membership.eventPayDefault,
+      }),
       eventEnd: membership.eventEnd,
     },
     attendance: attendanceRow

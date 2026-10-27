@@ -288,7 +288,7 @@ async function seedPeople(): Promise<Person[]> {
      * what an empty field means; a couple are on a higher one by agreement,
      * and the man on a monthly contract is on nothing at all.
      */
-    defaultPay: SALARIED_NAMES.has(name) ? 0 : (HIGHER_RATES[name] ?? null),
+    defaultPay: SALARIED_NAMES.has(name) ? null : (HIGHER_RATES[name] ?? null),
     notes: null,
   }));
   await db.insert(teamMembers).values(rows).run();

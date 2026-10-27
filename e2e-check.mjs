@@ -1332,6 +1332,164 @@ const salariedRows = await db.prepare(`
 check('a salaried man carries no figure on any event',
   Number(salariedRows.n) === 0, `${salariedRows.n}`);
 
+/* ---- the rate reaches a new event however the team got onto it --------- */
+
+/*
+ * The failure this is written from: a new event built by copying last
+ * month's one. The clone carried the team and left every figure null, so a
+ * man on forty opened his invitation to the new match and read the event's
+ * own thirty — and a man on a monthly contract, who should see no figure at
+ * all, read thirty as well.
+ *
+ * Two halves to it, and both are checked: the clone now stamps what each
+ * person is on, and a membership with no stamp falls through to the person's
+ * standing rate rather than straight to the event default.
+ */
+const fortyMan = await db.prepare(
+  'select id, full_name from team_members where salaried = 0 and default_pay = 40000 limit 1')
+  .get();
+const monthlyMan = await db.prepare(
+  'select id, full_name from team_members where salaried = 1 limit 1').get();
+check('the roster has a man on his own rate and a man on a salary',
+  Boolean(fortyMan) && Boolean(monthlyMan),
+  `${fortyMan?.full_name} · ${monthlyMan?.full_name}`);
+
+/* Build the new event the way he does: from the last one, with its team. */
+await admin.goto(`${BASE}/admin/events/new`);
+await admin.waitForLoadState('networkidle');
+await admin.waitForSelector('button[type=submit]:not([disabled])');
+const cloneDate = new Date(Date.now() + 12 * 86400000).toISOString().slice(0, 10);
+/* Pick the template first: the team checkbox only exists once one is chosen. */
+/* Clone the match the salaried man is on, so his case is really covered. */
+const templateName = (await db.prepare(
+  `select e.name from events e
+     join event_members em on em.event_id = e.id
+     join team_members tm on tm.id = em.team_member_id
+    where tm.salaried = 1 limit 1`).get()).name;
+const templateValue = await admin.evaluate((name) => {
+  const select = document.querySelector('#templateEventId');
+  const hit = [...select.options].find((o) => o.textContent.includes(name));
+  return hit ? hit.value : '';
+}, String(templateName));
+await admin.selectOption('#templateEventId', templateValue);
+await admin.waitForTimeout(700);
+await admin.locator('input[name=copyTeam]').first().check();
+await admin.fill('#name', 'نسخة اختبار — الأجور');
+await admin.fill('#date', cloneDate);
+await admin.fill('#startTime', '19:00');
+await admin.fill('#teamArrivalTime', '16:30');
+await admin.fill('#teamDepartureTime', '22:30');
+await admin.selectOption('#venueId', { index: 1 });
+/* The page's own submit, not the sign-out form in the header. */
+await admin.locator('button[type=submit]:has-text("إنشاء")').first().click();
+await admin.waitForTimeout(3500);
+
+const clonedEvent = await db.prepare(
+  "select id, pay_default from events where name = ?").get('نسخة اختبار — الأجور');
+check('the new event exists', Boolean(clonedEvent), clonedEvent ? 'yes' : 'no');
+
+if (clonedEvent) {
+  /*
+   * Checked over the whole copied team rather than two chosen names: every
+   * membership on the new event must carry exactly what that person is on
+   * today — his own figure, or nothing at all if the company pays him
+   * monthly. Before, every one of them was null.
+   */
+  const wrong = await db.prepare(`
+    select count(*) as n from event_members em
+      join team_members tm on tm.id = em.team_member_id
+     where em.event_id = ?
+       and (
+         (tm.salaried = 1 and (em.pay_mode != 'SALARIED' or em.pay_amount is not null))
+         or (tm.salaried = 0 and tm.default_pay is not null
+             and em.pay_amount is not tm.default_pay)
+       )`).get(clonedEvent.id);
+  const copied = await db.prepare(
+    'select count(*) as n from event_members where event_id = ?').get(clonedEvent.id);
+  check('a copied team carries each person\'s own rate, not the event default',
+    Number(copied.n) > 0 && Number(wrong.n) === 0,
+    `${wrong.n} wrong of ${copied.n}`);
+
+  const salariedOnClone = await db.prepare(`
+    select count(*) as n from event_members em
+      join team_members tm on tm.id = em.team_member_id
+     where em.event_id = ? and tm.salaried = 1
+       and em.pay_mode = 'SALARIED' and em.pay_amount is null`).get(clonedEvent.id);
+  check('and a man on a monthly contract carries no figure',
+    Number(salariedOnClone.n) > 0, `${salariedOnClone.n}`);
+}
+
+/*
+ * And the belt to that pair of braces: a membership that was never stamped
+ * at all — the state every cloned event was already in — still shows him his
+ * own rate, because the figure is resolved and not merely read.
+ */
+const unstamped = await db.prepare(`
+  select em.id, em.token, em.event_id, tm.default_pay from event_members em
+    join team_members tm on tm.id = em.team_member_id
+   where em.payout_id is null and tm.salaried = 0 and tm.default_pay is not null
+   limit 1`).get();
+check('somebody with a standing rate is on an event still owed for',
+  Boolean(unstamped), unstamped ? String(unstamped.default_pay) : 'none');
+if (unstamped) {
+  /* Put his event back before the night, which is when the figure is read. */
+  await db.exec("update events set status='PLANNING' where id=?", unstamped.event_id);
+  /* Blank the stamp and put him back on the invitation screen, where the
+     figure is actually printed. */
+  await db.exec(
+    `update event_members set pay_amount = null, pay_mode = 'EVENT',
+       status = 'INVITED', confirmed_at = null, declined_at = null,
+       token_expires_at = null where id = ?`,
+    unstamped.id,
+  );
+  await db.exec('delete from attendance where event_member_id = ?', unstamped.id);
+  const stray = await browser.newContext().then((c) => c.newPage());
+  await stray.goto(`${BASE}/member/${unstamped.token}`);
+  await stray.waitForLoadState('networkidle');
+  const strayText = await stray.textContent('main');
+  /* The grouped figure, in whichever digits the page renders. */
+  const want = Number(unstamped.default_pay).toLocaleString('en-US');
+  const wantAr = want.replace(/[0-9]/g, (d) => '٠١٢٣٤٥٦٧٨٩'[Number(d)]);
+  check('a membership with no figure still shows his standing rate',
+    strayText.includes(want) || strayText.includes(wantAr), want);
+  await stray.close();
+  await db.exec("update events set status='COMPLETED' where id=?", unstamped.event_id);
+  await db.exec(
+    'update event_members set pay_amount=? where id=?',
+    Number(unstamped.default_pay), unstamped.id,
+  );
+}
+
+/* The same for the salaried man: no figure, not the event's default. */
+const strayMonthly = await db.prepare(`
+  select em.id, em.token, em.event_id from event_members em
+    join team_members tm on tm.id = em.team_member_id
+   where tm.salaried = 1 and em.payout_id is null limit 1`).get();
+check('the salaried man is on an event still owed for', Boolean(strayMonthly), '');
+if (strayMonthly) {
+  await db.exec("update events set status='PLANNING' where id=?", strayMonthly.event_id);
+  await db.exec(
+    `update event_members set pay_amount = null, pay_mode = 'EVENT',
+       status = 'INVITED', confirmed_at = null, declined_at = null,
+       token_expires_at = null where id = ?`,
+    strayMonthly.id,
+  );
+  await db.exec('delete from attendance where event_member_id = ?', strayMonthly.id);
+  const sp2 = await browser.newContext().then((c) => c.newPage());
+  await sp2.goto(`${BASE}/member/${strayMonthly.token}`);
+  await sp2.waitForLoadState('networkidle');
+  const monthlyText = await sp2.textContent('main');
+  check('a salaried man is never shown the event default',
+    !monthlyText.includes('30,000') && !monthlyText.includes('٣٠,٠٠٠'), '');
+  await sp2.close();
+  await db.exec("update events set status='COMPLETED' where id=?", strayMonthly.event_id);
+  /* Put the stamp back: later checks read it, and blanking it was the test. */
+  await db.exec(
+    "update event_members set pay_mode='SALARIED', pay_amount=null where id=?",
+    strayMonthly.id,
+  );
+}
+
 /* ---- what the evening cost, beside what it paid ------------------------ */
 
 await admin.goto(`${BASE}/admin/events/${eventId}/expenses`);

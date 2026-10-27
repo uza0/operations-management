@@ -47,6 +47,48 @@ import type { AttendanceStatus } from '@/lib/constants';
  */
 export const CLOSED_STATUSES = ['COMPLETED', 'ARCHIVED'];
 
+/**
+ * What one person is on for one event, resolved from the three places the
+ * answer can live.
+ *
+ * The figure is stamped onto the membership when the invitation goes out, and
+ * that stamp is what a settled event is judged by for ever. But a stamp is
+ * only as good as every code path that remembers to make one — and one of
+ * them did not. Cloning last month's event copied the team and left the
+ * figure null, so a man on forty was invited to the new match at the event's
+ * own thirty, and a man on a monthly contract was invited at thirty too.
+ *
+ * So the stamp is no longer the only source. For an event this system has
+ * not yet handed money over for, a missing stamp falls through to the rate
+ * standing on the person today — which is the thing the supervisor actually
+ * set, and the thing he expects to apply everywhere. Once the money has gone
+ * out, the stamp alone decides, because the books have to agree with what is
+ * in people's pockets.
+ *
+ * Order, for an unpaid event: the person's monthly contract beats everything;
+ * then a figure set against this one event; then his standing rate; then the
+ * event's own default.
+ */
+export function effectiveRate(input: {
+  /** True once this membership went out in a handover. */
+  paid: boolean;
+  /** What the membership was stamped with. */
+  payMode: string | null;
+  payAmount: number | null;
+  /** What the person is on today. */
+  personSalaried?: boolean | null;
+  personDefaultPay?: number | null;
+  eventDefault: number;
+}): number | null {
+  if (input.paid) {
+    return input.payMode === 'SALARIED' ? null : (input.payAmount ?? input.eventDefault);
+  }
+
+  if (input.payMode === 'SALARIED' || input.personSalaried) return null;
+
+  return input.payAmount ?? input.personDefaultPay ?? input.eventDefault;
+}
+
 /** Statuses that earn the event's default credit with no one intervening. */
 export const WORKED_STATUSES: AttendanceStatus[] = ['PRESENT', 'LATE'];
 
@@ -78,13 +120,21 @@ export function creditFor(input: {
    * and nowhere in the code.
    */
   eventStatus?: string | null;
+  /** True once this membership went out in a handover — see effectiveRate. */
+  paid?: boolean;
+  /** What the person is on today, for an event not yet paid out. */
+  personSalaried?: boolean | null;
+  personDefaultPay?: number | null;
 }): number | null {
-  if (input.payMode === 'SALARIED') return null;
-
-  const rate =
-    input.payAmount !== null && input.payAmount !== undefined
-      ? input.payAmount
-      : input.eventDefault;
+  const rate = effectiveRate({
+    paid: input.paid ?? false,
+    payMode: input.payMode ?? null,
+    payAmount: input.payAmount,
+    personSalaried: input.personSalaried,
+    personDefaultPay: input.personDefaultPay,
+    eventDefault: input.eventDefault,
+  });
+  if (rate === null) return null;
 
   const settled = input.eventStatus
     ? CLOSED_STATUSES.includes(input.eventStatus)
@@ -162,6 +212,8 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
       payAmount: eventMembers.payAmount,
       payMode: eventMembers.payMode,
       payoutId: eventMembers.payoutId,
+      personSalaried: teamMembers.salaried,
+      personDefaultPay: teamMembers.defaultPay,
       creditNote: eventMembers.creditNote,
       status: attendance.status,
       checkInTime: attendance.checkInTime,
@@ -172,6 +224,7 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
     })
     .from(eventMembers)
     .innerJoin(events, eq(eventMembers.eventId, events.id))
+    .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
     .leftJoin(venues, eq(events.venueId, venues.id))
     .leftJoin(attendance, eq(attendance.eventMemberId, eventMembers.id))
     .leftJoin(
@@ -248,6 +301,9 @@ function toLine(
       eventDefault: row.eventDefault,
       payMode: row.payMode,
       eventStatus: row.eventStatus,
+      paid: row.payoutId !== null,
+      personSalaried: row.personSalaried,
+      personDefaultPay: row.personDefaultPay,
     }),
     /*
      * Salaried people are outside this ledger for the chairs too: the flat fee
@@ -261,7 +317,7 @@ function toLine(
      * expected column was reading a fact that only exists afterwards.
      */
     seatAmount:
-      row.payMode === 'SALARIED'
+      row.payMode === 'SALARIED' || (row.payoutId === null && row.personSalaried)
         ? null
         : ((closed ? seatPay.earned : seatPay.expected).get(row.eventMemberId) ?? null),
     note: row.creditNote,

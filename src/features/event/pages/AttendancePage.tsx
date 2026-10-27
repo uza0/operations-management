@@ -36,6 +36,9 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
       checkOutTime: attendance.checkOutTime,
       payAmount: eventMembers.payAmount,
       payMode: eventMembers.payMode,
+      payoutId: eventMembers.payoutId,
+      personSalaried: teamMembers.salaried,
+      personDefaultPay: teamMembers.defaultPay,
       creditNote: eventMembers.creditNote,
       notes: attendance.notes,
       recordedBy: users.name,
@@ -81,6 +84,9 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
         payAmount: r.payAmount,
         eventDefault: event.payDefault,
         eventStatus: event.status,
+        paid: r.payoutId !== null,
+        personSalaried: r.personSalaried,
+        personDefaultPay: r.personDefaultPay,
       }),
     }))
     .sort(byName);

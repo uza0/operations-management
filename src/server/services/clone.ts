@@ -9,6 +9,7 @@ import {
   events,
   gates,
   mapMarkers,
+  teamMembers,
   timelineItems,
   workingPoints,
 } from '@/db/schema';
@@ -128,9 +129,27 @@ export async function cloneEventPlan(
   let assignmentCount = 0;
 
   if (options.withTeam) {
+    /*
+     * The people, and what each of them is on TODAY.
+     *
+     * Not what the source event was stamped with: the plan is being copied,
+     * not the money. And not nothing either, which is what this used to copy
+     * — a cloned event left every figure null, so a man on forty was invited
+     * to the new match at the event's own thirty and a man on a monthly
+     * contract was invited at thirty too.
+     */
     const sourceMembers = await db
-      .select()
+      .select({
+        id: eventMembers.id,
+        teamMemberId: eventMembers.teamMemberId,
+        status: eventMembers.status,
+        isReserve: eventMembers.isReserve,
+        eventRole: eventMembers.eventRole,
+        salaried: teamMembers.salaried,
+        defaultPay: teamMembers.defaultPay,
+      })
       .from(eventMembers)
+      .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
       .where(eq(eventMembers.eventId, sourceEventId));
 
     const carried = sourceMembers.filter((m) => m.status !== 'CANCELLED');
@@ -150,8 +169,10 @@ export async function cloneEventPlan(
             isReserve: member.isReserve,
             notifiedAt: null,
             notifiedById: null,
-            // Credit is a decision about one day's work, not a standing rate.
-            payAmount: null,
+            /* The same stamp an ordinary invitation makes — see above. */
+            payMode: member.salaried ? ('SALARIED' as const) : ('EVENT' as const),
+            payAmount: member.salaried ? null : (member.defaultPay ?? null),
+            /* A note about one night does not travel to the next one. */
             creditNote: null,
             // Who leads the team, and who runs each gate, is part of the plan
             // being copied — it is the same people doing the same jobs again.
