@@ -133,6 +133,12 @@ export const en: Dictionary = {
     noLiveEvent: 'No event is live right now',
   },
   event: {
+    externalId: "The company's event number",
+    externalIdHint: "The reference the company issues for this event — add it when you create the event or long after, archived included.",
+    externalIdPlaceholder: 'e.g. TZ-EV-10482',
+    externalIdNone: 'Not set yet',
+    externalIdSaved: 'Reference saved',
+    editEventHint: "Name, venue, date and hours. Moving the team's arrival or departure moves everyone who was following the event's own hours — never somebody given hours of their own.",
     title: 'Events',
     subtitle: 'Every event and its operational stage',
     newEvent: 'New event',
@@ -285,6 +291,9 @@ export const en: Dictionary = {
     empty: 'No members on this event yet',
     emptyHint: 'Add and assign the team first, then come back here to brief them.',
     message: {
+      dress: 'Dress: {dress}',
+      dressShirt: 'A Ticket Zone shirt, or any plain black t-shirt',
+      dressCasual: 'Anything casual you can work comfortably in',
       greeting: 'Hello {name} 👋',
       heading: '📋 Assignment — {event}',
       when: '🗓 Day: {weekday} {date}',

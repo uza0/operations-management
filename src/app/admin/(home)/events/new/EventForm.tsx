@@ -19,6 +19,7 @@ export type EventFormValues = {
   teamArrivalTime?: string;
   teamDepartureTime?: string | null;
   description?: string | null;
+  externalId?: string | null;
 };
 
 export function EventForm({
@@ -242,6 +243,23 @@ export function EventForm({
           </select>
         </div>
       ) : null}
+
+      <div>
+        <label className="field-label" htmlFor="externalId">
+          {t.event.externalId}{' '}
+          <span className="text-ink-500">({t.common.optional})</span>
+        </label>
+        <input
+          id="externalId"
+          name="externalId"
+          className="field"
+          maxLength={60}
+          placeholder={t.event.externalIdPlaceholder}
+          defaultValue={values?.externalId ?? ''}
+          style={{ unicodeBidi: 'plaintext' }}
+        />
+        <p className="mt-1 text-[12px] leading-5 text-ink-500">{t.event.externalIdHint}</p>
+      </div>
 
       <div>
         <label className="field-label" htmlFor="description">

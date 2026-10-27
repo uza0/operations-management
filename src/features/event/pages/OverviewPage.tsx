@@ -39,6 +39,7 @@ import {
 } from '@/components/ui/icons';
 
 import { EventLifecycle } from './parts/EventLifecycle';
+import { EventReference } from './parts/EventReference';
 
 export async function EventOverviewPage({
   base,
@@ -254,7 +255,16 @@ export async function EventOverviewPage({
 
         <div className="space-y-4">
           {/* Event info --------------------------------------------------- */}
-          <Panel title={t.report.eventInfo}>
+          <Panel
+            title={t.report.eventInfo}
+            action={
+              scope.canManage ? (
+                <Link href={`${root}/edit`} className="btn-ghost btn-sm">
+                  {t.event.editEvent}
+                </Link>
+              ) : null
+            }
+          >
             <dl>
               <KeyValue label={t.event.venue}>{event.venue.name}</KeyValue>
               <KeyValue label={t.event.date}>
@@ -285,6 +295,21 @@ export async function EventOverviewPage({
               </p>
             ) : null}
           </Panel>
+
+          {/*
+            The company's own number for the event, kept where it is read and
+            editable at every stage — it arrives on its own schedule, often
+            after the night is over.
+          */}
+          {scope.canManage ? (
+            <Panel title={t.event.externalId}>
+              <EventReference
+                t={t}
+                eventId={eventId}
+                value={event.externalId ?? null}
+              />
+            </Panel>
+          ) : null}
 
           {scope.canManage ? (
             <Panel title={t.event.lifecycle}>

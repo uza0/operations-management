@@ -56,6 +56,12 @@ export const eventSchema = z.object({
   /** Optional so an older event without one can still be saved. */
   teamDepartureTime: time.optional().nullable(),
   description: longText,
+  /**
+   * The company's own reference for this event. Free text on purpose: it is
+   * their number, in whatever shape they issue it, and this system's job is
+   * to carry it faithfully rather than to have opinions about its format.
+   */
+  externalId: z.string().trim().max(60).optional().nullable(),
   status: z.enum(EVENT_STATUSES).optional(),
 });
 

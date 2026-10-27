@@ -14,7 +14,7 @@ import {
   teamMembers,
   workingPoints,
 } from '@/db/schema';
-import type { Task } from '@/lib/constants';
+import type { EventType, Task } from '@/lib/constants';
 import { format, type Dictionary } from '@/lib/i18n';
 import { formatDate, formatTime, formatWeekday } from '@/lib/time';
 import { compareNames } from '@/lib/sort';
@@ -79,6 +79,19 @@ export function whatsappLink(number: string, message: string): string {
   return `https://wa.me/${number}?text=${encodeURIComponent(message)}`;
 }
 
+/**
+ * The dress code for a night, by what the night is.
+ *
+ * A match is worked in whatever is comfortable; anything with an audience
+ * that reads the staff by sight — a concert, a festival, an exhibition, a
+ * conference, a promotion — is worked in the company shirt or a plain black
+ * one. Two rules, because two is what the company actually has, and a list
+ * of seven would be six of them saying the same thing.
+ */
+export function dressCodeFor(type: EventType, t: Dictionary): string {
+  return type === 'FOOTBALL_MATCH' ? t.notify.message.dressCasual : t.notify.message.dressShirt;
+}
+
 function buildMessage({
   t,
   locale,
@@ -97,6 +110,7 @@ function buildMessage({
   gateLeaderName,
   sheetUrl,
   mainGate,
+  eventType,
 }: {
   t: Dictionary;
   locale: 'ar' | 'en';
@@ -115,6 +129,8 @@ function buildMessage({
   /** Who to report to on the night — the one name a member actually needs. */
   gateLeaderName: string | null;
   sheetUrl: string | null;
+  /** What the night is, which is what decides what to wear. */
+  eventType: EventType;
   mainGate: { place: string; start: string; end: string; task: string } | null;
 }): string {
   const m = t.notify.message;
@@ -148,6 +164,18 @@ function buildMessage({
       '',
     );
   }
+
+  /*
+   * What to turn up in.
+   *
+   * It belongs in the message rather than in a briefing somebody gives at the
+   * gate, because by then he is already wearing whatever he came in. And it
+   * is not one line for everything: a concert crowd reads the staff by their
+   * shirts, a football crowd does not, and telling a man to find a plain
+   * black t-shirt for a Tuesday afternoon match is how instructions stop
+   * being read.
+   */
+  lines.push(format(m.dress, { dress: dressCodeFor(eventType, t) }), '');
 
   if (isReserve) {
     lines.push(m.reserve);
@@ -209,6 +237,8 @@ export async function buildBriefings({
     boardToken?: string | null;
     /** True when a venue photo exists, so a "your spot" link means something. */
     hasMap?: boolean;
+    /** What the night is: it decides the dress line. */
+    type: EventType;
     venue: { name: string; locationUrl: string | null };
   };
   baseUrl: string;
@@ -349,6 +379,7 @@ export async function buildBriefings({
         gateLeaderName,
         sheetUrl: event.boardToken ? `${baseUrl}/sheet/${event.boardToken}` : null,
         mainGate,
+        eventType: event.type,
         isReserve: row.isReserve || !active,
       }),
     };

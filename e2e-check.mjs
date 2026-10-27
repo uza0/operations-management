@@ -781,6 +781,16 @@ check('the briefing carries the venue location and not the site plan',
   '');
 check('the briefing tells the early shift where to be first',
   notifyText.includes('قبل الحفل:'), '');
+
+/*
+ * And what to turn up in, which depends on the night. The seeded event is a
+ * match, so it is the casual line; a concert crowd reads the staff by their
+ * shirts and gets the other one.
+ */
+check('the briefing says what to wear',
+  notifyText.includes('الزي:'), '');
+check('a match asks for something comfortable, not a black shirt',
+  notifyText.includes('كاجوال') && !notifyText.includes('أسود'), '');
 await admin.keyboard.press('Escape');
 
 /* ---- feedback ------------------------------------------------------------ */
@@ -1489,6 +1499,105 @@ if (strayMonthly) {
     strayMonthly.id,
   );
 }
+
+/* ---- the hours move, and the team moves with them ---------------------- */
+
+/*
+ * The company moves a kick-off by an hour, and until there was a way to say
+ * so the correction lived in a phone call. Moving the team's arrival moves
+ * everybody who was following the event's own hours — and nobody who was
+ * given hours of their own, because that was somebody's decision.
+ */
+const timeEvent = await db.prepare(`
+  select e.id, e.name, e.team_arrival_time, e.start_time, e.date, e.type, e.venue_id,
+         e.team_departure_time
+    from events e where e.status not in ('COMPLETED','ARCHIVED')
+     and exists (select 1 from assignments a where a.event_id = e.id) limit 1`).get();
+check('there is an event with people on it whose hours can move',
+  Boolean(timeEvent), timeEvent ? String(timeEvent.name) : 'none');
+
+const followers = await db.prepare(`
+  select count(*) as n from assignments
+   where event_id = ? and arrival_time = ? and shift_start = ?`)
+  .get(timeEvent.id, timeEvent.team_arrival_time, timeEvent.team_arrival_time);
+
+/* Somebody with hours of their own, to prove they are left alone. */
+const ownHours = await db.prepare(`
+  select id, arrival_time from assignments
+   where event_id = ? and arrival_time != ? limit 1`)
+  .get(timeEvent.id, timeEvent.team_arrival_time);
+
+await admin.goto(`${BASE}/admin/events/${timeEvent.id}/edit`);
+await admin.waitForLoadState('networkidle');
+await admin.waitForSelector('button[type=submit]:not([disabled])');
+check('an event can be opened for editing',
+  (await admin.locator('#teamArrivalTime').count()) === 1, '');
+
+await admin.fill('#teamArrivalTime', '14:05');
+await admin.locator('button[type=submit]:has-text("حفظ")').first().click();
+await admin.waitForTimeout(3000);
+
+const movedEvent = await db.prepare(
+  'select team_arrival_time from events where id = ?').get(timeEvent.id);
+check('the event time can be corrected after it was created',
+  String(movedEvent.team_arrival_time) === '14:05', String(movedEvent.team_arrival_time));
+
+const movedWith = await db.prepare(`
+  select count(*) as n from assignments
+   where event_id = ? and arrival_time = '14:05' and shift_start = '14:05'`)
+  .get(timeEvent.id);
+check('and everybody who followed the event hour moved with it',
+  Number(movedWith.n) === Number(followers.n) && Number(followers.n) > 0,
+  `${movedWith.n}/${followers.n}`);
+
+if (ownHours) {
+  const untouched = await db.prepare(
+    'select arrival_time from assignments where id = ?').get(ownHours.id);
+  check('somebody given his own hour keeps it',
+    String(untouched.arrival_time) === String(ownHours.arrival_time),
+    String(untouched.arrival_time));
+}
+
+/* ---- the company's own number, whenever it turns up -------------------- */
+
+/*
+ * It arrives on its own schedule — sometimes with the booking, sometimes a
+ * fortnight after the night, when somebody is matching two systems. So it is
+ * settable at every stage, and the hardest stage is the one that is over.
+ */
+const archived = await db.prepare(
+  "select id, name from events where status in ('COMPLETED','ARCHIVED') limit 1").get();
+check('there is a finished event to reference', Boolean(archived),
+  archived ? String(archived.name) : 'none');
+
+await admin.goto(`${BASE}/admin/events/${archived.id}`);
+await admin.waitForLoadState('networkidle');
+const refPanel = admin.locator('section.panel', { hasText: 'رقم الفعالية عند الشركة' }).first();
+await refPanel.scrollIntoViewIfNeeded();
+await refPanel.locator('button').first().click();
+await admin.waitForSelector('input[name=externalId]');
+await admin.fill('input[name=externalId]', 'TZ-EV-99001');
+await admin.locator('button[type=submit]:has-text("حفظ")').first().click();
+await admin.waitForTimeout(2500);
+
+const referenced = await db.prepare(
+  'select external_id from events where id = ?').get(archived.id);
+check('a finished event can still be given the company number',
+  String(referenced.external_id) === 'TZ-EV-99001', String(referenced.external_id));
+
+await admin.goto(`${BASE}/admin/events/${archived.id}/reports`);
+await admin.waitForLoadState('networkidle');
+check('and the closing report prints it',
+  (await admin.textContent('main')).includes('TZ-EV-99001'), '');
+
+/* A gate leader neither edits the hours nor the reference. */
+const gateCtxE = await browser.newContext();
+const gateE = await login(gateCtxE, 'hussein', 'Gate@12345');
+await gateE.goto(`${BASE}/leader/events/${eventId}/edit`);
+await gateE.waitForLoadState('networkidle');
+check('a gate leader cannot edit the event',
+  gateE.url().includes('/forbidden'), gateE.url());
+await gateCtxE.close();
 
 /* ---- what the evening cost, beside what it paid ------------------------ */
 

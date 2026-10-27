@@ -6,6 +6,7 @@ import { redirect } from 'next/navigation';
 
 import { buildBriefings, resolveBaseUrl } from '@/server/services/notify';
 import { readStatus } from '@/server/services/whatsapp';
+import type { EventType } from '@/lib/constants';
 
 import { BriefingBoard } from './parts/BriefingBoard';
 
@@ -27,6 +28,7 @@ export async function EventNotifyPage({ eventId }: { eventId: string }) {
       name: event.name,
       date: event.date,
       teamArrivalTime: event.teamArrivalTime,
+      type: event.type as EventType,
       boardToken: event.boardToken,
       // An event's own photo, or the venue's — the member's map page falls
       // back the same way, so the link is offered on the same condition.

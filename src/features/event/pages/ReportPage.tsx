@@ -97,6 +97,19 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
           <FactGrid>
             <div>
               <Fact label={t.event.name}>{event.name}</Fact>
+              {/*
+                The company's own number, printed where the report is read
+                against their books. Absent rather than blank when nobody has
+                sent one: an empty row invites somebody to wonder whether it
+                was lost.
+              */}
+              {event.externalId ? (
+                <Fact label={t.event.externalId}>
+                  <span className="nums" style={{ unicodeBidi: 'plaintext' }}>
+                    {event.externalId}
+                  </span>
+                </Fact>
+              ) : null}
               <Fact label={t.event.type}>{t.enums.eventType[event.type as EventType]}</Fact>
               <Fact label={t.event.venue}>{event.venue.name}</Fact>
               <Fact label={t.common.status}>

@@ -53,6 +53,7 @@ export async function createEventAction(
     teamArrivalTime: str(form, 'teamArrivalTime') ?? '',
     teamDepartureTime: str(form, 'teamDepartureTime'),
     description: str(form, 'description'),
+    externalId: str(form, 'externalId'),
   });
   if (!parsed.success) return fail(message(t, firstIssueKey(parsed.error)));
 
@@ -72,6 +73,7 @@ export async function createEventAction(
     teamArrivalTime: parsed.data.teamArrivalTime,
     teamDepartureTime: parsed.data.teamDepartureTime ?? null,
     description: parsed.data.description ?? null,
+    externalId: parsed.data.externalId || null,
     status: 'DRAFT',
     createdById: user.id,
   });
@@ -159,6 +161,7 @@ export async function updateEventAction(
     teamArrivalTime: str(form, 'teamArrivalTime') ?? '',
     teamDepartureTime: str(form, 'teamDepartureTime'),
     description: str(form, 'description'),
+    externalId: str(form, 'externalId'),
   });
   if (!parsed.success) return fail(message(t, firstIssueKey(parsed.error)));
 
@@ -173,6 +176,7 @@ export async function updateEventAction(
       teamArrivalTime: parsed.data.teamArrivalTime,
       teamDepartureTime: parsed.data.teamDepartureTime ?? null,
       description: parsed.data.description ?? null,
+      externalId: parsed.data.externalId || null,
       updatedAt: new Date(),
     })
     .where(eq(events.id, eventId));
@@ -413,4 +417,63 @@ export async function listGateNames(eventId: string) {
 export async function redirectToWorkspace(eventId: string) {
   const user = await currentUser();
   redirect(`${workspaceBase(user?.role ?? 'TEAM_LEADER')}/events/${eventId}`);
+}
+
+/**
+ * The company's own number for this event, on its own.
+ *
+ * Separate from editing the event because it arrives separately: the booking
+ * side sends it when they send it, which is sometimes before the night and
+ * sometimes a fortnight after it, when somebody is reconciling two systems.
+ * Asking a supervisor to reopen the whole event form — name, venue, hours,
+ * all of it validated — to type one reference into a finished event is how a
+ * reference ends up in a WhatsApp message instead.
+ *
+ * It works at every stage, archived included, and it is the one field here
+ * that does: nothing in this system depends on it, so changing it changes no
+ * arithmetic, moves no shift and reprices nothing.
+ */
+export async function setEventReferenceAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+
+  let user;
+  try {
+    user = await assertEventManager(eventId);
+  } catch {
+    return fail(t.errors.forbidden);
+  }
+
+  const existing = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!existing) return fail(t.errors.notFound);
+
+  const raw = str(form, 'externalId');
+  const value = raw ? raw.trim().slice(0, 60) : null;
+
+  await db
+    .update(events)
+    .set({ externalId: value, updatedAt: new Date() })
+    .where(eq(events.id, eventId));
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'EVENT',
+    entityId: eventId,
+    entityLabel: existing.name,
+    oldValues: { externalId: existing.externalId },
+    newValues: { externalId: value },
+    summary: `${t.event.externalId}: ${value ?? '—'}`,
+  });
+
+  for (const base of ['/admin', '/leader']) {
+    revalidatePath(`${base}/events/${eventId}`);
+    revalidatePath(`${base}/events/${eventId}/reports`);
+  }
+  return ok();
 }

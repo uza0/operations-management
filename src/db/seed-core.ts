@@ -441,6 +441,8 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
       boardPublishedAt: at('12:00', -60 * 24 * 2),
       boardPublishedById: adminId,
       mapImageUrl: null,
+      /* The company sent this one's number the morning after. */
+      externalId: 'TZ-EV-10482',
       reportNotes: null,
       createdById: adminId,
       createdAt: at('09:00', -60 * 24 * 6),

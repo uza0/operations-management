@@ -195,6 +195,17 @@ export const events = sqliteTable(
      */
     teamDepartureTime: text('team_departure_time'),
     description: text('description'),
+    /**
+     * The company's own number for this event.
+     *
+     * It comes from the ticketing side, and it arrives whenever it arrives:
+     * sometimes with the booking, sometimes a week after the night is over
+     * and somebody is reconciling. So it is nullable, it is editable at any
+     * point in an event's life including after it is archived, and nothing
+     * depends on it — it exists so that a figure in this system and a figure
+     * in theirs can be put beside each other.
+     */
+    externalId: text('external_id'),
     /** DRAFT | PLANNING | READY | LIVE | COMPLETED | ARCHIVED */
     status: text('status').notNull().default('DRAFT'),
     /** Per-event map override; falls back to the venue map. */

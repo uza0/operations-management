@@ -14,6 +14,7 @@ import {
 import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
 import { formatDate, formatTime } from '@/lib/time';
+import type { EventType } from '@/lib/constants';
 import { RESPONSE_WINDOW_HOURS, responseDeadline } from '@/lib/journey';
 import { assertEventManager } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
@@ -214,6 +215,7 @@ export async function sendBriefingsViaApiAction(
       name: event.name,
       date: event.date,
       teamArrivalTime: event.teamArrivalTime,
+      type: event.type as EventType,
       boardToken: event.boardToken,
       hasMap: Boolean(event.mapImageUrl ?? venue?.mapImageUrl),
       venue: { name: venue?.name ?? '', locationUrl: venue?.locationUrl ?? null },

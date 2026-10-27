@@ -1,0 +1,1 @@
+ALTER TABLE `events` ADD `external_id` text;
