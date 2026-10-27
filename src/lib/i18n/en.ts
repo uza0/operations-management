@@ -236,7 +236,7 @@ export const en: Dictionary = {
     importXlsx: 'Import from Excel',
     importTitle: 'Import the team from an Excel file',
     importHint:
-      'Export the file, edit it in Excel, upload it here. A row carrying an employee code updates that person; a row with the code cell empty adds a new one and the system issues the code.',
+      'Export the file, edit it in Excel, upload it here. A row carrying an employee code updates that person; with no code it is matched on the phone number — somebody already here is updated, somebody new is added and the system issues the code. Uploading the same file twice duplicates nobody.',
     importFile: 'Excel file (xlsx or csv)',
     importRun: 'Check and import',
     importNoFile: 'Choose a file first.',

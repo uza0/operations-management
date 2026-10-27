@@ -307,6 +307,25 @@ export type ImportState =
   | { status: 'error'; message: string }
   | { status: 'success'; report: ImportReport };
 
+/**
+ * The same phone number, however it was typed.
+ *
+ * Iraqi numbers arrive in every shape — +964 770…, 00964770…, 0770…, 770…,
+ * with spaces or without — and a roster is imported more than once. Without
+ * this, the second import of the same spreadsheet creates a second copy of
+ * everybody on it, which is how one man ends up on a gate twice under two
+ * employee codes.
+ */
+function phoneKey(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  let digits = raw.replace(/\D/g, '');
+  if (!digits) return null;
+  if (digits.startsWith('00')) digits = digits.slice(2);
+  if (digits.startsWith('964')) digits = digits.slice(3);
+  digits = digits.replace(/^0+/, '');
+  return digits.length >= 8 ? digits : null;
+}
+
 /** Finds a column by any of the headers it might carry, in either language. */
 function columnOf(headers: string[], names: string[]): number {
   const wanted = names.map((n) => n.trim().toLowerCase()).filter(Boolean);
@@ -364,9 +383,22 @@ export async function importTeamAction(
     .select({
       id: teamMembers.id,
       employeeCode: teamMembers.employeeCode,
+      phone: teamMembers.phone,
     })
     .from(teamMembers);
   const byCode = new Map(existing.map((row) => [row.employeeCode.toLowerCase(), row.id]));
+  /*
+   * And by phone, for the ordinary case: a roster exported from somewhere
+   * else has names and numbers and no employee codes, because the codes are
+   * this system's own. Matching on the phone is what makes importing the same
+   * list twice safe — the second run updates the people it already knows
+   * instead of adding every one of them again.
+   */
+  const byPhone = new Map<string, string>();
+  for (const row of existing) {
+    const key = phoneKey(row.phone);
+    if (key && !byPhone.has(key)) byPhone.set(key, row.id);
+  }
 
   const report: ImportReport = { added: 0, updated: 0, skipped: 0, problems: [] };
   /*
@@ -404,7 +436,9 @@ export async function importTeamAction(
       continue;
     }
 
-    const known = code ? byCode.get(code.toLowerCase()) : undefined;
+    const known = code
+      ? byCode.get(code.toLowerCase())
+      : (phoneKey(phone) ? byPhone.get(phoneKey(phone)!) : undefined);
     if (code && !known) {
       report.skipped++;
       report.problems.push({
@@ -433,6 +467,9 @@ export async function importTeamAction(
         notes,
       });
       byCode.set(nextCode.toLowerCase(), memberId);
+      /* So a list that repeats a number inside itself adds that person once. */
+      const key = phoneKey(phone);
+      if (key) byPhone.set(key, memberId);
       nextCode = bump(nextCode);
       report.added++;
     }

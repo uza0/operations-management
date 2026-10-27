@@ -2715,6 +2715,40 @@ check('the matched row was updated, not duplicated',
     'select card_number as c from team_members where employee_code = ?',
   ).get(known.employee_code)).c === 'SK-TEST', '');
 
+/*
+ * And the same file twice.
+ *
+ * A roster exported from somewhere else carries names and numbers and no
+ * employee codes, because the codes are this system's own — so every row
+ * used to be an insert, and importing the same hundred people a second time
+ * gave you two of each on two codes. The phone is the natural key, and it is
+ * matched on now.
+ */
+/* The report from the run above is still on screen; close it first. */
+await admin.keyboard.press('Escape');
+await admin.waitForTimeout(800);
+
+const beforeTwice = (
+  await db.prepare('select count(*) as n from team_members').get()
+).n;
+await admin.locator('button:has-text("استيراد من اكسل")').click();
+await admin.waitForTimeout(500);
+await admin.locator('input[type="file"]').setInputFiles('/tmp/team-import.csv');
+await admin.locator('button:has-text("افحص وارفع")').click();
+await admin.waitForTimeout(4000);
+const afterTwice = (
+  await db.prepare('select count(*) as n from team_members').get()
+).n;
+check('importing the same list twice adds nobody twice',
+  Number(afterTwice) === Number(beforeTwice), `${beforeTwice} → ${afterTwice}`);
+
+const phoneDupes = await db.prepare(
+  'select count(*) as n from (select phone from team_members group by phone having count(*) > 1)')
+  .get();
+check('and no two people share a phone number', Number(phoneDupes.n) === 0,
+  `${phoneDupes.n}`);
+
+
 /* ---- RTL / LTR --------------------------------------------------------- */
 // From a known page, so this never depends on where the previous check ended.
 await admin.goto(`${BASE}/admin`);
