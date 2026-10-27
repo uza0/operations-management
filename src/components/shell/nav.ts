@@ -84,6 +84,12 @@ export function eventNav(
     { href: `${root}/issues`, label: t.nav.issues, icon: 'alert' },
   ];
   const closing: NavItem[] = [
+    /*
+     * What the evening cost, beside what it paid. It sits with the closing
+     * screens because that is when it is totalled, and it is management-only
+     * for the same reason the report is.
+     */
+    { href: `${root}/expenses`, label: t.expense.title, icon: 'report' },
     { href: `${root}/reports`, label: t.nav.reports, icon: 'report' },
     { href: `${root}/activity`, label: t.nav.activity, icon: 'history' },
   ];

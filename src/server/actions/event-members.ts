@@ -123,7 +123,7 @@ export async function addMembersToEventAction(
          * settled at must stay what it was settled at, whatever the person's
          * rate becomes later. Null here means this event's own default.
          */
-        payAmount: p.defaultPay ?? null,
+        payAmount: p.salaried ? null : (p.defaultPay ?? null),
         token: newMemberToken(),
         tokenExpiresAt: null,
         isReserve: asReserve,

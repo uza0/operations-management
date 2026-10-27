@@ -1,5 +1,8 @@
 import { loadManagedEventPage } from '@/features/event/workspace';
 import { buildFindings, buildReport } from '@/server/services/report';
+import { buildExpenses } from '@/server/services/expenses';
+import { formatAmount } from '@/lib/money';
+import type { ExpenseCategory } from '@/lib/constants';
 import { Badge, eventStatusTone, issueStatusTone } from '@/components/ui/status';
 import { format, type Dictionary } from '@/lib/i18n';
 import { formatDate, formatDateTime, formatTime } from '@/lib/time';
@@ -36,6 +39,7 @@ import {
 export async function EventReportPage({ eventId }: { eventId: string }) {
   const { scope, event, locale, t } = await loadManagedEventPage(eventId);
   const data = await buildReport(eventId);
+  const expenses = await buildExpenses(eventId);
   const { findings, recommendations } = buildFindings(data, t, format);
 
   const generatedAt = new Date();
@@ -453,8 +457,42 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
           </FactGrid>
         </ReportSection>
 
+        {/*
+          8b — what the evening cost.
+
+          Beside the wage bill, never inside it. "What we owe the team" and
+          "what the night cost us" are two numbers a closing report has to
+          keep apart, or neither of them can be checked against anything.
+        */}
+        {expenses.lines.length > 0 ? (
+          <ReportSection index={9} title={t.expense.title} hint={t.expense.notPay}>
+            <FactGrid>
+              <div>
+                <Fact label={t.expense.total}>
+                  <span className="nums">{formatAmount(expenses.total)}</span>
+                </Fact>
+              </div>
+              <div>
+                <Fact label={t.expense.count.replace('{n}', '')}>
+                  <span className="nums">{expenses.lines.length}</span>
+                </Fact>
+              </div>
+            </FactGrid>
+            <ReportTable head={[t.expense.description, t.expense.category, t.expense.addedBy, t.expense.amount]}>
+              {expenses.lines.map((line) => (
+                <tr key={line.id}>
+                  <td>{line.description}</td>
+                  <td>{t.enums.expenseCategory[line.category as ExpenseCategory]}</td>
+                  <td style={{ unicodeBidi: 'plaintext' }}>{line.createdByName}</td>
+                  <td className="nums">{formatAmount(line.amount)}</td>
+                </tr>
+              ))}
+            </ReportTable>
+          </ReportSection>
+        ) : null}
+
         {/* 9 — Notes and recommendations ------------------------------------ */}
-        <ReportSection index={9} title={t.report.section9}>
+        <ReportSection index={expenses.lines.length > 0 ? 10 : 9} title={t.report.section9}>
           <h3 className="text-[13.5px] font-semibold text-ink-200">
             {t.report.recommendations}
           </h3>
@@ -472,7 +510,11 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
         </ReportSection>
 
         {/* 10 — What the team said ----------------------------------------- */}
-        <ReportSection index={10} title={t.feedback.adminTitle} hint={t.feedback.adminAnonymous}>
+        <ReportSection
+          index={expenses.lines.length > 0 ? 11 : 10}
+          title={t.feedback.adminTitle}
+          hint={t.feedback.adminAnonymous}
+        >
           <FactGrid>
             <div>
               <Fact label={t.feedback.answered}>

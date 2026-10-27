@@ -4,14 +4,16 @@ import { revalidatePath } from 'next/cache';
 import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { eventMembers, teamMembers } from '@/db/schema';
+import { eventMembers, memberRates, teamMembers } from '@/db/schema';
 import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
+import { todayISO } from '@/lib/time';
 import { bool, firstIssueKey, str, teamMemberSchema } from '@/lib/validation';
 import { assertRole } from '@/server/auth/rbac';
 import { readCsv, readXlsx } from '@/server/services/xlsx-read';
 import { recordAudit } from '@/server/services/audit';
+import { applyStandingRate } from '@/server/services/rates';
 import { nextEmployeeCode } from '@/server/services/team';
 
 import { fail, ok, type ActionState } from './types';
@@ -83,12 +85,57 @@ export async function saveTeamMemberAction(
         employeeCode: parsed.data.employeeCode,
         cardNumber: parsed.data.cardNumber ?? null,
         active: parsed.data.active ?? true,
-        salaried: parsed.data.salaried ?? false,
-        defaultPay: parsed.data.defaultPay ?? null,
         notes: parsed.data.notes ?? null,
         updatedAt: new Date(),
       })
       .where(eq(teamMembers.id, id));
+
+    /*
+     * The rate is not an ordinary field on this form.
+     *
+     * Every invitation carries its own copy of the figure, stamped when it
+     * was sent, so writing the new rate here and stopping would leave every
+     * event he is already on at the old one — a man told he is on forty
+     * opening his link and reading thirty. It goes through the same path as
+     * the dated correction on his ledger, and reaches every event this
+     * system has not yet handed money over for.
+     *
+     * The same for the monthly contract: ticking it has to take the figure
+     * off those events as well as off the person, or he stays owed money
+     * the company is already paying him by salary.
+     */
+    const salaried = parsed.data.salaried ?? false;
+    const amount = salaried ? null : (parsed.data.defaultPay ?? null);
+    const rateChanged =
+      salaried !== existing.salaried || amount !== (existing.defaultPay ?? null);
+
+    let touched = 0;
+    if (rateChanged) {
+      ({ touched } = await applyStandingRate({
+        teamMemberId: id,
+        amount,
+        salaried,
+        from: 'ALL',
+      }));
+
+      /*
+       * And it goes in the history, like every other rate. "He has been on
+       * forty since today" is a sentence somebody will need to read back in
+       * three months, and a change nobody recorded is one nobody can check.
+       */
+      if (!salaried && amount !== null) {
+        await db.insert(memberRates).values({
+          id: newId(),
+          teamMemberId: id,
+          amount,
+          effectiveFrom: todayISO(),
+          note: null,
+          createdById: user.id,
+          createdByName: user.name,
+        });
+      }
+    }
+
     await recordAudit({
       actorId: user.id,
       actorName: user.name,
@@ -96,8 +143,19 @@ export async function saveTeamMemberAction(
       entity: 'TEAM_MEMBER',
       entityId: id,
       entityLabel: parsed.data.fullName,
-      oldValues: { fullName: existing.fullName, active: existing.active },
-      newValues: { fullName: parsed.data.fullName, active: parsed.data.active ?? true },
+      oldValues: {
+        fullName: existing.fullName,
+        active: existing.active,
+        defaultPay: existing.defaultPay,
+        salaried: existing.salaried,
+      },
+      newValues: {
+        fullName: parsed.data.fullName,
+        active: parsed.data.active ?? true,
+        defaultPay: amount,
+        salaried,
+        events: touched,
+      },
       summary: `${t.enums.auditAction.UPDATE}: ${parsed.data.fullName}`,
     });
   } else {
@@ -109,6 +167,9 @@ export async function saveTeamMemberAction(
       employeeCode: parsed.data.employeeCode,
       cardNumber: parsed.data.cardNumber ?? null,
       active: parsed.data.active ?? true,
+      /* A new person's rate is kept, not thrown away with the form. */
+      salaried: parsed.data.salaried ?? false,
+      defaultPay: parsed.data.salaried ? null : (parsed.data.defaultPay ?? null),
       notes: parsed.data.notes ?? null,
     });
     await recordAudit({
@@ -124,6 +185,7 @@ export async function saveTeamMemberAction(
   }
 
   revalidatePath('/admin/team');
+  revalidatePath('/admin/credits');
   return ok();
 }
 

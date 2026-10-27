@@ -66,6 +66,7 @@ const {
   feedbackResponses,
   seatSetupDetails,
   seatSetupMembers,
+  eventExpenses,
 } = schema;
 
 const MINUTES = 60 * 1000;
@@ -597,7 +598,7 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
           status: 'ACTIVE',
           /* Same rule the add-to-event action applies: read off the person. */
           payMode: SALARIED_NAMES.has(name) ? 'SALARIED' : 'EVENT',
-          payAmount: SALARIED_NAMES.has(name) ? 0 : (HIGHER_RATES[name] ?? null),
+          payAmount: SALARIED_NAMES.has(name) ? null : (HIGHER_RATES[name] ?? null),
           /*
            * The invitation has been sent and answered for everyone here, so
            * the live event starts where a real one does: with a team that
@@ -1376,7 +1377,7 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
           status: 'ACTIVE',
           /* Same rule the add-to-event action applies: read off the person. */
           payMode: SALARIED_NAMES.has(name) ? 'SALARIED' : 'EVENT',
-          payAmount: SALARIED_NAMES.has(name) ? 0 : (HIGHER_RATES[name] ?? null),
+          payAmount: SALARIED_NAMES.has(name) ? null : (HIGHER_RATES[name] ?? null),
           /*
            * The invitation has been sent and answered for everyone here, so
            * the live event starts where a real one does: with a team that
@@ -1722,6 +1723,49 @@ export async function seedDemoData(ctx: SeedContext): Promise<SeedResult> {
           declineReason: state === 'DECLINED' ? 'WORK' : null,
         })),
     )
+    .run();
+
+  /*
+   * What the match cost, beside what it paid. Small real sums, entered by
+   * the team leader on the night.
+   */
+  await db
+    .insert(eventExpenses)
+    .values([
+      {
+        id: newId(),
+        eventId: eventAId,
+        category: 'FOOD',
+        description: 'ماء وعصائر للبوابات الثمانية',
+        amount: 45000,
+        createdById: leaderId,
+        createdByName: 'أحمد الربيعي',
+        createdAt: at('16:20'),
+        updatedAt: at('16:20'),
+      },
+      {
+        id: newId(),
+        eventId: eventAId,
+        category: 'TRANSPORT',
+        description: 'تاكسي لجلب أساور إضافية من المخزن',
+        amount: 15000,
+        createdById: leaderId,
+        createdByName: 'أحمد الربيعي',
+        createdAt: at('17:05'),
+        updatedAt: at('17:05'),
+      },
+      {
+        id: newId(),
+        eventId: eventAId,
+        category: 'PRINTING',
+        description: 'طباعة كشوف التوزيع ولوحات البوابات',
+        amount: 12000,
+        createdById: adminId,
+        createdByName: 'مشرف العمليات',
+        createdAt: at('12:40', -60 * 24),
+        updatedAt: at('12:40', -60 * 24),
+      },
+    ])
     .run();
 
   /* ---- done ------------------------------------------------------------- */

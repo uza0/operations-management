@@ -117,10 +117,21 @@ export function formatClock(value: Date | null, locale: 'ar' | 'en' = 'ar'): str
   return formatTime(`${pad(value.getHours())}:${pad(value.getMinutes())}`, locale);
 }
 
+/**
+ * Today at the venue, not today on whatever machine is asking.
+ *
+ * It is the default on every date field and the stamp on a rate change, and
+ * the server runs in UTC — so between midnight and three in the morning
+ * Baghdad it used to answer with yesterday, and a rate set at one a.m. took
+ * effect a day before anybody meant it to.
+ */
 export function todayISO(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Baghdad',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).format(new Date());
 }
 
 export function nowHHmm(): string {

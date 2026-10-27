@@ -897,6 +897,41 @@ export const seatSetupMembers = sqliteTable(
 );
 
 /**
+ * What an evening cost, beside what it paid.
+ *
+ * Water for a gate in July, a taxi for somebody sent across town for
+ * wristbands, a print run of the distribution sheet — small sums the team
+ * leader puts out of his own pocket or the company's, and which until now
+ * lived in a note on his phone and were argued about a week later.
+ *
+ * Deliberately NOT part of anybody's credit. A promoter's pay is a rate times
+ * an attendance and nothing else; an expense is the event's cost, not a
+ * person's earning, and merging the two would make "what do we owe the team"
+ * a figure nobody could check. It is totalled per event and it stays there.
+ */
+export const eventExpenses = sqliteTable(
+  'event_expenses',
+  {
+    id: text('id').primaryKey(),
+    eventId: text('event_id')
+      .notNull()
+      .references(() => events.id, { onDelete: 'cascade' }),
+    /** FOOD | TRANSPORT | SUPPLIES | PRINTING | EQUIPMENT | OTHER */
+    category: text('category').notNull().default('OTHER'),
+    description: text('description').notNull(),
+    /** Dinars. */
+    amount: real('amount').notNull(),
+    /** Who entered it — a cost with no name on it is one nobody answers for. */
+    createdById: text('created_by_id').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    createdByName: text('created_by_name').notNull(),
+    ...timestamps,
+  },
+  (t) => [index('event_expenses_event_idx').on(t.eventId)],
+);
+
+/**
  * What one person's rate has been, and from when.
  *
  * The rate on the person is what the next invitation copies. This is the

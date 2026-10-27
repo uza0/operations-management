@@ -158,6 +158,16 @@ export type Priority = (typeof PRIORITIES)[number];
 export const AUDIENCES = ['EVENT', 'GATE', 'WORKING_POINT', 'MEMBER'] as const;
 export type Audience = (typeof AUDIENCES)[number];
 
+export const EXPENSE_CATEGORIES = [
+  'FOOD',
+  'TRANSPORT',
+  'SUPPLIES',
+  'PRINTING',
+  'EQUIPMENT',
+  'OTHER',
+] as const;
+export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number];
+
 export const ISSUE_TYPES = [
   /*
    * The panic button's own type, and the reason it is a type at all: a

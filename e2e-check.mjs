@@ -1268,6 +1268,116 @@ if (draftPromoter) {
   await dp.close();
 }
 
+/* ---- the rate on the person reaches the events he is already on -------- */
+
+/*
+ * The figure every invitation carries is a copy, stamped when it was sent.
+ * That is deliberate — a settled event must keep what it was paid at — and it
+ * was also the trap: editing the rate on the member wrote one column and
+ * stopped, so a man told he was on forty opened his link and read thirty.
+ */
+const payMan = await db.prepare(`
+  select tm.id, tm.full_name, count(em.id) as events
+    from team_members tm
+    join event_members em on em.team_member_id = tm.id
+   where tm.salaried = 0 and em.payout_id is null
+   group by tm.id having events >= 2 order by events desc limit 1`).get();
+check('somebody is on more than one event that is still owed for',
+  Boolean(payMan), payMan ? String(payMan.full_name) : 'none');
+
+await admin.goto(`${BASE}/admin/team`);
+await admin.waitForLoadState('networkidle');
+await admin
+  .locator('tr', { hasText: String(payMan.full_name) })
+  .first()
+  .locator('button', { hasText: String(payMan.full_name) })
+  .first()
+  .click();
+await admin.waitForSelector('#tm-pay');
+await admin.fill('#tm-pay', '47000');
+await admin.locator('[role=dialog] button[type=submit]').click();
+await admin.waitForTimeout(3000);
+
+const standingNow = await db.prepare(
+  'select default_pay from team_members where id=?').get(payMan.id);
+check('editing the member sets his standing rate',
+  Number(standingNow.default_pay) === 47000, String(standingNow.default_pay));
+
+const atNewRate = await db.prepare(`
+  select count(*) as n from event_members
+   where team_member_id=? and payout_id is null and pay_amount = 47000`).get(payMan.id);
+const stillOwed = await db.prepare(`
+  select count(*) as n from event_members
+   where team_member_id=? and payout_id is null`).get(payMan.id);
+check('and every event he is still owed for carries it',
+  Number(atNewRate.n) === Number(stillOwed.n) && Number(atNewRate.n) > 0,
+  `${atNewRate.n}/${stillOwed.n}`);
+
+const inHistory = await db.prepare(
+  'select count(*) as n from member_rates where team_member_id=? and amount=47000')
+  .get(payMan.id);
+check('the quick edit is kept in the rate history', Number(inHistory.n) === 1,
+  `${inHistory.n}`);
+
+/*
+ * And a man on a monthly contract carries no figure at all — not a zero,
+ * which reads as a debt, but nothing.
+ */
+const salariedMan = await db.prepare(
+  'select id, full_name from team_members where salaried = 1 limit 1').get();
+const salariedRows = await db.prepare(`
+  select count(*) as n from event_members
+   where team_member_id=? and (pay_mode != 'SALARIED' or pay_amount is not null)`)
+  .get(salariedMan.id);
+check('a salaried man carries no figure on any event',
+  Number(salariedRows.n) === 0, `${salariedRows.n}`);
+
+/* ---- what the evening cost, beside what it paid ------------------------ */
+
+await admin.goto(`${BASE}/admin/events/${eventId}/expenses`);
+await admin.waitForLoadState('networkidle');
+const expensesText = await admin.textContent('main');
+check('the event has a place for what it cost',
+  expensesText.includes('مصروفات الفعالية'), '');
+check('and it says plainly that this is not anybody\'s wage',
+  expensesText.includes('ما تدخل بمستحقات'), '');
+
+const wagesBefore = await db.prepare(`
+  select coalesce(sum(pay_amount), 0) as total from event_members where event_id=?`)
+  .get(eventId);
+
+await admin.locator('button:has-text("أضف مصروف")').first().click();
+await admin.waitForSelector('#x-description');
+await admin.fill('#x-description', 'وجبات عشاء للطاقم');
+await admin.fill('#x-amount', '72000');
+await admin.selectOption('#x-category', 'FOOD');
+await admin.locator('[role=dialog] button[type=submit]').click();
+await admin.waitForTimeout(2500);
+
+const expense = await db.prepare(`
+  select amount, category, created_by_name from event_expenses
+   where event_id=? and description=?`).get(eventId, 'وجبات عشاء للطاقم');
+check('an expense is recorded with its kind and who entered it',
+  Number(expense?.amount) === 72000 && String(expense?.category) === 'FOOD'
+    && Boolean(expense?.created_by_name),
+  String(expense?.created_by_name ?? ''));
+
+const wagesAfter = await db.prepare(`
+  select coalesce(sum(pay_amount), 0) as total from event_members where event_id=?`)
+  .get(eventId);
+check('and it changes nobody\'s pay',
+  Number(wagesBefore.total) === Number(wagesAfter.total),
+  `${wagesBefore.total} → ${wagesAfter.total}`);
+
+/* A gate leader does not see what the evening cost. */
+const gateCtxX = await browser.newContext();
+const gateX = await login(gateCtxX, 'hussein', 'Gate@12345');
+await gateX.goto(`${BASE}/leader/events/${eventId}/expenses`);
+await gateX.waitForLoadState('networkidle');
+check('a gate leader cannot open the costs',
+  gateX.url().includes('/forbidden'), gateX.url());
+await gateCtxX.close();
+
 /* ---- a rate with a date, and wages that go out in batches -------------- */
 
 /*
@@ -1305,7 +1415,8 @@ check('setting it from a past date reprices the events still owed',
   Number(repriced.n) > 0, `${repriced.n}`);
 
 const logged = await db.prepare(
-  'select count(*) as n from member_rates where team_member_id=?').get(rateMan.id);
+  'select count(*) as n from member_rates where team_member_id=? and amount=50000')
+  .get(rateMan.id);
 check('and the change is kept with its date', Number(logged.n) === 1, `${logged.n}`);
 
 /* Now hand wages over for a span, and check what falls outside it survives. */

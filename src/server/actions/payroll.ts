@@ -18,6 +18,7 @@ import { newId } from '@/lib/ids';
 import { MAX_EVENT_PAY } from '@/lib/money';
 import { str } from '@/lib/validation';
 import { CLOSED_STATUSES } from '@/server/services/credit';
+import { applyStandingRate } from '@/server/services/rates';
 import { requireRole } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
 
@@ -90,39 +91,17 @@ export async function setMemberRateAction(
     createdByName: user.name,
   });
 
-  await db
-    .update(teamMembers)
-    .set({ defaultPay: amount, updatedAt: new Date() })
-    .where(eq(teamMembers.id, teamMemberId));
-
   /*
    * Events from that date on, that this system still owes for. A membership
-   * already attached to a payout is left exactly as it was.
+   * already attached to a payout is left exactly as it was. The copying
+   * itself lives in one place — see applyStandingRate.
    */
-  const affected = await db
-    .select({ id: eventMembers.id })
-    .from(eventMembers)
-    .innerJoin(events, eq(eventMembers.eventId, events.id))
-    .where(
-      and(
-        eq(eventMembers.teamMemberId, teamMemberId),
-        isNull(eventMembers.payoutId),
-        ne(eventMembers.payMode, 'SALARIED'),
-        gte(events.date, effectiveFrom),
-      ),
-    );
-
-  if (affected.length > 0) {
-    await db
-      .update(eventMembers)
-      .set({ payAmount: amount, updatedAt: new Date() })
-      .where(
-        inArray(
-          eventMembers.id,
-          affected.map((row) => row.id),
-        ),
-      );
-  }
+  const affected = await applyStandingRate({
+    teamMemberId,
+    amount,
+    salaried: member.salaried,
+    from: effectiveFrom,
+  });
 
   await recordAudit({
     eventId: null,
@@ -133,7 +112,7 @@ export async function setMemberRateAction(
     entityId: teamMemberId,
     entityLabel: member.fullName,
     oldValues: { defaultPay: member.defaultPay },
-    newValues: { defaultPay: amount, effectiveFrom, events: affected.length },
+    newValues: { defaultPay: amount, effectiveFrom, events: affected.touched },
     summary: `${member.fullName}: ${amount} — ${effectiveFrom}`,
   });
 
