@@ -1210,6 +1210,7 @@ export const en: Dictionary = {
       OTHER: 'Other',
     },
     task: {
+      TICKET_CHECK: 'Ticket check — front line',
       ELECTRONIC_SCANNING: 'Electronic ticket scanning',
       PAPER_TICKETS: 'Paper ticket collection',
       CROWD_GUIDANCE: 'Crowd guidance',
@@ -1220,6 +1221,8 @@ export const en: Dictionary = {
       GATE_MANAGEMENT: 'Gate management',
       SECURITY_SUPPORT: 'Security support',
       TECHNICAL_SUPPORT: 'Technical support',
+      SALES: 'Sales staff',
+      TEAM_LEAD: 'Team leader',
       OTHER: 'Other',
     },
     assignmentStatus: {
@@ -1254,6 +1257,7 @@ export const en: Dictionary = {
     },
     issueType: {
       EMERGENCY: 'Emergency call',
+      SEAT_DISPUTE: 'Seat dispute',
       SCANNER: 'Scanner problem',
       CROWD_CONGESTION: 'Crowd congestion',
       MISSING_STAFF: 'Missing staff',

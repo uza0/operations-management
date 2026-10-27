@@ -114,6 +114,23 @@ await admin.waitForLoadState('networkidle');
 const amirRow = admin.locator('tr', { hasText: 'أمير' }).first();
 await amirRow.locator('button:has-text("نقل العضو")').click();
 await admin.waitForSelector('#a-location');
+
+/*
+ * The jobs the board can name.
+ *
+ * Checking tickets at the head of the queue is not scanning them, a sales
+ * desk is a post like any other, and the team leader stands somewhere too —
+ * all three used to end up as "other", which is the same as not recording
+ * them.
+ */
+const taskNames = await admin.locator('#a-task option').allTextContents();
+check('the board can name the front-line ticket check',
+  taskNames.some((n) => n.includes('تدقيق التذاكر')), '');
+check('the board can name a sales post',
+  taskNames.some((n) => n.includes('موظف مبيعات')), '');
+check('the board can name the team leader',
+  taskNames.some((n) => n.includes('قائد الفريق')), '');
+
 await admin.selectOption('#a-location', gate6.id);
 await admin.fill('#a-reason', 'البوابة 6 تحتاج عنصراً إضافياً.');
 await admin.click('[role=dialog] button[type=submit]');
@@ -256,6 +273,19 @@ check('member sees their attendance status', memberText3.includes('متأخر'))
 /* ---- member reports an issue ------------------------------------------ */
 await member.click('button:has-text("الإبلاغ عن مشكلة")');
 await member.waitForSelector('#m-description');
+
+/*
+ * The commonest thing that goes wrong inside a hall: somebody is in somebody
+ * else's seat and will not move. It is never a ticketing fault, and under
+ * "other" nobody could see how often it happened or where.
+ */
+const issueNames = await member.locator('#m-type option').allTextContents();
+check('a guest in the wrong seat has a name of its own',
+  issueNames.some((n) => n.includes('نزاع على مقعد')), '');
+/* And the panic button is not one of the choices — it has its own button. */
+check('the emergency call is not a dropdown entry',
+  !issueNames.some((n) => n.includes('نداء طوارئ')), '');
+
 await member.selectOption('#m-type', 'SCANNER');
 await member.fill('#m-description', 'جهاز المسح لا يقرأ التذاكر الورقية.');
 await member.click('main form button[type=submit]');

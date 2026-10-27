@@ -1227,6 +1227,7 @@ export const ar = {
       OTHER: 'أخرى',
     },
     task: {
+      TICKET_CHECK: 'تدقيق التذاكر — الخط الأمامي',
       ELECTRONIC_SCANNING: 'مسح التذاكر الإلكتروني',
       PAPER_TICKETS: 'استلام التذاكر الورقية',
       CROWD_GUIDANCE: 'توجيه الجمهور',
@@ -1237,6 +1238,8 @@ export const ar = {
       GATE_MANAGEMENT: 'إدارة البوابة',
       SECURITY_SUPPORT: 'إسناد أمني',
       TECHNICAL_SUPPORT: 'إسناد فني',
+      SALES: 'موظف مبيعات',
+      TEAM_LEAD: 'قائد الفريق',
       OTHER: 'أخرى',
     },
     assignmentStatus: {
@@ -1271,6 +1274,7 @@ export const ar = {
     },
     issueType: {
       EMERGENCY: 'نداء طوارئ',
+      SEAT_DISPUTE: 'نزاع على مقعد',
       SCANNER: 'مشكلة في جهاز المسح',
       CROWD_CONGESTION: 'ازدحام الجمهور',
       MISSING_STAFF: 'نقص في الطاقم',

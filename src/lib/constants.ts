@@ -89,6 +89,16 @@ export const WORKING_POINT_TYPES = [
 export type WorkingPointType = (typeof WORKING_POINT_TYPES)[number];
 
 export const TASKS = [
+  /*
+   * The line in front of the gate.
+   *
+   * Not scanning and not collecting: standing at the head of the queue and
+   * letting nobody past without a ticket in their hand, paper or phone. It is
+   * the job that decides whether the people who reach the scanners are worth
+   * scanning, and staffing it from the scanning count is how a gate ends up
+   * with four people reading barcodes and nobody holding the front.
+   */
+  'TICKET_CHECK',
   'ELECTRONIC_SCANNING',
   'PAPER_TICKETS',
   'CROWD_GUIDANCE',
@@ -105,6 +115,14 @@ export const TASKS = [
   'GATE_MANAGEMENT',
   'SECURITY_SUPPORT',
   'TECHNICAL_SUPPORT',
+  'SALES',
+  /*
+   * The team leader has a place on the board like everybody else. He is
+   * already a role on the event (EVENT_ROLES below), but a role says who
+   * answers for the evening and a task says where he is standing at eight
+   * o'clock — and the second question is the one his team asks.
+   */
+  'TEAM_LEAD',
   'OTHER',
 ] as const;
 export type Task = (typeof TASKS)[number];
@@ -149,6 +167,13 @@ export const ISSUE_TYPES = [
    */
   'EMERGENCY',
   'SCANNER',
+  /*
+   * Somebody is in somebody else's seat and will not move. It is the single
+   * commonest thing that goes wrong inside a hall, it is never a ticketing
+   * fault, and filing it under "other" meant a supervisor could not see how
+   * often it happened or which block it happened in.
+   */
+  'SEAT_DISPUTE',
   'CROWD_CONGESTION',
   'MISSING_STAFF',
   'TICKET',
