@@ -28,16 +28,16 @@ export type StandingAccount = {
   /**
    * The password used when the environment does not set one.
    *
-   * Optional, and absent on purpose for anybody added after this system
-   * stopped being a demonstration. A password written here is a password in
-   * the repository, readable by everyone who can read the code and still
-   * readable in its history after it is changed — acceptable for an account
-   * called "gate" on a sample database, not for a colleague's account on a
-   * system holding a hundred people's phone numbers and what they are owed.
+   * It is a first-use password and nothing more: the person it is handed to
+   * changes it from the settings screen the first time they sign in, and from
+   * then on this file does not describe their account.
    *
-   * An account with no fallback is simply not created until its variable is
-   * set. That is the intended failure: no account is better than an account
-   * whose password is public.
+   * Optional, because a real deployment can set the variable instead and keep
+   * the password out of the repository altogether — worth doing for anyone
+   * who will not change theirs promptly, since a password written here stays
+   * readable in the history after it is changed. An account with neither a
+   * variable nor a fallback is not created at all, and setup says which
+   * variable it is waiting for.
    */
   fallbackPassword?: string;
 };
@@ -66,6 +66,7 @@ export const STANDING_ACCOUNTS: StandingAccount[] = [
     email: 'mustafa@operations.local',
     role: 'ADMIN',
     envVar: 'SEED_MUSTAFA_PASSWORD',
+    fallbackPassword: 'Mustafa@12345',
   },
   {
     username: 'ameer',
@@ -73,6 +74,7 @@ export const STANDING_ACCOUNTS: StandingAccount[] = [
     email: 'ameer@operations.local',
     role: 'ADMIN',
     envVar: 'SEED_AMEER_PASSWORD',
+    fallbackPassword: 'Ameer@12345',
   },
   {
     username: 'leader',
