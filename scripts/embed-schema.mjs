@@ -47,6 +47,42 @@ const safe = statements.map((s) =>
     .replace(/^DROP INDEX\s+`/i, 'DROP INDEX IF EXISTS `'),
 );
 
+/*
+ * An index that a later migration drops is never created at all.
+ *
+ * These statements are replayed in order against a database that already has
+ * data in it, and "IF NOT EXISTS" does not save a UNIQUE index from the rows
+ * that now break it. The chair-setting day was the real case: migration 11
+ * made one day per event unique, migration 16 removed that so a hall could be
+ * built over three afternoons — and from then on, replaying the list against
+ * any database that actually had two chair days failed on the create, before
+ * the drop a dozen lines later could undo it. The whole upgrade stopped
+ * there, so every column added afterwards was silently never added.
+ *
+ * Dropping the pair is both correct and quieter than ordering around it: an
+ * index created and then dropped is an index this schema does not have.
+ */
+const droppedIndexes = new Set(
+  safe
+    .map((s) => /^DROP INDEX IF EXISTS `([^`]+)`/i.exec(s)?.[1])
+    .filter((name) => Boolean(name)),
+);
+
+const pruned = safe.filter((s) => {
+  const created = /^CREATE (?:UNIQUE )?INDEX IF NOT EXISTS `([^`]+)`/i.exec(s)?.[1];
+  const dropped = /^DROP INDEX IF EXISTS `([^`]+)`/i.exec(s)?.[1];
+  const name = created ?? dropped;
+  return !(name && droppedIndexes.has(name));
+});
+
+const removed = safe.length - pruned.length;
+if (removed > 0) {
+  console.log(
+    `Pruned ${removed} statement(s) for indexes a later migration drops: ` +
+      [...droppedIndexes].join(', '),
+  );
+}
+
 const out = `/**
  * GENERATED FILE — do not edit.
  * Produced by scripts/embed-schema.mjs from ${files.join(', ')}.
@@ -55,9 +91,9 @@ const out = `/**
  */
 
 export const SCHEMA_STATEMENTS: string[] = [
-${safe.map((s) => '  ' + JSON.stringify(s) + ',').join('\n')}
+${pruned.map((s) => '  ' + JSON.stringify(s) + ',').join('\n')}
 ];
 `;
 
 fs.writeFileSync('src/db/schema-sql.ts', out);
-console.log(`Embedded ${safe.length} statements into src/db/schema-sql.ts`);
+console.log(`Embedded ${pruned.length} statements into src/db/schema-sql.ts`);

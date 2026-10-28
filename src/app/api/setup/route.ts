@@ -4,7 +4,8 @@ import { sql } from 'drizzle-orm';
 
 import { db, rawClient } from '@/db';
 import { SCHEMA_STATEMENTS } from '@/db/schema-sql';
-import { ensureStandingAccounts } from '@/db/accounts';
+import { users } from '@/db/schema';
+import { accountsAwaitingPassword, ensureStandingAccounts } from '@/db/accounts';
 import { seedDemoData } from '@/db/seed-core';
 import { seedLiveData } from '@/db/seed-live';
 
@@ -91,6 +92,17 @@ export async function GET(request: Request) {
       const addedAccounts = await ensureStandingAccounts(
         db as unknown as Parameters<typeof ensureStandingAccounts>[0],
       );
+      /*
+       * And the ones it could not create, by name and by the variable each is
+       * waiting for. An account deliberately left uncreated until its password
+       * is configured must say so here, or it looks exactly like a bug.
+       */
+      const haveUsers = await db
+        .select({ username: users.username })
+        .from(users);
+      const awaiting = accountsAwaitingPassword(
+        new Set(haveUsers.map((row) => row.username.toLowerCase())),
+      );
       return NextResponse.json({
         status: 'already-set-up',
         tables: created.length,
@@ -98,6 +110,7 @@ export async function GET(request: Request) {
         // the path a live site takes when it is updated, not wiped.
         columnsAdded: upgraded,
         accountsAdded: addedAccounts,
+        accountsAwaitingPassword: awaiting,
         users: (existing?.count ?? 0) + addedAccounts.length,
         message:
           upgraded.length > 0 || addedAccounts.length > 0

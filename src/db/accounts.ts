@@ -25,7 +25,21 @@ export type StandingAccount = {
   role: 'ADMIN' | 'TEAM_LEADER' | 'GATE_LEADER';
   /** Read from the environment first, so a real deployment need not use this. */
   envVar: string;
-  fallbackPassword: string;
+  /**
+   * The password used when the environment does not set one.
+   *
+   * Optional, and absent on purpose for anybody added after this system
+   * stopped being a demonstration. A password written here is a password in
+   * the repository, readable by everyone who can read the code and still
+   * readable in its history after it is changed — acceptable for an account
+   * called "gate" on a sample database, not for a colleague's account on a
+   * system holding a hundred people's phone numbers and what they are owed.
+   *
+   * An account with no fallback is simply not created until its variable is
+   * set. That is the intended failure: no account is better than an account
+   * whose password is public.
+   */
+  fallbackPassword?: string;
 };
 
 export const STANDING_ACCOUNTS: StandingAccount[] = [
@@ -47,6 +61,20 @@ export const STANDING_ACCOUNTS: StandingAccount[] = [
     fallbackPassword: 'Numan@12345',
   },
   {
+    username: 'mustafa',
+    name: 'Mustafa Asad',
+    email: 'mustafa@operations.local',
+    role: 'ADMIN',
+    envVar: 'SEED_MUSTAFA_PASSWORD',
+  },
+  {
+    username: 'ameer',
+    name: 'Ameer Dawod',
+    email: 'ameer@operations.local',
+    role: 'ADMIN',
+    envVar: 'SEED_AMEER_PASSWORD',
+  },
+  {
     username: 'leader',
     name: 'قائد الفريق',
     email: 'leader@operations.local',
@@ -64,17 +92,22 @@ export const STANDING_ACCOUNTS: StandingAccount[] = [
   },
 ];
 
-export function passwordFor(account: StandingAccount): string {
-  return process.env[account.envVar] ?? account.fallbackPassword;
+/** The password to create this account with, or null if there is none to use. */
+export function passwordFor(account: StandingAccount): string | null {
+  return process.env[account.envVar] ?? account.fallbackPassword ?? null;
 }
 
 export function rowFor(account: StandingAccount) {
+  const password = passwordFor(account);
+  if (password === null) {
+    throw new Error(`No password configured for ${account.username}`);
+  }
   return {
     id: newId(),
     username: account.username,
     email: account.email,
     name: account.name,
-    passwordHash: bcrypt.hashSync(passwordFor(account), 10),
+    passwordHash: bcrypt.hashSync(password, 10),
     role: account.role,
     active: true,
     teamMemberId: null,
@@ -100,11 +133,29 @@ export async function ensureStandingAccounts(db: {
     .from(users);
   const taken = new Set(existing.map((row) => row.username.toLowerCase()));
 
+  /*
+   * Missing, and possible to create. An account whose password lives only in
+   * the environment is skipped until that variable is set, rather than being
+   * created with something guessable — see fallbackPassword above. Running
+   * setup again once the variable is there creates it.
+   */
   const missing = STANDING_ACCOUNTS.filter(
-    (account) => !taken.has(account.username.toLowerCase()),
+    (account) =>
+      !taken.has(account.username.toLowerCase()) && passwordFor(account) !== null,
   );
   if (missing.length === 0) return [];
 
   await db.insert(users).values(missing.map(rowFor));
   return missing.map((account) => account.username);
+}
+
+/**
+ * Accounts this system is waiting on a password for, so setup can say so
+ * rather than silently doing nothing.
+ */
+export function accountsAwaitingPassword(taken: Set<string>): string[] {
+  return STANDING_ACCOUNTS.filter(
+    (account) =>
+      !taken.has(account.username.toLowerCase()) && passwordFor(account) === null,
+  ).map((account) => `${account.username} (${account.envVar})`);
 }
