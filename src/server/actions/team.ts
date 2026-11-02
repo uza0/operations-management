@@ -4,6 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
+import {
+  issueAccessCode,
+  phoneKey,
+  revokeAccessCode,
+  revokeMemberSessions,
+} from '@/server/services/member-auth';
 import { eventMembers, memberRates, teamMembers } from '@/db/schema';
 import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
@@ -316,16 +322,6 @@ export type ImportState =
  * everybody on it, which is how one man ends up on a gate twice under two
  * employee codes.
  */
-function phoneKey(raw: string | null | undefined): string | null {
-  if (!raw) return null;
-  let digits = raw.replace(/\D/g, '');
-  if (!digits) return null;
-  if (digits.startsWith('00')) digits = digits.slice(2);
-  if (digits.startsWith('964')) digits = digits.slice(3);
-  digits = digits.replace(/^0+/, '');
-  return digits.length >= 8 ? digits : null;
-}
-
 /** Finds a column by any of the headers it might carry, in either language. */
 function columnOf(headers: string[], names: string[]): number {
   const wanted = names.map((n) => n.trim().toLowerCase()).filter(Boolean);
@@ -495,4 +491,132 @@ export async function importTeamAction(
 
   revalidatePath('/admin/team');
   return { status: 'success', report };
+}
+
+/* -------------------------------------------------------------------------- */
+/* Sign-in codes                                                              */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Issues one person a sign-in code and hands it back, once.
+ *
+ * The code is shown to the supervisor so it can go into a message, and that
+ * is the only time anybody sees it: what is stored is a hash. Asking again
+ * issues a new one, which is the honest answer — a code that can be read back
+ * out of the system is a code that can leak out of it.
+ */
+export async function issueMemberCodeAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  let user;
+  try {
+    user = await assertRole('ADMIN', 'TEAM_LEADER');
+  } catch {
+    return fail((await getT()).t.errors.forbidden);
+  }
+
+  const id = str(form, 'memberId');
+  if (!id) return fail(t.errors.notFound);
+
+  const member = await db.query.teamMembers.findFirst({ where: eq(teamMembers.id, id) });
+  if (!member) return fail(t.errors.notFound);
+  if (!member.active) return fail(t.errors.forbidden);
+
+  const code = await issueAccessCode(member.id);
+
+  await recordAudit({
+    eventId: null,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'TEAM_MEMBER',
+    entityId: member.id,
+    entityLabel: member.fullName,
+    // Never the code itself — the audit log is read by more people than this.
+    newValues: { accessCode: 'issued' },
+    summary: `${t.memberAuth.issueCode}: ${member.fullName}`,
+  });
+
+  revalidatePath('/admin/team');
+  /*
+   * The code travels back in `message` because this is the only moment it
+   * exists anywhere outside the hash. The form shows it and nothing keeps it.
+   */
+  return ok(code);
+}
+
+/** Takes the code away and ends every session it opened. */
+export async function revokeMemberCodeAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  let user;
+  try {
+    user = await assertRole('ADMIN', 'TEAM_LEADER');
+  } catch {
+    return fail(t.errors.forbidden);
+  }
+
+  const id = str(form, 'memberId');
+  if (!id) return fail(t.errors.notFound);
+
+  const member = await db.query.teamMembers.findFirst({ where: eq(teamMembers.id, id) });
+  if (!member) return fail(t.errors.notFound);
+
+  await revokeAccessCode(member.id);
+
+  await recordAudit({
+    eventId: null,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'TEAM_MEMBER',
+    entityId: member.id,
+    entityLabel: member.fullName,
+    newValues: { accessCode: 'revoked' },
+    summary: `${t.memberAuth.revokeCode}: ${member.fullName}`,
+  });
+
+  revalidatePath('/admin/team');
+  return ok();
+}
+
+/** Signs one person out everywhere, leaving their code alone. */
+export async function signOutMemberEverywhereAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  let user;
+  try {
+    user = await assertRole('ADMIN', 'TEAM_LEADER');
+  } catch {
+    return fail(t.errors.forbidden);
+  }
+
+  const id = str(form, 'memberId');
+  if (!id) return fail(t.errors.notFound);
+
+  const member = await db.query.teamMembers.findFirst({ where: eq(teamMembers.id, id) });
+  if (!member) return fail(t.errors.notFound);
+
+  const ended = await revokeMemberSessions(member.id);
+
+  await recordAudit({
+    eventId: null,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'TEAM_MEMBER',
+    entityId: member.id,
+    entityLabel: member.fullName,
+    newValues: { sessionsEnded: ended },
+    summary: `${t.memberAuth.signOutAll}: ${member.fullName}`,
+  });
+
+  revalidatePath('/admin/team');
+  return ok();
 }

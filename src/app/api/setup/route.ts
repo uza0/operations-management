@@ -6,6 +6,7 @@ import { db, rawClient } from '@/db';
 import { SCHEMA_STATEMENTS } from '@/db/schema-sql';
 import { users } from '@/db/schema';
 import { accountsAwaitingPassword, ensureStandingAccounts } from '@/db/accounts';
+import { teamMembers } from '@/db/schema';
 import { seedDemoData } from '@/db/seed-core';
 import { seedLiveData } from '@/db/seed-live';
 
@@ -97,6 +98,16 @@ export async function GET(request: Request) {
        * waiting for. An account deliberately left uncreated until its password
        * is configured must say so here, or it looks exactly like a bug.
        */
+      /*
+       * How many people still need a sign-in code. Not issued here: a code
+       * printed by a URL anybody with the key can fetch is not a code. The
+       * supervisor issues them from the roster, one tap each or all at once.
+       */
+      const awaitingCodes = await db
+        .select({ id: teamMembers.id, hash: teamMembers.accessCodeHash, active: teamMembers.active })
+        .from(teamMembers)
+        .then((rows) => rows.filter((row) => row.active && row.hash === null).length);
+
       const haveUsers = await db
         .select({ username: users.username })
         .from(users);
@@ -111,6 +122,7 @@ export async function GET(request: Request) {
         columnsAdded: upgraded,
         accountsAdded: addedAccounts,
         accountsAwaitingPassword: awaiting,
+        membersAwaitingCode: awaitingCodes,
         users: (existing?.count ?? 0) + addedAccounts.length,
         message:
           upgraded.length > 0 || addedAccounts.length > 0

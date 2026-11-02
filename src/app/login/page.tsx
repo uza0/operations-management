@@ -2,11 +2,12 @@ import { redirect } from 'next/navigation';
 
 import { getT } from '@/lib/i18n/server';
 import { currentUser, homeFor } from '@/server/auth/rbac';
+import { currentMember } from '@/server/services/member-auth';
 import { LocaleSwitcher } from '@/components/ui/client';
 import { IconInfo } from '@/components/ui/icons';
 import { BrandMark } from '@/components/ui/BrandMark';
 
-import { LoginForm } from './LoginForm';
+import { SignInTabs } from './SignInTabs';
 
 export default async function LoginPage({
   searchParams,
@@ -15,6 +16,10 @@ export default async function LoginPage({
 }) {
   const user = await currentUser();
   if (user) redirect(homeFor(user.role));
+
+  /* A promoter already signed in on this phone goes to his own page. */
+  const member = await currentMember();
+  if (member) redirect('/me');
 
   const { locale, t } = await getT();
   const params = await searchParams;
@@ -106,7 +111,7 @@ export default async function LoginPage({
           <h1 className="text-[19px] font-bold text-ink-100">{t.auth.loginTitle}</h1>
           <p className="mb-5 mt-1 text-[13px] text-ink-400">{t.auth.loginSubtitle}</p>
 
-          <LoginForm t={t} next={next} />
+          <SignInTabs t={t} next={next} />
 
           <p className="mt-4 flex items-start gap-2 text-[12.5px] leading-5 text-ink-500">
             <IconInfo width={15} height={15} className="mt-0.5 shrink-0" />

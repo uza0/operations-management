@@ -1,6 +1,6 @@
 /**
  * GENERATED FILE — do not edit.
- * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql, 0014_jittery_venus.sql, 0015_curved_grim_reaper.sql, 0016_hard_the_phantom.sql, 0017_glamorous_clea.sql, 0018_loose_spacker_dave.sql, 0019_hard_slapstick.sql, 0020_oval_quentin_quire.sql.
+ * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql, 0014_jittery_venus.sql, 0015_curved_grim_reaper.sql, 0016_hard_the_phantom.sql, 0017_glamorous_clea.sql, 0018_loose_spacker_dave.sql, 0019_hard_slapstick.sql, 0020_oval_quentin_quire.sql, 0021_complete_viper.sql.
  * Regenerate after changing src/db/schema.ts:
  *   npx drizzle-kit generate && node scripts/embed-schema.mjs
  */
@@ -130,4 +130,12 @@ export const SCHEMA_STATEMENTS: string[] = [
   "CREATE TABLE IF NOT EXISTS `event_expenses` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`event_id` text NOT NULL,\n\t`category` text DEFAULT 'OTHER' NOT NULL,\n\t`description` text NOT NULL,\n\t`amount` real NOT NULL,\n\t`created_by_id` text,\n\t`created_by_name` text NOT NULL,\n\t`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\t`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\tFOREIGN KEY (`event_id`) REFERENCES `events`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`created_by_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n)",
   "CREATE INDEX IF NOT EXISTS `event_expenses_event_idx` ON `event_expenses` (`event_id`)",
   "ALTER TABLE `events` ADD `external_id` text",
+  "CREATE TABLE IF NOT EXISTS `member_login_attempts` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`phone_key` text NOT NULL,\n\t`attempted_at` integer NOT NULL,\n\t`succeeded` integer DEFAULT false NOT NULL\n)",
+  "CREATE INDEX IF NOT EXISTS `member_login_attempts_phone_idx` ON `member_login_attempts` (`phone_key`,`attempted_at`)",
+  "CREATE TABLE IF NOT EXISTS `member_sessions` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`team_member_id` text NOT NULL,\n\t`token_hash` text NOT NULL,\n\t`device_label` text,\n\t`created_at` integer NOT NULL,\n\t`last_seen_at` integer NOT NULL,\n\t`revoked_at` integer,\n\tFOREIGN KEY (`team_member_id`) REFERENCES `team_members`(`id`) ON UPDATE no action ON DELETE cascade\n)",
+  "CREATE UNIQUE INDEX IF NOT EXISTS `member_sessions_token_unique` ON `member_sessions` (`token_hash`)",
+  "CREATE INDEX IF NOT EXISTS `member_sessions_member_idx` ON `member_sessions` (`team_member_id`)",
+  "ALTER TABLE `team_members` ADD `access_code_hash` text",
+  "ALTER TABLE `team_members` ADD `access_code_set_at` integer",
+  "ALTER TABLE `team_members` ADD `access_code_revoked_at` integer",
 ];

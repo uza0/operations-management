@@ -1,7 +1,7 @@
 import { sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { eventMembers, teamMembers } from '@/db/schema';
+import { eventMembers, memberSessions, teamMembers } from '@/db/schema';
 import { requireRole } from '@/server/auth/rbac';
 import { getT } from '@/lib/i18n/server';
 import { PageHeader } from '@/components/ui/panel';
@@ -24,6 +24,9 @@ export default async function TeamPage() {
       defaultPay: teamMembers.defaultPay,
       notes: teamMembers.notes,
       eventCount: sql<number>`(select count(*) from ${eventMembers} where ${eventMembers.teamMemberId} = ${teamMembers.id})`,
+      /* Whether a code exists — never the code, which nothing can read back. */
+      hasCode: sql<number>`(case when ${teamMembers.accessCodeHash} is not null and ${teamMembers.accessCodeRevokedAt} is null then 1 else 0 end)`,
+      sessions: sql<number>`(select count(*) from ${memberSessions} where ${memberSessions.teamMemberId} = ${teamMembers.id} and ${memberSessions.revokedAt} is null)`,
     })
     .from(teamMembers)
     .orderBy(teamMembers.fullName);

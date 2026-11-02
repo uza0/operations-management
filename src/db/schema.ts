@@ -136,6 +136,23 @@ export const teamMembers = sqliteTable(
      */
     defaultPay: real('default_pay'),
     notes: text('notes'),
+    /*
+     * How this person signs in: their phone number and a four-digit code,
+     * typed once and then remembered by the session below.
+     *
+     * Hashed, never stored as it was issued. Four digits do not survive an
+     * attacker holding the table either way — what actually protects it is
+     * that the code is useless without the phone number it belongs to, and
+     * that guessing is rate-limited. The hash is here so that nobody reading
+     * the database over somebody's shoulder, or a backup of it, walks away
+     * with a working code.
+     */
+    accessCodeHash: text('access_code_hash'),
+    accessCodeSetAt: integer('access_code_set_at', { mode: 'timestamp_ms' }),
+    /** Set to lock the person out without touching anything else of theirs. */
+    accessCodeRevokedAt: integer('access_code_revoked_at', {
+      mode: 'timestamp_ms',
+    }),
     ...timestamps,
   },
   (t) => [
@@ -1381,6 +1398,62 @@ export const auditLogsRelations = relations(auditLogs, ({ one }) => ({
 /* -------------------------------------------------------------------------- */
 /* Inferred types                                                              */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * A promoter signed in on one device.
+ *
+ * The session is what makes the code worth typing once: it lives a year and
+ * renews itself, so a man who signed in before the season opened is still
+ * signed in at the end of it. It is also, free of charge, the device binding
+ * that a link in a WhatsApp message could never have — a session belongs to
+ * the browser it was created in and goes nowhere when the code is forwarded.
+ *
+ * Deliberately not the `users` session: a different cookie, a different
+ * lookup, and no path between them. One mistake in shared middleware is all
+ * it would take for a promoter to open a page of somebody else's.
+ */
+export const memberSessions = sqliteTable(
+  'member_sessions',
+  {
+    id: text('id').primaryKey(),
+    teamMemberId: text('team_member_id')
+      .notNull()
+      .references(() => teamMembers.id, { onDelete: 'cascade' }),
+    /** sha-256 of the cookie value. The value itself is never stored. */
+    tokenHash: text('token_hash').notNull(),
+    /** Something human to recognise in a list: "iPhone · Safari". */
+    deviceLabel: text('device_label'),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    lastSeenAt: integer('last_seen_at', { mode: 'timestamp_ms' }).notNull(),
+    revokedAt: integer('revoked_at', { mode: 'timestamp_ms' }),
+  },
+  (t) => [
+    uniqueIndex('member_sessions_token_unique').on(t.tokenHash),
+    index('member_sessions_member_idx').on(t.teamMemberId),
+  ],
+);
+
+/**
+ * Sign-in attempts, so that guessing a four-digit code is not free.
+ *
+ * In a table rather than in memory because the site runs on serverless
+ * functions: a counter held in a process is a counter that resets whenever
+ * the platform feels like it, which is no counter at all.
+ */
+export const memberLoginAttempts = sqliteTable(
+  'member_login_attempts',
+  {
+    id: text('id').primaryKey(),
+    /** The normalised phone, so attempts follow the account, not the typing. */
+    phoneKey: text('phone_key').notNull(),
+    attemptedAt: integer('attempted_at', { mode: 'timestamp_ms' }).notNull(),
+    succeeded: integer('succeeded', { mode: 'boolean' }).notNull().default(false),
+  },
+  (t) => [index('member_login_attempts_phone_idx').on(t.phoneKey, t.attemptedAt)],
+);
+
+export type MemberSession = typeof memberSessions.$inferSelect;
+export type MemberLoginAttempt = typeof memberLoginAttempts.$inferSelect;
 
 export type User = typeof users.$inferSelect;
 export type TeamMember = typeof teamMembers.$inferSelect;

@@ -14,6 +14,7 @@ import { idle } from '@/server/actions/types';
 import { format } from '@/lib/i18n';
 import { EmptyState, FormError } from '@/components/ui/states';
 import { Badge } from '@/components/ui/status';
+import { MemberCode } from './MemberCode';
 import { ConfirmSubmit, Dialog, SubmitButton } from '@/components/ui/client';
 import {
   IconEdit,
@@ -32,6 +33,8 @@ export type TeamRow = {
   phone: string | null;
   employeeCode: string;
   cardNumber: string | null;
+  hasCode?: number;
+  sessions?: number;
   active: boolean;
   salaried: boolean;
   defaultPay: number | null;
@@ -324,6 +327,7 @@ export function TeamManager({ t, members }: { t: Dictionary; members: TeamRow[] 
                   <th>{t.team.phone}</th>
                   <th>{t.team.eventsWorked}</th>
                   <th>{t.common.status}</th>
+                  <th>{t.memberAuth.code}</th>
                   <th className="text-end">{t.common.actions}</th>
                 </tr>
               </thead>
@@ -366,6 +370,14 @@ export function TeamManager({ t, members }: { t: Dictionary; members: TeamRow[] 
                       <Badge tone={member.active ? 'ok' : 'neutral'}>
                         {member.active ? t.team.active : t.team.inactive}
                       </Badge>
+                    </td>
+                    <td data-label={t.memberAuth.code}>
+                      <MemberCode
+                        t={t}
+                        memberId={member.id}
+                        hasCode={Number(member.hasCode ?? 0) === 1}
+                        sessions={Number(member.sessions ?? 0)}
+                      />
                     </td>
                     <td data-label="">
                       <RowActions t={t} member={member} />

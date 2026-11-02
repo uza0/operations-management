@@ -35,6 +35,10 @@ async function login(ctx, username, password) {
   await page.goto(`${BASE}/login`);
   // The sign-in form is a React server action: it only works once the form is
   // interactive, which the button itself signals by enabling.
+  // Staff share the door with a hundred and twenty promoters now, and the
+  // promoters' side opens first because there are more of them.
+  await page.waitForSelector('[data-signin-tab=staff]');
+  await page.click('[data-signin-tab=staff]');
   await page.waitForSelector('button[type=submit]:not([disabled])');
   await page.fill('#username', username);
   await page.fill('#password', password);
@@ -1662,6 +1666,136 @@ if (someGate) {
     Boolean(gateGrant) && Boolean(grant), '');
 }
 
+/* ---- the promoter signs in, instead of hunting for a link -------------- */
+
+/*
+ * The old way put the secret in the address: one token per event, mailed out
+ * on WhatsApp before every match. A man could not install the site on his
+ * phone usefully, because the icon would have pointed at one event and died
+ * with it. He signs in now — phone number, four digits, once.
+ */
+const signInMan = await db.prepare(`
+  select id, full_name, phone from team_members
+   where active = 1 and phone is not null limit 1`).get();
+check('there is somebody on the roster to let in',
+  Boolean(signInMan), signInMan ? String(signInMan.full_name) : 'none');
+
+await admin.goto(`${BASE}/admin/team`);
+await admin.waitForLoadState('networkidle');
+
+const codeRow = admin.locator('tr', { hasText: String(signInMan.full_name) }).first();
+await codeRow.scrollIntoViewIfNeeded();
+await codeRow.locator('button[type=submit]', { hasText: 'إصدار كود' }).first().click();
+await admin.waitForTimeout(3000);
+
+const issuedCode = (await codeRow.locator('p.nums').first().textContent() ?? '').trim();
+check('a code is issued from the roster and shown once',
+  /^[0-9]{4}$/.test(issuedCode), issuedCode || 'none');
+
+const stored = await db.prepare(
+  'select access_code_hash from team_members where id = ?').get(signInMan.id);
+check('and what is stored is a hash, not the code',
+  Boolean(stored.access_code_hash) && !String(stored.access_code_hash).includes(issuedCode),
+  String(stored.access_code_hash).slice(0, 7));
+
+/* A wrong code is refused, and says only that. */
+const promoCtx = await browser.newContext();
+const promo = await promoCtx.newPage();
+await promo.goto(`${BASE}/login`);
+await promo.waitForLoadState('networkidle');
+await promo.click('[data-signin-tab=member]');
+await promo.waitForSelector('#m-phone');
+
+const wrong = String((Number(issuedCode) + 1) % 10000).padStart(4, '0');
+await promo.fill('#m-phone', String(signInMan.phone));
+await promo.fill('#m-code', wrong);
+await promo.click('button[type=submit]');
+await promo.waitForTimeout(2500);
+const refusal = await promo.textContent('form');
+check('a wrong code is refused', promo.url().includes('/login'), promo.url());
+check('and the refusal never says which field was wrong',
+  !refusal.includes('الكود غير صحيح فقط') && refusal.includes('غير صحيح'), '');
+
+/* Five wrong tries and the account stops answering for a while. */
+for (let i = 0; i < 4; i += 1) {
+  await promo.fill('#m-phone', String(signInMan.phone));
+  await promo.fill('#m-code', wrong);
+  await promo.click('button[type=submit]');
+  await promo.waitForTimeout(1200);
+}
+await promo.fill('#m-phone', String(signInMan.phone));
+await promo.fill('#m-code', issuedCode);
+await promo.click('button[type=submit]');
+await promo.waitForTimeout(2500);
+check('five wrong tries lock the account, even against the right code',
+  promo.url().includes('/login'), promo.url());
+
+/* Clearing the record stands in for waiting out the fifteen minutes. */
+await db.exec('delete from member_login_attempts');
+
+await promo.fill('#m-phone', String(signInMan.phone));
+await promo.fill('#m-code', issuedCode);
+await promo.click('button[type=submit]');
+await promo.waitForTimeout(3500);
+check('the right phone and the right code get him in',
+  promo.url().endsWith('/me'), promo.url());
+
+const home = await promo.textContent('main');
+check('and his own page greets him by name',
+  home.includes(String(signInMan.full_name)), '');
+
+/*
+ * The install on a phone works because "/" is the start_url for everybody and
+ * the session decides which door opens. Nothing here is per-person.
+ */
+await promo.goto(`${BASE}/`);
+await promo.waitForLoadState('networkidle');
+check('the root sends a signed-in promoter to his own page',
+  promo.url().endsWith('/me'), promo.url());
+
+const manifest = await promo.goto(`${BASE}/manifest.webmanifest`);
+const manifestJson = JSON.parse(await manifest.text());
+check('and the manifest still starts everybody at the same place',
+  manifestJson.start_url === '/', String(manifestJson.start_url));
+
+/* He sees his events, and nobody else's. */
+await promo.goto(`${BASE}/me`);
+await promo.waitForLoadState('networkidle');
+const mine = await db.prepare(`
+  select count(*) as n from event_members
+   where team_member_id = ? and status != 'CANCELLED'`).get(signInMan.id);
+const cards = await promo.locator('main a[href^="/member/"]').count();
+check('his page lists his own events and only those',
+  cards === Number(mine.n), `${cards}/${mine.n}`);
+
+const someoneElse = await db.prepare(`
+  select full_name from team_members where id != ? limit 1`).get(signInMan.id);
+check('and names nobody else on the team',
+  !(await promo.textContent('main')).includes(String(someoneElse.full_name)), '');
+
+/* A promoter session is not a staff session, and opens no staff page. */
+await promo.goto(`${BASE}/admin/team`);
+await promo.waitForLoadState('networkidle');
+check('a promoter session opens no admin page',
+  !promo.url().includes('/admin/team'), promo.url());
+await promo.goto(`${BASE}/leader`);
+await promo.waitForLoadState('networkidle');
+check('nor any leader page', !promo.url().endsWith('/leader'), promo.url());
+
+/* Revoking the code ends the sessions it opened, in the same breath. */
+await admin.goto(`${BASE}/admin/team`);
+await admin.waitForLoadState('networkidle');
+const revokeRow = admin.locator('tr', { hasText: String(signInMan.full_name) }).first();
+await revokeRow.scrollIntoViewIfNeeded();
+await revokeRow.locator('button[type=submit]', { hasText: 'إلغاء الكود' }).first().click();
+await admin.waitForTimeout(3000);
+
+await promo.goto(`${BASE}/me`);
+await promo.waitForLoadState('networkidle');
+check('revoking the code puts every device of his back on the door',
+  promo.url().includes('/login'), promo.url());
+await promoCtx.close();
+
 /* ---- the company's own number, whenever it turns up -------------------- */
 
 /*
@@ -2106,6 +2240,8 @@ check('team leader blocked from the payroll report',
 const badCtx = await browser.newContext();
 const badLogin = await badCtx.newPage();
 await badLogin.goto(`${BASE}/login`);
+await badLogin.waitForSelector('[data-signin-tab=staff]');
+await badLogin.click('[data-signin-tab=staff]');
 await badLogin.waitForSelector('button[type=submit]:not([disabled])');
 await badLogin.fill('#username', 'admin');
 await badLogin.fill('#password', 'wrong-password');
