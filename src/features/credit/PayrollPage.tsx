@@ -24,9 +24,11 @@ import { formatAmount, formatMoney } from '@/lib/money';
  * when it is corrected.
  */
 export async function PayrollPage({
+  base = '/admin',
   from,
   to,
 }: {
+  base?: '/admin' | '/leader';
   from?: string;
   to?: string;
 }) {
@@ -73,7 +75,7 @@ export async function PayrollPage({
     <>
       <PageHeader title={t.credit.payrollTitle} subtitle={t.credit.payrollSubtitle} />
 
-      <RangeForm t={t} from={range.from} to={range.to} exportHref={exportHref} />
+      <RangeForm base={base} t={t} from={range.from} to={range.to} exportHref={exportHref} />
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
         <StatTile
@@ -103,7 +105,7 @@ export async function PayrollPage({
                 <tr key={ledger.memberId}>
                   <td data-label="">
                     <Link
-                      href={`/admin/team/${ledger.memberId}`}
+                      href={`${base}/team/${ledger.memberId}`}
                       className="-my-2.5 inline-flex min-h-[44px] items-center py-2.5 font-medium text-ink-100 hover:text-brand-300"
                     >
                       {ledger.name}

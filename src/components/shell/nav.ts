@@ -26,18 +26,34 @@ export function globalNav(t: Dictionary, role: Role): NavSection[] {
           { href: '/admin/team', label: t.nav.team, icon: 'users' },
           { href: '/admin/credits', label: t.nav.credits, icon: 'report' },
           { href: '/admin/settings', label: t.nav.settings, icon: 'settings' },
+          /*
+           * Some of the people who run events also work them. Their promoter
+           * session is a separate cookie, so this is a door, not a role
+           * change: what it opens is still decided by that other session.
+           */
+          { href: '/me', label: t.memberAuth.openAsMember, icon: 'users' },
         ],
       },
     ];
   }
-  return [
-    {
-      items: [
-        { href: '/leader', label: t.nav.dashboard, icon: 'dashboard', exact: true },
-        { href: '/leader/events', label: t.nav.myEvents, icon: 'calendar' },
-      ],
-    },
+  const items: NavItem[] = [
+    { href: '/leader', label: t.nav.dashboard, icon: 'dashboard', exact: true },
+    { href: '/leader/events', label: t.nav.myEvents, icon: 'calendar' },
   ];
+
+  /*
+   * The accounts, for the team leader only. He is the one who hands the money
+   * over and the one who gets asked whether it went out, so settling after
+   * payday should not have to travel through somebody else. A gate leader has
+   * no business here and does not see the link — nor reach the page, which
+   * checks the role itself rather than trusting this menu.
+   */
+  if (role === 'TEAM_LEADER') {
+    items.push({ href: '/leader/credits', label: t.nav.credits, icon: 'report' });
+  }
+  items.push({ href: '/me', label: t.memberAuth.openAsMember, icon: 'users' });
+
+  return [{ items }];
 }
 
 /** Event workspace navigation (spec §22). */

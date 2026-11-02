@@ -11,6 +11,13 @@ import { currentMember } from '@/server/services/member-auth';
  * person, and rotating somebody's code does not break the app he installed.
  * Which of the three doors opens is decided here, by the session.
  */
+/*
+ * Never cached. Which door this opens depends on who is holding the browser,
+ * and a cached answer would send one person to another person's home — the
+ * installed app opens here, so that would be the first thing it ever did.
+ */
+export const dynamic = 'force-dynamic';
+
 export default async function RootPage() {
   const user = await currentUser();
   if (user) redirect(homeFor(user.role));

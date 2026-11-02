@@ -172,7 +172,13 @@ export async function settlePayoutAction(
   form: FormData,
 ): Promise<ActionState> {
   const { t } = await getT();
-  const user = await requireRole('ADMIN').catch(() => null);
+  /*
+   * The team leader settles too. He is the one who hands the money over
+   * and the one asked whether it went out; routing that through a second
+   * person is how a week goes by with nobody sure. Whichever of the two
+   * does it, it is recorded against his name and can be reversed.
+   */
+  const user = await requireRole('ADMIN', 'TEAM_LEADER').catch(() => null);
   if (!user) return fail(t.errors.forbidden);
 
   const fromDate = str(form, 'fromDate') ?? '';
@@ -278,7 +284,13 @@ export async function reversePayoutAction(
   form: FormData,
 ): Promise<ActionState> {
   const { t } = await getT();
-  const user = await requireRole('ADMIN').catch(() => null);
+  /*
+   * The team leader settles too. He is the one who hands the money over
+   * and the one asked whether it went out; routing that through a second
+   * person is how a week goes by with nobody sure. Whichever of the two
+   * does it, it is recorded against his name and can be reversed.
+   */
+  const user = await requireRole('ADMIN', 'TEAM_LEADER').catch(() => null);
   if (!user) return fail(t.errors.forbidden);
 
   const id = str(form, 'payoutId');

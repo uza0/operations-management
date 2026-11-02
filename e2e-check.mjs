@@ -1713,8 +1713,12 @@ await promo.click('button[type=submit]');
 await promo.waitForTimeout(2500);
 const refusal = await promo.textContent('form');
 check('a wrong code is refused', promo.url().includes('/login'), promo.url());
+/*
+ * One sentence for every kind of failure. Naming the field would say whether
+ * that phone number is on the team, which is not public information.
+ */
 check('and the refusal never says which field was wrong',
-  !refusal.includes('الكود غير صحيح فقط') && refusal.includes('غير صحيح'), '');
+  refusal.includes('رقم الهاتف أو الكود'), refusal.slice(0, 60));
 
 /* Five wrong tries and the account stops answering for a while. */
 for (let i = 0; i < 4; i += 1) {
@@ -1736,7 +1740,9 @@ await db.exec('delete from member_login_attempts');
 await promo.fill('#m-phone', String(signInMan.phone));
 await promo.fill('#m-code', issuedCode);
 await promo.click('button[type=submit]');
-await promo.waitForTimeout(3500);
+/* A server action answering with a redirect: wait for the destination. */
+await promo.waitForURL('**/me', { timeout: 25000 }).catch(() => {});
+await promo.waitForLoadState('networkidle');
 check('the right phone and the right code get him in',
   promo.url().endsWith('/me'), promo.url());
 
@@ -1757,6 +1763,38 @@ const manifest = await promo.goto(`${BASE}/manifest.webmanifest`);
 const manifestJson = JSON.parse(await manifest.text());
 check('and the manifest still starts everybody at the same place',
   manifestJson.start_url === '/', String(manifestJson.start_url));
+
+/*
+ * What he is owed, on his own page. The question he opens this page to answer
+ * at least as often as "where am I standing".
+ */
+const owedRow = await db.prepare(`
+  select count(*) as n
+    from event_members em
+    join events e on e.id = em.event_id
+   where em.team_member_id = ?
+     and em.payout_id is null
+     and e.status in ('COMPLETED','ARCHIVED')
+     and em.status != 'CANCELLED'`).get(signInMan.id);
+/* The manifest fetch above left this page on a JSON document, not on his. */
+await promo.goto(`${BASE}/me`);
+await promo.waitForLoadState('networkidle');
+const meText = await promo.textContent('main');
+check('his page carries a balance, not just a list of events',
+  meText.includes('مستحق الآن'), '');
+check('and the three figures are kept apart, not merged into one',
+  meText.includes('قيد الاحتساب') && meText.includes('استلمت'),
+  `${Number(owedRow.n)} unsettled lines`);
+
+/* The steps to install, for the three places people ask about. */
+check('the page explains how to install it on a phone',
+  (await promo.locator('[data-install-tab=ios]').count()) === 1 &&
+  (await promo.locator('[data-install-tab=android]').count()) === 1 &&
+  (await promo.locator('[data-install-tab=desktop]').count()) === 1, '');
+await promo.click('[data-install-tab=android]');
+await promo.waitForTimeout(400);
+check('and the steps change with the device',
+  (await promo.textContent('main')).includes('Chrome'), '');
 
 /* He sees his events, and nobody else's. */
 await promo.goto(`${BASE}/me`);
@@ -1795,6 +1833,134 @@ await promo.waitForLoadState('networkidle');
 check('revoking the code puts every device of his back on the door',
   promo.url().includes('/login'), promo.url());
 await promoCtx.close();
+
+/* ---- one human, two sessions ------------------------------------------- */
+
+/*
+ * Some of the people who run events also work them — the supervisor who takes
+ * a gate himself, and the man who wrote this system. Their two sessions live
+ * in two cookies on purpose, and until now each page assumed whoever was here
+ * could only be one person: signing in at the office took the promoter's own
+ * page away, and the sign-in page would not let him add the second session.
+ */
+const bothCtx = await browser.newContext();
+const bothP = await login(bothCtx, 'numan', 'Numan@12345');
+check('the supervisor is signed in at the office',
+  bothP.url().includes('/admin'), bothP.url());
+
+await bothP.goto(`${BASE}/login?as=member`);
+await bothP.waitForLoadState('networkidle');
+check('and can still reach the promoter door from there',
+  (await bothP.locator('#m-phone').count()) === 1, bothP.url());
+
+/* His code was revoked a moment ago, so the office issues a fresh one. */
+await bothP.goto(`${BASE}/admin/team`);
+await bothP.waitForLoadState('networkidle');
+const freshRow = bothP.locator('tr', { hasText: String(signInMan.full_name) }).first();
+await freshRow.scrollIntoViewIfNeeded();
+await freshRow.locator('button[type=submit]', { hasText: 'كود' }).first().click();
+await bothP.waitForTimeout(3500);
+const freshCode = (await freshRow.locator('p.nums').first().textContent() ?? '').replace(/\D/g, '');
+check('a revoked code can be re-issued', /^[0-9]{4}$/.test(freshCode), freshCode || 'none');
+
+await bothP.goto(`${BASE}/login?as=member`);
+await bothP.waitForSelector('#m-phone');
+await bothP.fill('#m-phone', String(signInMan.phone));
+await bothP.fill('#m-code', freshCode);
+await bothP.click('button[type=submit]');
+await bothP.waitForURL('**/me', { timeout: 25000 }).catch(() => {});
+await bothP.waitForLoadState('networkidle');
+check('signing in as a promoter leaves the office session alone',
+  bothP.url().endsWith('/me'), bothP.url());
+
+const held = (await bothCtx.cookies()).map((c) => c.name);
+check('both sessions are held at once, in two cookies',
+  held.includes('ops_session') && held.includes('ops_member'), held.join(' '));
+
+await bothP.goto(`${BASE}/admin/team`);
+await bothP.waitForLoadState('networkidle');
+check('the office is still open', bothP.url().includes('/admin/team'), bothP.url());
+
+await bothP.goto(`${BASE}/me`);
+await bothP.waitForLoadState('networkidle');
+check('and so is his own page, with the way back on it',
+  bothP.url().endsWith('/me')
+    && (await bothP.locator('a:has-text("رجوع لمنطقة العمل")').count()) === 1,
+  bothP.url());
+await bothCtx.close();
+
+/* ---- the team leader settles the accounts ------------------------------ */
+
+/*
+ * Payday happens, the money goes out, and somebody has to tell the system so
+ * that every balance returns to zero. That was admin-only, which put the one
+ * man who actually hands the money over in the position of asking somebody
+ * else to record it.
+ */
+const payCtx = await browser.newContext();
+const payP = await login(payCtx, 'sara', 'Leader@12345');
+await payP.goto(`${BASE}/leader/credits`);
+await payP.waitForLoadState('networkidle');
+check('the team leader can open the accounts',
+  !payP.url().includes('/forbidden'), payP.url());
+
+const owedToSettle = await db.prepare(`
+  select count(*) as n from event_members em
+    join events e on e.id = em.event_id
+   where em.payout_id is null and e.status in ('COMPLETED','ARCHIVED')
+     and em.status != 'CANCELLED'`).get();
+check('there is something still owed to settle', Number(owedToSettle.n) > 0,
+  String(owedToSettle.n));
+
+/* The handover covers a span, so the span has to be set before it will run. */
+await payP.goto(`${BASE}/leader/credits?from=2020-01-01&to=2099-12-31`);
+await payP.waitForLoadState('networkidle');
+await payP.waitForTimeout(1500);
+
+payP.once('dialog', (d) => d.accept());
+const settleButton = payP
+  .locator('button[type=submit]', { hasText: 'سجّل تسليم الرواتب' })
+  .first();
+if ((await settleButton.count()) > 0) {
+  await settleButton.scrollIntoViewIfNeeded();
+  await settleButton.click();
+  await payP.waitForTimeout(5000);
+
+  const owedLeft = await db.prepare(`
+    select count(*) as n from event_members em
+      join events e on e.id = em.event_id
+     where em.payout_id is null and e.status in ('COMPLETED','ARCHIVED')
+       and em.status != 'CANCELLED'`).get();
+  check('settling zeroes the balances it covered',
+    Number(owedLeft.n) < Number(owedToSettle.n),
+    `${owedToSettle.n} → ${owedLeft.n}`);
+
+  const settlement = await db.prepare(
+    'select id, created_by_name from payouts order by created_at desc limit 1').get();
+  check('and it is recorded against the man who did it',
+    Boolean(settlement) && String(settlement.created_by_name).length > 0,
+    settlement ? String(settlement.created_by_name) : 'none');
+
+  /*
+   * Put the books back. This check exists to prove the team leader can settle,
+   * not to spend the money the payroll checks further down still need owed.
+   */
+  if (settlement) {
+    await db.exec('update event_members set payout_id = null where payout_id = ?',
+      settlement.id);
+    await db.exec('delete from payouts where id = ?', settlement.id);
+  }
+}
+
+/* A gate leader has no business in the accounts and does not get there. */
+const gateMoneyCtx = await browser.newContext();
+const gateMoney = await login(gateMoneyCtx, 'hussein', 'Gate@12345');
+await gateMoney.goto(`${BASE}/leader/credits`);
+await gateMoney.waitForLoadState('networkidle');
+check('a gate leader cannot open the accounts',
+  gateMoney.url().includes('/forbidden'), gateMoney.url());
+await gateMoneyCtx.close();
+await payCtx.close();
 
 /* ---- the company's own number, whenever it turns up -------------------- */
 

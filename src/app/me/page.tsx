@@ -5,13 +5,17 @@ import { redirect } from 'next/navigation';
 import { getT } from '@/lib/i18n/server';
 import { formatDate, formatTime } from '@/lib/time';
 import { currentMember, touchMemberSession } from '@/server/services/member-auth';
+import { currentUser, homeFor } from '@/server/auth/rbac';
 import { getMemberHome, type MemberHome } from '@/server/services/member-home';
+import { memberLedger } from '@/server/services/credit';
 import { memberSignOutAction } from '@/server/actions/member-auth';
 import { Badge, eventStatusTone } from '@/components/ui/status';
 import { IconCalendar, IconClock, IconPin } from '@/components/ui/icons';
 import type { EventStatus, EventType } from '@/lib/constants';
 
 import { MemberShell } from '../member/[token]/MemberShell';
+import { BalanceCard } from './BalanceCard';
+import { InstallGuide } from './InstallGuide';
 
 export const dynamic = 'force-dynamic';
 
@@ -101,12 +105,23 @@ function Group({
  * same /member/<token> page it always did.
  */
 export default async function MemberHomePage() {
+  /*
+   * Only the promoter session decides this page.
+   *
+   * Some people are both: a supervisor who also works a gate, and the person
+   * who wrote this system. Their two sessions live in two different cookies
+   * on purpose, and this page belongs to one of them — so being signed in as
+   * staff in the same browser must not take it away. Without this, the only
+   * way to see your own promoter page was to sign out of the office.
+   */
   const session = await currentMember();
-  if (!session) redirect('/login');
+  if (!session) redirect('/login?as=member');
 
-  const [{ locale, t }, home] = await Promise.all([
+  const [{ locale, t }, home, ledger, staff] = await Promise.all([
     getT(),
     getMemberHome(session.teamMemberId),
+    memberLedger(session.teamMemberId),
+    currentUser(),
   ]);
 
   if (!home) redirect('/login');
@@ -134,6 +149,20 @@ export default async function MemberHomePage() {
         ) : null}
       </section>
 
+      {/*
+        What he is owed, straight under his name. It is the question he opens
+        this page to answer at least as often as "where am I standing", and
+        until now the only way to ask it was to ring somebody.
+      */}
+      {ledger ? (
+        <BalanceCard
+          t={t}
+          locale={locale}
+          ledger={ledger}
+          salaried={Boolean(home.person.salaried)}
+        />
+      ) : null}
+
       {empty ? (
         <section className="rounded-card border border-ink-700 bg-ink-850 p-6 text-center">
           <p className="text-[13.5px] leading-6 text-ink-400">{t.memberAuth.none}</p>
@@ -151,14 +180,14 @@ export default async function MemberHomePage() {
         installing is worth doing once, and the moment he has just signed in is
         the moment it makes sense.
       */}
-      <section className="rounded-card border border-ink-700 bg-ink-900 p-4">
-        <p className="text-[13.5px] font-semibold text-ink-200">
-          {t.memberAuth.installTitle}
-        </p>
-        <p className="mt-1 text-[12.5px] leading-5 text-ink-400">
-          {t.memberAuth.installHint}
-        </p>
-      </section>
+      <InstallGuide t={t} />
+
+      {/* The way back, for whoever is both. Shown only to a staff session. */}
+      {staff ? (
+        <Link href={homeFor(staff.role)} className="btn-ghost btn-sm w-full text-center">
+          {t.memberAuth.backToStaff}
+        </Link>
+      ) : null}
 
       <form action={memberSignOutAction} className="pt-1">
         <button type="submit" className="btn-ghost btn-sm w-full">

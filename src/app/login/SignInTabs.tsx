@@ -14,8 +14,19 @@ import { MemberLoginForm } from './MemberLoginForm';
  * and six of everybody else, and because a man standing outside a stadium
  * should not have to hunt for his own door.
  */
-export function SignInTabs({ t, next }: { t: Dictionary; next: string }) {
-  const [tab, setTab] = useState<'member' | 'staff'>(next ? 'staff' : 'member');
+export function SignInTabs({
+  t,
+  next,
+  forceMember = false,
+}: {
+  t: Dictionary;
+  next: string;
+  /** Opened from the office to add a promoter session — start on that side. */
+  forceMember?: boolean;
+}) {
+  const [tab, setTab] = useState<'member' | 'staff'>(
+    forceMember ? 'member' : next ? 'staff' : 'member',
+  );
 
   return (
     <div className="space-y-5">

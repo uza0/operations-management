@@ -11,11 +11,13 @@ import type { Dictionary } from '@/lib/i18n';
  * whichever one you press, the period is the thing you had to get right first.
  */
 export function RangeForm({
+  base = '/admin',
   t,
   from,
   to,
   exportHref,
 }: {
+  base?: '/admin' | '/leader';
   t: Dictionary;
   from?: string;
   to?: string;
@@ -32,7 +34,7 @@ export function RangeForm({
     else next.delete('from');
     if (end) next.set('to', end);
     else next.delete('to');
-    router.push(next.size ? `/admin/credits?${next}` : '/admin/credits');
+    router.push(next.size ? `${base}/credits?${next}` : `${base}/credits`);
   }
 
   return (
@@ -65,7 +67,7 @@ export function RangeForm({
           onClick={() => {
             setStart('');
             setEnd('');
-            router.push('/admin/credits');
+            router.push(`${base}/credits`);
           }}
         >
           {t.credit.allTime}

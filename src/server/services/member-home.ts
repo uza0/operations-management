@@ -19,6 +19,7 @@ export async function getMemberHome(teamMemberId: string) {
       id: teamMembers.id,
       name: teamMembers.fullName,
       cardNumber: teamMembers.cardNumber,
+      salaried: teamMembers.salaried,
     })
     .from(teamMembers)
     .where(eq(teamMembers.id, teamMemberId))

@@ -109,7 +109,23 @@ const venueParts = (d: Date) => {
 };
 
 const today = new Date();
-const EVENT_DATE = venueParts(today).date;
+/*
+ * The match's date is the date its working day began, not the date of its
+ * kick-off.
+ *
+ * Both are the same at every hour but one stretch. Seeded between midnight
+ * and about half past two, the anchor below puts kick-off after midnight and
+ * the team's arrival an hour and a half before it — two different days, one
+ * `date` column. Taking the date from the arrival keeps the evening whole,
+ * which is also how a person would describe it: Tuesday's match, worked by a
+ * crew that turned up on Tuesday evening.
+ *
+ * It is computed here rather than below because everything else in the demo
+ * is placed relative to it.
+ */
+const EVENT_DATE = venueParts(
+  new Date(today.getTime() - (18 * 60 + 30 - 17 * 60) * 60 * 1000),
+).date;
 const eventDay = new Date(`${EVENT_DATE}T00:00:00Z`);
 const addDays = (days: number) => {
   const d = new Date(eventDay.getTime() + days * 24 * 60 * 60 * 1000);
