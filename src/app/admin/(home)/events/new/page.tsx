@@ -2,8 +2,9 @@ import Link from 'next/link';
 import { desc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { events, users, venues } from '@/db/schema';
+import { events, venues } from '@/db/schema';
 import { requireRole } from '@/server/auth/rbac';
+import { leadershipCandidates } from '@/server/services/access';
 import { getT } from '@/lib/i18n/server';
 import { PageHeader, Panel } from '@/components/ui/panel';
 import { EmptyState, Notice } from '@/components/ui/states';
@@ -17,10 +18,13 @@ export default async function NewEventPage() {
 
   const [venueRows, leaderRows, templateRows] = await Promise.all([
     db.select({ id: venues.id, name: venues.name }).from(venues).orderBy(venues.name),
-    db
-      .select({ id: users.id, name: users.name })
-      .from(users)
-      .where(eq(users.role, 'TEAM_LEADER')),
+    /*
+     * Everyone who can be put in charge, not only the accounts whose role says
+     * TEAM_LEADER. A supervisor running Thursday's match himself is that
+     * match's leader, and making him create a second account to say so is how
+     * one person ends up with three passwords.
+     */
+    leadershipCandidates(),
     /*
      * Any event already planned can serve as the template — newest first,
      * because the one you want is almost always the last one you ran.

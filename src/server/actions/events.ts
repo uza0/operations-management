@@ -5,7 +5,7 @@ import { redirect } from 'next/navigation';
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { assignments, eventAccess, events, gates, venues } from '@/db/schema';
+import { assignments, events, gates, venues } from '@/db/schema';
 import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
@@ -20,6 +20,7 @@ import {
 } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
 import { cloneEventPlan } from '@/server/services/clone';
+import { setEventTeamLeader, setGateLeader } from '@/server/services/access';
 import { hrefForStep } from '@/features/event/setup-steps';
 import { getStaffedLocations } from '@/server/services/staffing';
 
@@ -98,16 +99,7 @@ export async function createEventAction(
   }
 
   // The creating admin may hand the event to a team leader straight away.
-  const leaderId = str(form, 'leaderId');
-  if (leaderId) {
-    await db.insert(eventAccess).values({
-      id: newId(),
-      eventId: id,
-      userId: leaderId,
-      role: 'TEAM_LEADER',
-      gateId: null,
-    });
-  }
+  await setEventTeamLeader(id, str(form, 'leaderId') || null);
 
   await recordAudit({
     eventId: id,
@@ -180,6 +172,17 @@ export async function updateEventAction(
       updatedAt: new Date(),
     })
     .where(eq(events.id, eventId));
+
+  /*
+   * Who is running this event, which arrives on the same form because it
+   * changes for the same reasons the hours do — somebody fell ill, the job
+   * moved to a colleague. Left out of the form entirely it reads as "nobody",
+   * so only an actual field clears it.
+   */
+  let leaderChange: Awaited<ReturnType<typeof setEventTeamLeader>> = { changed: false };
+  if (form.has('leaderId')) {
+    leaderChange = await setEventTeamLeader(eventId, str(form, 'leaderId') || null);
+  }
 
   /*
    * The event's hours are the team's hours, so moving them moves everyone who
@@ -259,6 +262,7 @@ export async function updateEventAction(
       startTime: existing.startTime,
       teamArrivalTime: existing.teamArrivalTime,
       teamDepartureTime: existing.teamDepartureTime,
+      ...(leaderChange.changed ? { teamLeader: leaderChange.from ?? null } : {}),
     },
     newValues: {
       name: parsed.data.name,
@@ -266,12 +270,65 @@ export async function updateEventAction(
       startTime: parsed.data.startTime,
       teamArrivalTime: parsed.data.teamArrivalTime,
       teamDepartureTime: parsed.data.teamDepartureTime ?? null,
+      ...(leaderChange.changed ? { teamLeader: leaderChange.to ?? null } : {}),
     },
     summary: `${t.enums.auditAction.UPDATE}: ${parsed.data.name}`,
   });
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/leader/events/${eventId}`);
+  return ok();
+}
+
+/**
+ * Puts an account in charge of one gate.
+ *
+ * Its own action rather than a field on the gate form, because it answers a
+ * different question. The gate form describes the post — what it is, how many
+ * people it needs, who from the crew stands at its head. This says which
+ * account supervises it: who signs in, approves the arrivals there and takes
+ * the reports. Often not the same person, and never the same record.
+ */
+export async function setGateSupervisorAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  const gateId = String(form.get('gateId') ?? '');
+
+  let user;
+  try {
+    user = await assertEventManager(eventId);
+  } catch {
+    return fail(t.errors.forbidden);
+  }
+  if (!gateId) return fail(t.errors.notFound);
+
+  const gate = await db.query.gates.findFirst({
+    where: and(eq(gates.id, gateId), eq(gates.eventId, eventId)),
+  });
+  if (!gate) return fail(t.errors.notFound);
+
+  const change = await setGateLeader(eventId, gateId, str(form, 'userId') || null);
+
+  if (change.changed) {
+    await recordAudit({
+      eventId,
+      actorId: user.id,
+      actorName: user.name,
+      action: 'UPDATE',
+      entity: 'GATE',
+      entityId: gateId,
+      entityLabel: gate.name,
+      oldValues: { supervisor: change.from },
+      newValues: { supervisor: change.to },
+      summary: `${t.event.gateLeader}: ${gate.name}`,
+    });
+  }
+
+  revalidatePath(`/admin/events/${eventId}/gates`);
+  revalidatePath(`/leader/events/${eventId}/gates`);
   return ok();
 }
 

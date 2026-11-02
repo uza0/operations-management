@@ -1,23 +1,31 @@
-import { eq } from 'drizzle-orm';
+import { eq } from "drizzle-orm";
 
-import { db } from '@/db';
-import { eventMembers, gates, teamMembers, workingPoints } from '@/db/schema';
-import { loadEventPage } from '@/features/event/workspace';
-import { getStaffedLocations } from '@/server/services/staffing';
-import { PageHeader } from '@/components/ui/panel';
+import { db } from "@/db";
+import { eventMembers, gates, teamMembers, workingPoints } from "@/db/schema";
+import { loadEventPage } from "@/features/event/workspace";
+import { getStaffedLocations } from "@/server/services/staffing";
+import { gateLeaderIds, leadershipCandidates } from "@/server/services/access";
+import { PageHeader } from "@/components/ui/panel";
 
-import { GateManager } from './parts/GateManager';
+import { GateManager } from "./parts/GateManager";
 
 export async function EventGatesPage({
   base,
   eventId,
 }: {
-  base: '/admin' | '/leader';
+  base: "/admin" | "/leader";
   eventId: string;
 }) {
   const { scope, t } = await loadEventPage(eventId);
 
-  const [locations, gateRows, wpRows, memberRows] = await Promise.all([
+  const [
+    locations,
+    gateRows,
+    wpRows,
+    memberRows,
+    supervisors,
+    gateSupervisors,
+  ] = await Promise.all([
     getStaffedLocations(eventId),
     db.select().from(gates).where(eq(gates.eventId, eventId)),
     db.select().from(workingPoints).where(eq(workingPoints.eventId, eventId)),
@@ -26,6 +34,8 @@ export async function EventGatesPage({
       .from(eventMembers)
       .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
       .where(eq(eventMembers.eventId, eventId)),
+    leadershipCandidates(),
+    gateLeaderIds(eventId),
   ]);
 
   const leaderNames: Record<string, string> = {};
@@ -63,6 +73,8 @@ export async function EventGatesPage({
         }))}
         members={memberRows}
         leaderNames={leaderNames}
+        supervisors={supervisors}
+        gateSupervisors={gateSupervisors}
         canManage={scope.canManage}
         assignHref={`${base}/events/${eventId}/assignments`}
       />

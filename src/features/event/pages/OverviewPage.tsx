@@ -7,6 +7,7 @@ import { loadEventPage } from '@/features/event/workspace';
 import { getEventSnapshot } from '@/server/services/events';
 import { getStaffedLocations, summarizeStaffing } from '@/server/services/staffing';
 import { listEventAudit } from '@/server/services/audit';
+import { eventTeamLeaderId } from '@/server/services/access';
 import { PageHeader, Panel, StatTile, KeyValue } from '@/components/ui/panel';
 import { EmptyState, Notice } from '@/components/ui/states';
 import {
@@ -70,6 +71,8 @@ export async function EventOverviewPage({
     }),
   ]);
 
+  const teamLeaderId = await eventTeamLeaderId(eventId);
+
   const staffing = summarizeStaffing(locations);
   const attendanceRate =
     snapshot.teamSize > 0
@@ -95,6 +98,24 @@ export async function EventOverviewPage({
           </Badge>
         }
       />
+
+      {/*
+        Said here because this is the screen a supervisor opens, and because an
+        event with nobody in charge looks completely normal until the night
+        itself: the promoter's screen answers "report to: not set yet", and no
+        account exists that can approve a single arrival.
+      */}
+      {scope.canManage && teamLeaderId === null ? (
+        <div className="mb-4">
+          <Notice tone="warn">
+            <span className="font-semibold">{t.event.noLeaderTitle}</span> —{' '}
+            {t.event.noLeaderBody}{' '}
+            <Link href={`${root}/edit`} className="underline">
+              {t.event.editEvent}
+            </Link>
+          </Notice>
+        </div>
+      ) : null}
 
       {staffing.understaffed.length > 0 ? (
         <div className="mb-4">

@@ -1558,6 +1558,110 @@ if (ownHours) {
     String(untouched.arrival_time));
 }
 
+/* ---- who is running this event ---------------------------------------- */
+
+/*
+ * An event created in a hurry with the leader field left empty used to be
+ * stuck that way: the field existed only on the creation form, so there was
+ * no second place to say who was in charge, and the promoter's screen
+ * answered "report to: not set yet" all night.
+ */
+await db.exec(
+  "delete from event_access where event_id = ? and role = 'TEAM_LEADER' and gate_id is null",
+  timeEvent.id);
+
+await admin.goto(`${BASE}/admin/events/${timeEvent.id}`);
+await admin.waitForLoadState('networkidle');
+check('an event with nobody in charge says so on its own page',
+  (await admin.textContent('main')).includes('بلا قائد فريق'), '');
+
+await admin.goto(`${BASE}/admin/events/${timeEvent.id}/edit`);
+await admin.waitForLoadState('networkidle');
+await admin.waitForSelector('#leaderId');
+
+/*
+ * The picker offers accounts, not only the ones whose role says TEAM_LEADER:
+ * a supervisor running Thursday's match himself is that match's leader, and
+ * making him keep a second account to say so is how one man ends up with
+ * three passwords.
+ */
+const leaderOptions = await admin.locator('#leaderId option').allTextContents();
+const offered = leaderOptions.filter((o) => o.includes('—'));
+check('the leader picker offers supervisors as well as team leaders',
+  offered.length >= 2, String(offered.length));
+check('and never two options a human cannot tell apart',
+  new Set(offered).size === offered.length, offered.join(' | '));
+
+const adminUser = await db.prepare(
+  "select id, name from users where username = 'numan'").get();
+await admin.selectOption('#leaderId', adminUser.id);
+await admin.locator('button[type=submit]:has-text("حفظ")').first().click();
+await admin.waitForTimeout(3000);
+
+const grant = await db.prepare(`
+  select user_id from event_access
+   where event_id = ? and role = 'TEAM_LEADER' and gate_id is null`).get(timeEvent.id);
+check('a leader can be put in charge long after the event was created',
+  grant && String(grant.user_id) === String(adminUser.id), grant ? 'set' : 'none');
+
+await admin.goto(`${BASE}/admin/events/${timeEvent.id}`);
+await admin.waitForLoadState('networkidle');
+check('and the warning goes away once somebody is',
+  !(await admin.textContent('main')).includes('بلا قائد فريق'), '');
+
+/* Saving the same name twice must not pile up grants. */
+await admin.goto(`${BASE}/admin/events/${timeEvent.id}/edit`);
+await admin.waitForLoadState('networkidle');
+await admin.waitForSelector('#leaderId');
+await admin.locator('button[type=submit]:has-text("حفظ")').first().click();
+await admin.waitForTimeout(2500);
+const grantCount = await db.prepare(`
+  select count(*) as n from event_access
+   where event_id = ? and role = 'TEAM_LEADER' and gate_id is null`).get(timeEvent.id);
+check('saving again leaves exactly one grant, not two',
+  Number(grantCount.n) === 1, String(grantCount.n));
+
+/* The promoter is told, which is the whole reason this field matters. */
+const leadMember = await db.prepare(
+  'select token from event_members where event_id = ? limit 1').get(timeEvent.id);
+if (leadMember) {
+  const mctx = await browser.newContext();
+  const mp = await mctx.newPage();
+  await mp.goto(`${BASE}/member/${leadMember.token}`);
+  await mp.waitForLoadState('networkidle');
+  check('and the promoter now sees who to report to',
+    (await mp.textContent('main')).includes(String(adminUser.name)), '');
+  await mctx.close();
+}
+
+/*
+ * A gate's supervisor is a different record from the crew member standing at
+ * its head, and the same account may hold both jobs on different nights.
+ */
+const someGate = await db.prepare(
+  'select id, name from gates where event_id = ? limit 1').get(eventId);
+if (someGate) {
+  await admin.goto(`${BASE}/admin/events/${eventId}/gates`);
+  await admin.waitForLoadState('networkidle');
+  const trigger = admin.locator(`[data-gate-supervisor="${someGate.id}"]`).first();
+  await trigger.scrollIntoViewIfNeeded();
+  await trigger.click();
+  await admin.waitForSelector('select[name=userId]');
+  await admin.selectOption('select[name=userId]', adminUser.id);
+  await admin.locator('button[type=submit]:has-text("حفظ")').first().click();
+  await admin.waitForTimeout(2500);
+
+  const gateGrant = await db.prepare(`
+    select user_id from event_access
+     where event_id = ? and role = 'GATE_LEADER' and gate_id = ?`)
+    .get(eventId, someGate.id);
+  check('a gate can be given a supervisor from inside the event',
+    gateGrant && String(gateGrant.user_id) === String(adminUser.id),
+    gateGrant ? 'set' : 'none');
+  check('and the same account leads one event and a gate of another',
+    Boolean(gateGrant) && Boolean(grant), '');
+}
+
 /* ---- the company's own number, whenever it turns up -------------------- */
 
 /*

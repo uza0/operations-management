@@ -20,6 +20,8 @@ export type EventFormValues = {
   teamDepartureTime?: string | null;
   description?: string | null;
   externalId?: string | null;
+  /** The account put in charge of this event, if one already is. */
+  leaderId?: string | null;
 };
 
 export function EventForm({
@@ -33,7 +35,7 @@ export function EventForm({
 }: {
   t: Dictionary;
   venues: { id: string; name: string }[];
-  leaders?: { id: string; name: string }[];
+  leaders?: { id: string; name: string; label: string }[];
   /** Past events this one can be built from, newest first. */
   templates?: { id: string; name: string; venueName: string | null; date: string }[];
   values?: EventFormValues;
@@ -227,20 +229,32 @@ export function EventForm({
       */}
       <p className="-mt-1 text-[12.5px] leading-5 text-ink-500">{t.event.teamHoursHint}</p>
 
-      {mode === 'create' && leaders && leaders.length > 0 ? (
+      {/*
+        Shown when editing too, and that is the whole point of it being here.
+        An event created in a hurry with this left empty used to be stuck that
+        way for good: there was no second place to say who was running it, and
+        the promoter's screen answered "team leader: not set yet" all night.
+      */}
+      {leaders && leaders.length > 0 ? (
         <div>
           <label className="field-label" htmlFor="leaderId">
             {t.enums.role.TEAM_LEADER}{' '}
             <span className="text-ink-500">({t.common.optional})</span>
           </label>
-          <select id="leaderId" name="leaderId" className="field" defaultValue="">
+          <select
+            id="leaderId"
+            name="leaderId"
+            className="field"
+            defaultValue={values?.leaderId ?? ''}
+          >
             <option value="">{t.common.none}</option>
             {leaders.map((l) => (
               <option key={l.id} value={l.id}>
-                {l.name}
+                {l.label}
               </option>
             ))}
           </select>
+          <p className="mt-1.5 text-[12.5px] leading-5 text-ink-500">{t.event.leaderHint}</p>
         </div>
       ) : null}
 

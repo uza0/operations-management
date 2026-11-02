@@ -361,6 +361,8 @@ function DeleteLocation({
   );
 }
 
+import { GateSupervisor } from './GateSupervisor';
+
 export function GateManager({
   t,
   eventId,
@@ -369,6 +371,8 @@ export function GateManager({
   workingPoints,
   members,
   leaderNames,
+  supervisors,
+  gateSupervisors,
   canManage,
   assignHref,
 }: {
@@ -379,6 +383,10 @@ export function GateManager({
   workingPoints: WorkingPointDetail[];
   members: MemberOption[];
   leaderNames: Record<string, string>;
+  /** Accounts that may supervise a gate, with a label that names the user. */
+  supervisors: { id: string; name: string; label: string }[];
+  /** The account supervising each gate today, keyed by gate id. */
+  gateSupervisors: Record<string, string>;
   canManage: boolean;
   assignHref: string;
 }) {
@@ -433,6 +441,22 @@ export function GateManager({
             <IconTarget width={14} height={14} className="text-ink-500" />
             {t.gate.gateLeader}: <span className="font-medium">{leaderName}</span>
           </p>
+        ) : null}
+
+        {/*
+          And, separately, the account that runs this gate. The line above is a
+          man from the crew standing at the post; this is who signs in, approves
+          the arrivals here and reads the reports. Keeping them apart on the
+          same card is the clearest place to show they are not one thing.
+        */}
+        {gate && canManage ? (
+          <GateSupervisor
+            t={t}
+            eventId={eventId}
+            gateId={gate.id}
+            current={gateSupervisors[gate.id] ?? null}
+            candidates={supervisors}
+          />
         ) : null}
 
         {location.description ? (

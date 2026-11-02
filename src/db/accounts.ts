@@ -85,6 +85,15 @@ export const STANDING_ACCOUNTS: StandingAccount[] = [
     fallbackPassword: 'Leader@12345',
   },
   {
+    // A gate supervisor by name, alongside the placeholder one below.
+    username: 'raad',
+    name: 'Mohamed Raad',
+    email: 'raad@operations.local',
+    role: 'GATE_LEADER',
+    envVar: 'SEED_RAAD_PASSWORD',
+    fallbackPassword: 'Raad@12345',
+  },
+  {
     username: 'gate',
     name: 'قائد بوابة',
     email: 'gate@operations.local',
