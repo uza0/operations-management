@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import Link from 'next/link';
 
 import { getT } from '@/lib/i18n/server';
 import { LocaleSwitcher } from '@/components/ui/client';
@@ -8,6 +9,8 @@ import { IconAlert } from '@/components/ui/icons';
 import { BrandMark } from '@/components/ui/BrandMark';
 import { InstallPrompt } from '@/components/pwa/InstallPrompt';
 import { OfflineBanner } from '@/components/pwa/OfflineBanner';
+import { IconArrowRight } from '@/components/ui/icons';
+import { currentMember } from '@/server/services/member-auth';
 
 /**
  * A deliberately separate shell from the admin app: single column, large
@@ -20,15 +23,30 @@ import { OfflineBanner } from '@/components/pwa/OfflineBanner';
  * page (which match, where) the smallest thing on it. The event now has a card
  * of its own below, with room to be read at arm's length, and the bar is left
  * to do the one job a sticky bar is good at: staying out of the way.
+ *
+ * The one thing it does carry is the way back, and only where there is one.
+ * This page began as a link sent per event, with nothing behind it; now a
+ * promoter signs in and opens his events from a list, and opening one was a
+ * door that shut behind him — the browser's own button, or nothing, and on an
+ * installed app that button is not on the screen at all.
+ *
+ * Two conditions, both necessary. The screen has to name somewhere to go, so
+ * his own page does not grow an arrow pointing at itself. And he has to be
+ * signed in, so that whoever opens a bare event link is not sent to a sign-in
+ * page he never asked for.
  */
 export async function MemberShell({
+  back,
   children,
 }: {
   t?: unknown;
+  /** Where the arrow goes, on screens that have somewhere behind them. */
+  back?: string;
   children: ReactNode;
 }) {
   const locale = await getLocale();
   const { t } = await getT();
+  const member = back ? await currentMember() : null;
 
   return (
     <div className="min-h-screen bg-ink-950">
@@ -37,6 +55,15 @@ export async function MemberShell({
       <header className="sticky top-0 z-30 border-b border-ink-700 bg-ink-950/95 backdrop-blur pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex w-full max-w-[560px] items-center justify-between gap-3 px-4 py-2.5">
           <div className="flex min-w-0 items-center gap-2.5">
+            {member ? (
+              <Link
+                href={back!}
+                aria-label={t.common.back}
+                className="-ms-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-ink-300 transition-colors hover:bg-ink-800 hover:text-ink-100"
+              >
+                <IconArrowRight width={18} height={18} className="ltr:rotate-180" />
+              </Link>
+            ) : null}
             <BrandMark size={28} className="shrink-0 text-brand-600" />
             <span
               className="truncate text-[14px] font-bold text-ink-100"

@@ -10,6 +10,7 @@ import { getMemberHome, type MemberHome } from '@/server/services/member-home';
 import { memberLedger } from '@/server/services/credit';
 import { memberSignOutAction } from '@/server/actions/member-auth';
 import { Badge, eventStatusTone } from '@/components/ui/status';
+import { ConfirmSubmit } from '@/components/ui/client';
 import { IconCalendar, IconClock, IconPin } from '@/components/ui/icons';
 import type { EventStatus, EventType } from '@/lib/constants';
 
@@ -189,10 +190,21 @@ export default async function MemberHomePage() {
         </Link>
       ) : null}
 
+      {/*
+        Asked before it happens.
+        
+        This sits at the bottom of the one page he opens every working day, a
+        thumb's width from the install guide, and pressing it by mistake threw
+        him straight out — back to a door he has to find his code for again.
+        Nothing on this page is worth losing to a mis-tap.
+      */}
       <form action={memberSignOutAction} className="pt-1">
-        <button type="submit" className="btn-ghost btn-sm w-full">
+        <ConfirmSubmit
+          className="btn-ghost btn-sm w-full"
+          message={t.memberAuth.signOutConfirm}
+        >
           {t.memberAuth.signOut}
-        </button>
+        </ConfirmSubmit>
       </form>
     </MemberShell>
   );

@@ -398,7 +398,14 @@ check('the board says how late it is', /متأخر\s*\d*\s*دق/.test(lateText),
 /* ---- 17-18: complete the event and generate the report ----------------- */
 await admin.goto(`${BASE}/admin/events/${eventId}`);
 await admin.waitForLoadState('networkidle');
+/*
+ * Twice on purpose. Closing now asks once about anybody whose attendance
+ * nobody marked — which is most of this crew, since the flow above marked a
+ * handful and left the rest. The second press is the deliberate yes.
+ */
 await admin.click('button:has-text("منتهية")');
+await admin.waitForTimeout(2500);
+await admin.locator('button:has-text("منتهية")').first().click();
 await admin.waitForTimeout(2500);
 const status = (await db.prepare('select status from events where id=?').get(eventId)).status;
 check('event moved to COMPLETED', status === 'COMPLETED', status);
@@ -1811,6 +1818,52 @@ const someoneElse = await db.prepare(`
 check('and names nobody else on the team',
   !(await promo.textContent('main')).includes(String(someoneElse.full_name)), '');
 
+/*
+ * And a way back out of one.
+ *
+ * This page began as a link sent per event, where there was nothing behind
+ * it. Now he opens it from a list, and without an arrow the only road back is
+ * the browser's own button — which on an installed app is not on the screen
+ * at all.
+ */
+const firstCard = await promo.locator('main a[href^="/member/"]').first().getAttribute('href');
+await promo.goto(`${BASE}${firstCard}`);
+await promo.waitForLoadState('networkidle');
+check('an event he opened has a way back to his own page',
+  (await promo.locator('header a[href="/me"]').count()) === 1, firstCard);
+await promo.locator('header a[href="/me"]').click();
+await promo.waitForURL('**/me', { timeout: 15000 });
+check('and it takes him there', promo.url().endsWith('/me'), promo.url());
+
+/*
+ * And signing out asks first.
+ *
+ * The button sits at the bottom of the one page he opens every working day.
+ * Pressing it by mistake threw him out to a door he has to find his code for
+ * again, so it now asks, and a refusal leaves him exactly where he was.
+ */
+await promo.goto(`${BASE}/me`, { waitUntil: 'networkidle' });
+let askedBeforeSignOut = false;
+promo.once('dialog', (d) => {
+  askedBeforeSignOut = true;
+  d.dismiss();
+});
+await promo.locator('form button:has-text("خروج")').last().click();
+await promo.waitForTimeout(2500);
+check('signing out asks before it happens', askedBeforeSignOut, '');
+check('and saying no leaves him signed in',
+  promo.url().endsWith('/me') && (await promo.textContent('main')).includes('مستحق الآن'),
+  promo.url());
+
+/* Whoever arrives by a bare link has nowhere to go back to, and is offered none. */
+const strangerCtx = await browser.newContext();
+const stranger = await strangerCtx.newPage();
+await stranger.goto(`${BASE}${firstCard}`);
+await stranger.waitForLoadState('networkidle');
+check('a bare token link offers no back arrow',
+  (await stranger.locator('header a[href="/me"]').count()) === 0, '');
+await strangerCtx.close();
+
 /* A promoter session is not a staff session, and opens no staff page. */
 await promo.goto(`${BASE}/admin/team`);
 await promo.waitForLoadState('networkidle');
@@ -3156,6 +3209,72 @@ check('and no two people share a phone number', Number(phoneDupes.n) === 0,
 
 
 
+
+/* ---- closing an event with attendance nobody marked -------------------- */
+
+/*
+ * Closing is the moment every undecided line turns into a zero. A man marked
+ * neither present nor absent earns nothing for the night, and a chair shift
+ * nobody approved earns nothing for the afternoon — silently. The chair shift
+ * is where it really happens: it runs the day before, people drift in, the
+ * hall gets ready, and nobody opens a screen.
+ */
+const closing = await db.prepare(`
+  select e.id, e.name from events e
+    join event_members em on em.event_id = e.id
+   where e.status in ('COMPLETED','ARCHIVED') limit 1`).get();
+await db.exec("update events set status='LIVE' where id=?", closing.id);
+await db.exec(`update attendance set status='PENDING'
+  where event_member_id in (select id from event_members where event_id = ?)`, closing.id);
+
+const pendingNames = Number((await db.prepare(`
+  select count(*) as n from event_members em
+    join attendance a on a.event_member_id = em.id
+   where em.event_id = ? and a.status = 'PENDING' and em.status != 'CANCELLED'`)
+  .get(closing.id)).n);
+
+await admin.goto(`${BASE}/admin/events/${closing.id}`, { waitUntil: 'networkidle' });
+await admin.locator('button:has-text("منتهية")').first().click();
+await admin.waitForTimeout(3000);
+const warned = await admin.textContent('main');
+const stillLive = await db.prepare('select status from events where id = ?').get(closing.id);
+check('closing an event warns about attendance nobody marked',
+  warned.includes('ما مسوّي إلهم حضور'), `${pendingNames} pending`);
+check('and the event is not closed by that press',
+  String(stillLive.status) === 'LIVE', String(stillLive.status));
+check('the warning names who it is about',
+  /حضور الليلة|دوام الكراسي/.test(warned), '');
+
+/* Pressing again is the deliberate "yes, they really did not come". */
+await admin.locator('button:has-text("منتهية")').first().click();
+await admin.waitForTimeout(3500);
+const closed = await db.prepare('select status from events where id = ?').get(closing.id);
+check('pressing again closes it anyway', String(closed.status) === 'COMPLETED',
+  String(closed.status));
+
+/* And an event with nothing undecided closes on the first press. */
+await db.exec("update events set status='LIVE' where id=?", closing.id);
+await db.exec(`update attendance set status='PRESENT'
+  where event_member_id in (select id from event_members where event_id = ?)`, closing.id);
+/* A membership with no attendance row at all is undecided too — give it one. */
+const noRow = await db.prepare(`
+  select em.id from event_members em
+   where em.event_id = ? and em.status != 'CANCELLED'
+     and not exists (select 1 from attendance a where a.event_member_id = em.id)`)
+  .all(closing.id);
+for (const row of noRow) {
+  await db.exec(
+    `insert into attendance (id, event_id, event_member_id, status, created_at, updated_at)
+     values (?, ?, ?, 'PRESENT', strftime('%s','now'), strftime('%s','now'))`,
+    'e2e-att-' + row.id, closing.id, row.id);
+}
+await db.exec(`update seat_setup_members set attended = 1 where event_id = ?`, closing.id);
+await admin.goto(`${BASE}/admin/events/${closing.id}`, { waitUntil: 'networkidle' });
+await admin.locator('button:has-text("منتهية")').first().click();
+await admin.waitForTimeout(3500);
+const clean = await db.prepare('select status from events where id = ?').get(closing.id);
+check('an event with every name marked closes on the first press',
+  String(clean.status) === 'COMPLETED', String(clean.status));
 /* ---- the company's weekly payment file --------------------------------- */
 
 /*
@@ -3224,7 +3343,13 @@ for (let i = 0; i < payPeople.length; i++) {
  * company register, so the transfer reaches the same place whichever we
  * write — the file must say so and carry on, not refuse to pay them.
  */
-const sharers = payPeople.slice(0, 2);
+/* Two who actually have money in this span, so the file really carries them. */
+const sharers = await db.prepare(`
+  select distinct tm.id from team_members tm
+    join event_members em on em.team_member_id = tm.id
+    join events e on e.id = em.event_id
+   where em.payout_id is null and e.status in ('COMPLETED','ARCHIVED')
+     and em.status != 'CANCELLED' limit 2`).all();
 for (const person of sharers) {
   await db.exec('update team_members set card_number = ? where id = ?',
     '3606040024', person.id);

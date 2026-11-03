@@ -73,7 +73,8 @@ export function EventLifecycle({
               <form key={s} action={action}>
                 <input type="hidden" name="eventId" value={eventId} />
                 <input type="hidden" name="status" value={s} />
-                {/* After a staffing warning the same button confirms the move. */}
+                {/* After a warning — short gates, or attendance nobody marked —
+                    the same button is what confirms the move. */}
                 {blocked ? <input type="hidden" name="force" value="true" /> : null}
                 <SubmitButton
                   className={`btn-sm ${
@@ -81,7 +82,7 @@ export function EventLifecycle({
                   }`}
                   pendingLabel={t.common.saving}
                 >
-                  {blocked && (s === 'READY' || s === 'LIVE')
+                  {blocked && (s === 'READY' || s === 'LIVE' || s === 'COMPLETED')
                     ? `${t.enums.eventStatus[s]} — ${t.common.confirm}`
                     : t.enums.eventStatus[s]}
                 </SubmitButton>

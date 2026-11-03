@@ -5,6 +5,7 @@ import { and, asc, desc, eq, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   assignments,
+  attendance,
   eventMembers,
   events,
   gates,
@@ -338,4 +339,63 @@ export async function seatSetupForMember(
       now,
     }),
   }));
+}
+
+/* -------------------------------------------------------------------------- */
+/* what nobody decided                                                        */
+/* -------------------------------------------------------------------------- */
+
+export type Unmarked = {
+  /** On the night itself: nobody said he came and nobody said he did not. */
+  event: string[];
+  /** On the chair shift the day before: no approval, no refusal. */
+  seats: string[];
+};
+
+/**
+ * Who has no attendance decision against their name on this event.
+ *
+ * Closing an event is the moment every undecided line turns into a zero. A man
+ * marked neither present nor absent earns nothing, and so does a chair shift
+ * nobody approved — quietly, with no message to anybody, and the first anyone
+ * hears of it is a promoter asking why his week is short.
+ *
+ * The chair shift is where this actually happens. It runs the afternoon before
+ * the match, the people drift in, the hall gets ready, and nobody thinks to
+ * open a screen and confirm anything. The event night has a routine around it;
+ * that afternoon does not.
+ *
+ * So this is read once, at the moment of closing, and the names are put in
+ * front of whoever is closing it. It decides nothing by itself: he goes back
+ * and marks them, or he closes anyway and the zeros are his to mean.
+ */
+export async function unmarkedAttendance(eventId: string): Promise<Unmarked> {
+  const [nightRows, seatRows] = await Promise.all([
+    db
+      .select({ name: teamMembers.fullName, status: attendance.status })
+      .from(eventMembers)
+      .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+      .leftJoin(attendance, eq(attendance.eventMemberId, eventMembers.id))
+      .where(and(eq(eventMembers.eventId, eventId), ne(eventMembers.status, 'CANCELLED'))),
+    db
+      .select({
+        name: teamMembers.fullName,
+        attended: seatSetupMembers.attended,
+        declinedAt: seatSetupMembers.declinedAt,
+      })
+      .from(seatSetupMembers)
+      .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
+      .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+      .where(eq(seatSetupMembers.eventId, eventId)),
+  ]);
+
+  /* A refusal is a decision; only silence counts here. */
+  return {
+    event: nightRows
+      .filter((row) => !row.status || row.status === 'PENDING')
+      .map((row) => row.name),
+    seats: seatRows
+      .filter((row) => !row.attended && !row.declinedAt)
+      .map((row) => row.name),
+  };
 }

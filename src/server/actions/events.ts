@@ -19,6 +19,7 @@ import {
   workspaceBase,
 } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
+import { unmarkedAttendance } from '@/server/services/seat-setup';
 import { cloneEventPlan } from '@/server/services/clone';
 import { setEventTeamLeader, setGateLeader } from '@/server/services/access';
 import { hrefForStep } from '@/features/event/setup-steps';
@@ -356,6 +357,39 @@ export async function changeEventStatusAction(
 
   const from = event.status as EventStatus;
   if (!EVENT_STATUS_FLOW[from]?.includes(next)) return fail(t.errors.forbidden);
+
+  /*
+   * Closing is the moment every undecided line turns into a zero.
+   *
+   * A man marked neither present nor absent earns nothing for the night, and
+   * a chair shift nobody approved earns nothing for the afternoon — silently,
+   * and the first anyone hears of it is a promoter asking why his week is
+   * short. The chair shift is where it really happens: it runs the day before,
+   * people drift in, the hall gets ready, and nobody opens a screen.
+   *
+   * So the names are put in front of whoever is closing it, once. He goes back
+   * and marks them, or he presses again and the zeros are his to mean.
+   */
+  if (next === 'COMPLETED' && !bool(form, 'force')) {
+    const open = await unmarkedAttendance(eventId);
+    const parts: string[] = [];
+    if (open.event.length) {
+      parts.push(`${t.event.unmarkedNight}: ${open.event.slice(0, 8).join('، ')}${
+        open.event.length > 8 ? ` +${open.event.length - 8}` : ''
+      }`);
+    }
+    if (open.seats.length) {
+      parts.push(`${t.event.unmarkedSeats}: ${open.seats.slice(0, 8).join('، ')}${
+        open.seats.length > 8 ? ` +${open.seats.length - 8}` : ''
+      }`);
+    }
+    if (parts.length) {
+      return {
+        status: 'conflict',
+        message: `${t.event.unmarkedTitle} — ${t.event.unmarkedWhy} ${parts.join(' · ')}`,
+      };
+    }
+  }
 
   if (next === 'READY' || next === 'LIVE') {
     const locations = await getStaffedLocations(eventId);

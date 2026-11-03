@@ -398,7 +398,7 @@ export default async function MemberPortalPage({
   );
 
   return (
-    <MemberShell>
+    <MemberShell back="/me">
       <div className="stagger space-y-4">
         {/* ---------------------------------------------------------------- */}
         {/* CLOSED — he declined, or his place went to somebody else.         */}
