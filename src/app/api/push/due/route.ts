@@ -1,9 +1,8 @@
-import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
-import { sendDueReminders } from '@/server/services/push';
+import { reminderText, sendDueReminders } from '@/server/services/push';
 
 /**
- * The hour-before reminders, for whoever is due at a gate.
+ * The clock reminders, for whoever is due, late to press, or about to leave.
  *
  * Open on purpose, and harmless because of what it does rather than who calls
  * it: it reads nothing out, writes nothing a caller controls, and sends each
@@ -12,26 +11,12 @@ import { sendDueReminders } from '@/server/services/push';
  *
  * Something has to call it. A cron does if the deployment has one; otherwise
  * the app calls it itself, from the pages people open on an event evening.
- * Both land here, and the sent-once record decides which of them was first.
+ * Both land here, and the sent-once record decides which was first.
  */
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const { t, locale } = await getT();
-  void locale;
-
-  const result = await sendDueReminders((row) => ({
-    title: t.push.arrivalTitle,
-    body: row.place
-      ? format(t.push.arrivalBody, {
-          event: row.event,
-          place: row.place,
-          time: row.time,
-        })
-      : format(t.push.arrivalBodyNoPlace, { event: row.event, time: row.time }),
-    url: '/me',
-    tag: 'arrival',
-  }));
-
+  const { t } = await getT();
+  const result = await sendDueReminders(reminderText(t));
   return Response.json(result, { headers: { 'Cache-Control': 'no-store' } });
 }

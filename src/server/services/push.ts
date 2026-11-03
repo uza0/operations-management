@@ -5,6 +5,7 @@ import { and, eq, gte, inArray, lte, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
+  attendance,
   eventMembers,
   events,
   gates,
@@ -14,6 +15,7 @@ import {
   workingPoints,
   assignments,
 } from '@/db/schema';
+import { format, type Dictionary } from '@/lib/i18n';
 import { newId } from '@/lib/ids';
 
 /**
@@ -205,95 +207,228 @@ export async function pushOnce(
 }
 
 /* -------------------------------------------------------------------------- */
-/* the hour before                                                            */
+/* the three reminders that are about the clock                               */
 /* -------------------------------------------------------------------------- */
 
-/** Baghdad, where the events are. */
+/** Baghdad, where the events are, and which keeps one offset all year. */
 const TZ = 'Asia/Baghdad';
+const BAGHDAD_OFFSET_MS = 3 * 60 * 60 * 1000;
 
-function nowInBaghdad() {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: TZ,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(new Date());
-  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
-  return {
-    date: `${get('year')}-${get('month')}-${get('day')}`,
-    minutes: Number(get('hour')) * 60 + Number(get('minute')),
-  };
+/**
+ * The exact moment a clock time on an event's date actually falls.
+ *
+ * A date and a wall clock are not a moment until a place is named, and the
+ * place is Baghdad. Doing it with a real timestamp rather than minutes-since-
+ * midnight is what makes a shift that ends at half past midnight behave: the
+ * clock reads 00:30, the event is dated the day before, and the two only
+ * reconcile as a moment.
+ */
+function momentOf(date: string, clock: string, addDays = 0): number {
+  const [y, m, d] = date.split('-').map(Number);
+  const [hh, mm] = clock.split(':').map(Number);
+  return (
+    Date.UTC(y, (m || 1) - 1, (d || 1) + addDays, hh || 0, mm || 0) - BAGHDAD_OFFSET_MS
+  );
 }
 
-const toMinutes = (clock: string) => {
-  const [h, m] = clock.split(':').map(Number);
-  return (h || 0) * 60 + (m || 0);
-};
+/** Today and yesterday in Baghdad — yesterday because shifts cross midnight. */
+function baghdadDates() {
+  const fmt = (shift: number) =>
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: TZ,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date(Date.now() + shift));
+  return [fmt(0), fmt(-24 * 60 * 60 * 1000)];
+}
 
 export type DueResult = { checked: number; sent: number };
 
+export type ReminderKind = 'ARRIVAL' | 'CHECK_IN' | 'CHECK_OUT';
+
+export type ReminderRow = {
+  kind: ReminderKind;
+  event: string;
+  place: string | null;
+  time: string;
+};
+
 /**
- * The reminder, for anybody due at the gate within the hour.
+ * Every reminder that is about the clock rather than about a decision.
  *
- * The window is wide on purpose — anything between forty and a hundred
- * minutes away — because what calls this is not a clock. It is a cron if the
- * deployment has one, and otherwise an ordinary page load on a busy evening,
- * which happens often but not on any schedule. A narrow window would mean a
- * reminder that simply never fires on a quiet afternoon.
+ * Three of them, and each one exists because of a thing people forget rather
+ * than a thing they do not know:
  *
- * Wide and sent-once together give the right behaviour: whoever calls first
- * sends it, everybody after finds it already sent.
+ *   An hour before he is due, that he is due. This one is about getting on a
+ *   bus in time, and it goes to everybody.
+ *
+ *   Half an hour before the match, to press "I arrived" — and only to whoever
+ *   has not pressed it. By then he is standing at his gate; what he has
+ *   forgotten is the phone in his pocket, and an unpressed arrival is a man
+ *   who worked a night the system has no record of.
+ *
+ *   Half an hour before the shift ends, to press "I am leaving" — and only to
+ *   whoever reported an arrival and no departure. People leave when the hall
+ *   empties, and nobody has ever remembered this on the way out.
+ *
+ * The window is wide (fifteen to forty-five minutes for the half-hour ones)
+ * because what calls this is not a clock: a cron if the deployment has one,
+ * and otherwise an ordinary page load. A narrow window would mean a reminder
+ * that simply never fires on a quiet afternoon. Wide and sent-once together
+ * give the right behaviour — whoever calls first sends it, everybody after
+ * finds it already sent.
  */
 export async function sendDueReminders(
-  text: (row: { event: string; place: string | null; time: string }) => Message,
+  text: (row: ReminderRow) => Message,
 ): Promise<DueResult> {
   if (!pushConfigured()) return { checked: 0, sent: 0 };
 
-  const { date, minutes } = nowInBaghdad();
+  const dates = baghdadDates();
+  const now = Date.now();
+
   const rows = await db
     .select({
       eventMemberId: eventMembers.id,
       teamMemberId: eventMembers.teamMemberId,
-      eventId: events.id,
       eventName: events.name,
+      eventDate: events.date,
+      eventStatus: events.status,
       arrival: events.teamArrivalTime,
+      start: events.startTime,
+      departure: events.teamDepartureTime,
       gateName: gates.name,
       pointName: workingPoints.name,
+      reportedArrivalAt: attendance.reportedArrivalAt,
+      reportedDepartureAt: attendance.reportedDepartureAt,
     })
     .from(eventMembers)
     .innerJoin(events, eq(eventMembers.eventId, events.id))
     .leftJoin(assignments, eq(assignments.eventMemberId, eventMembers.id))
     .leftJoin(gates, eq(assignments.gateId, gates.id))
     .leftJoin(workingPoints, eq(assignments.workingPointId, workingPoints.id))
+    .leftJoin(attendance, eq(attendance.eventMemberId, eventMembers.id))
     .where(
       and(
-        eq(events.date, date),
+        inArray(events.date, dates),
         ne(eventMembers.status, 'CANCELLED'),
         inArray(events.status, ['READY', 'LIVE']),
       ),
     );
 
   let sent = 0;
+
+  const offer = async (
+    key: string,
+    teamMemberId: string,
+    minutesAway: number,
+    low: number,
+    high: number,
+    message: Message,
+  ) => {
+    if (minutesAway < low || minutesAway > high) return;
+    if (await pushOnce(key, [teamMemberId], message)) sent += 1;
+  };
+
   for (const row of rows) {
-    if (!row.arrival) continue;
-    const away = toMinutes(row.arrival) - minutes;
-    if (away < 40 || away > 100) continue;
-    const did = await pushOnce(
-      `arrival:${row.eventMemberId}`,
-      [row.teamMemberId],
-      text({
-        event: row.eventName,
-        place: row.gateName ?? row.pointName ?? null,
-        time: row.arrival,
-      }),
-    );
-    if (did) sent += 1;
+    const place = row.gateName ?? row.pointName ?? null;
+    const away = (moment: number) => (moment - now) / 60000;
+
+    /* An hour before he is due at the gate. */
+    if (row.arrival) {
+      await offer(
+        `arrival:${row.eventMemberId}`,
+        row.teamMemberId,
+        away(momentOf(row.eventDate, row.arrival)),
+        40,
+        100,
+        text({ kind: 'ARRIVAL', event: row.eventName, place, time: row.arrival }),
+      );
+    }
+
+    /*
+     * Half an hour before the match, to press it — and only if he has not.
+     * A man who already reported his arrival is told nothing: a reminder to
+     * do what you have done is the one that teaches people to ignore them.
+     */
+    if (row.start && !row.reportedArrivalAt) {
+      await offer(
+        `checkin:${row.eventMemberId}`,
+        row.teamMemberId,
+        away(momentOf(row.eventDate, row.start)),
+        15,
+        45,
+        text({ kind: 'CHECK_IN', event: row.eventName, place, time: row.start }),
+      );
+    }
+
+    /*
+     * And half an hour before the shift ends, to press the other one.
+     *
+     * Only for somebody who reported an arrival and no departure — anybody
+     * else either never came or has already finished. A departure clock
+     * earlier than the arrival clock belongs to the next morning, which is
+     * the ordinary case for a night that ends at half past midnight.
+     */
+    if (row.departure && row.reportedArrivalAt && !row.reportedDepartureAt) {
+      const crossesMidnight =
+        Boolean(row.arrival) && row.departure < (row.arrival as string);
+      await offer(
+        `checkout:${row.eventMemberId}`,
+        row.teamMemberId,
+        away(momentOf(row.eventDate, row.departure, crossesMidnight ? 1 : 0)),
+        15,
+        45,
+        text({ kind: 'CHECK_OUT', event: row.eventName, place, time: row.departure }),
+      );
+    }
   }
+
   return { checked: rows.length, sent };
 }
+
+
+/* -------------------------------------------------------------------------- */
+/* what each of them says                                                     */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The wording, in one place.
+ *
+ * Both callers of the sweep — the endpoint a cron hits and the page load that
+ * does it when there is no cron — need the same three sentences, and two
+ * copies of a sentence is how one of them quietly stops matching the other.
+ */
+export const reminderText = (t: Dictionary) => (row: ReminderRow): Message => {
+  if (row.kind === 'CHECK_IN') {
+    return {
+      title: t.push.checkInTitle,
+      body: format(t.push.checkInBody, { event: row.event, time: row.time }),
+      url: '/me',
+      tag: 'checkin',
+    };
+  }
+  if (row.kind === 'CHECK_OUT') {
+    return {
+      title: t.push.checkOutTitle,
+      body: format(t.push.checkOutBody, { event: row.event }),
+      url: '/me',
+      tag: 'checkout',
+    };
+  }
+  return {
+    title: t.push.arrivalTitle,
+    body: row.place
+      ? format(t.push.arrivalBody, {
+          event: row.event,
+          place: row.place,
+          time: row.time,
+        })
+      : format(t.push.arrivalBodyNoPlace, { event: row.event, time: row.time }),
+    url: '/me',
+    tag: 'arrival',
+  };
+};
 
 export { gte, lte, teamMembers };
 

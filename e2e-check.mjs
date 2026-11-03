@@ -2006,6 +2006,77 @@ const notDue = Number((await db.prepare('select count(*) as n from push_sent').g
 check('and nobody outside the window is', notDue === 0, `${notDue}`);
 
 /*
+ * Half an hour before the match, to press "I arrived".
+ *
+ * By then he is standing at his gate; what he has forgotten is the phone in
+ * his pocket, and an unpressed arrival is a man who worked a night the system
+ * has no record of — and is paid nothing for when it closes.
+ */
+const clockAt = (offsetMinutes) => {
+  const at = Number(bPart('hour')) * 60 + Number(bPart('minute')) + offsetMinutes;
+  return `${String(Math.floor((at % 1440) / 60)).padStart(2, '0')}:${
+    String(at % 60).padStart(2, '0')}`;
+};
+
+await db.exec(
+  "update events set team_arrival_time='23:59', start_time=?, team_departure_time=null where id=?",
+  clockAt(30), pushEvent.id);
+await db.exec(
+  `update attendance set reported_arrival_at = null, reported_departure_at = null
+    where event_member_id = ?`, pushEvent.member_id);
+await db.exec("delete from push_sent");
+await promo.evaluate((u) => fetch(u).then((r) => r.json()), `${BASE}/api/push/due`);
+check('half an hour before the match he is reminded to press «وصلت»',
+  Boolean(await db.prepare('select id from push_sent where id = ?')
+    .get('checkin:' + pushEvent.member_id)), '');
+
+/* And a man who already pressed it is told nothing. */
+await db.exec(
+  `update attendance set reported_arrival_at = strftime('%s','now') * 1000
+    where event_member_id = ?`, pushEvent.member_id);
+await db.exec("delete from push_sent");
+await promo.evaluate((u) => fetch(u).then((r) => r.json()), `${BASE}/api/push/due`);
+check('and whoever already pressed it is left alone',
+  !(await db.prepare('select id from push_sent where id = ?')
+    .get('checkin:' + pushEvent.member_id)), '');
+
+/*
+ * Half an hour before the shift ends, to press the other one. Only for
+ * somebody who reported an arrival and no departure: anybody else either
+ * never came or has already finished.
+ */
+/*
+ * A sane arrival as well as a departure. The sweep reads a departure clock
+ * earlier than the arrival clock as "the next morning", which is right for a
+ * night that ends at half past midnight and wrong for the 23:59 the previous
+ * check left behind.
+ */
+await db.exec(
+  "update events set team_arrival_time=?, team_departure_time=? where id=?",
+  clockAt(-90), clockAt(30), pushEvent.id);
+await db.exec("delete from push_sent");
+await promo.evaluate((u) => fetch(u).then((r) => r.json()), `${BASE}/api/push/due`);
+check('half an hour before the shift ends he is reminded to press «خروج»',
+  Boolean(await db.prepare('select id from push_sent where id = ?')
+    .get('checkout:' + pushEvent.member_id)), '');
+
+await db.exec(
+  `update attendance set reported_departure_at = strftime('%s','now') * 1000
+    where event_member_id = ?`, pushEvent.member_id);
+await db.exec("delete from push_sent");
+await promo.evaluate((u) => fetch(u).then((r) => r.json()), `${BASE}/api/push/due`);
+check('and whoever already left is not chased',
+  !(await db.prepare('select id from push_sent where id = ?')
+    .get('checkout:' + pushEvent.member_id)), '');
+
+/* Put the row back as it was, so nothing after this reads a fixture. */
+await db.exec(
+  `update attendance set reported_arrival_at = null, reported_departure_at = null
+    where event_member_id = ?`, pushEvent.member_id);
+await db.exec("update events set team_departure_time=null where id=?", pushEvent.id);
+await db.exec("delete from push_sent");
+
+/*
  * Losing the code takes the phone off the list. A subscription outlives a
  * session — the browser keeps it and the push service never hears about a
  * sign-out — so a man taken off the team would go on being told about events

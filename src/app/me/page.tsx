@@ -10,7 +10,12 @@ import { currentUser, homeFor } from '@/server/auth/rbac';
 import { getMemberHome, type MemberHome } from '@/server/services/member-home';
 import { memberLedger } from '@/server/services/credit';
 import { memberSignOutAction } from '@/server/actions/member-auth';
-import { pushPublicKey, sendDueReminders, sweepInBackground } from '@/server/services/push';
+import {
+  pushPublicKey,
+  reminderText,
+  sendDueReminders,
+  sweepInBackground,
+} from '@/server/services/push';
 import { Badge, eventStatusTone } from '@/components/ui/status';
 import { ConfirmSubmit } from '@/components/ui/client';
 import { IconCalendar, IconClock, IconPin } from '@/components/ui/icons';
@@ -127,20 +132,8 @@ export default async function MemberHomePage() {
    * hour. Not awaited and never fatal — this page is his, not the sweep's.
    */
   sweepInBackground(async () => {
-    const { t: text, locale: lang } = await getT();
-    void lang;
-    await sendDueReminders((row) => ({
-      title: text.push.arrivalTitle,
-      body: row.place
-        ? format(text.push.arrivalBody, {
-            event: row.event,
-            place: row.place,
-            time: row.time,
-          })
-        : format(text.push.arrivalBodyNoPlace, { event: row.event, time: row.time }),
-      url: '/me',
-      tag: 'arrival',
-    }));
+    const { t: text } = await getT();
+    await sendDueReminders(reminderText(text));
   });
 
   const [{ locale, t }, home, ledger, staff] = await Promise.all([
