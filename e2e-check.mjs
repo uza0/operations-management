@@ -3217,6 +3217,30 @@ for (let i = 0; i < payPeople.length; i++) {
     ACCOUNTS[i % ACCOUNTS.length], payPeople[i].id);
 }
 
+/*
+ * Two of them share one card, which is an arrangement and not a fault: not
+ * everybody has a bank account, so a pair put one card between them and
+ * divide the money when it lands. Both names sit against that number in the
+ * company register, so the transfer reaches the same place whichever we
+ * write — the file must say so and carry on, not refuse to pay them.
+ */
+const sharers = payPeople.slice(0, 2);
+for (const person of sharers) {
+  await db.exec('update team_members set card_number = ? where id = ?',
+    '3606040024', person.id);
+}
+await pay.goto(`${BASE}/admin/payments?from=${paySpan.lo}&to=${paySpan.hi}`,
+  { waitUntil: 'networkidle' });
+const sharedText = await pay.textContent('main');
+check('a shared card does not block the file',
+  !(await pay.locator('button:has-text("سوّي الملف")').isDisabled()), '');
+check('and the page says who shares it',
+  sharedText.includes('حسابات مشتركة بهذا الملف') && sharedText.includes('3606040024'), '');
+for (let i = 0; i < sharers.length; i++) {
+  await db.exec('update team_members set card_number = ? where id = ?',
+    ACCOUNTS[i % ACCOUNTS.length], sharers[i].id);
+}
+
 const owedLines = Number((await db.prepare(`
   select count(*) as n from event_members em join events e on e.id = em.event_id
    where em.payout_id is null and e.status in ('COMPLETED','ARCHIVED')`).get()).n);

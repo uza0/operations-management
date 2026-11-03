@@ -693,11 +693,12 @@ export const en: Dictionary = {
       "A row whose account their register does not know appears in no total and moves no money — and nobody notices until the man asks where his pay went.",
     noCard: 'no Super Key card number',
     notRegistered: "not in the company's Promoters register",
-    sharedAccount: 'account shared by more than one name — the company must decide',
     noEventId: 'event has no Event ID',
-    sharedWarn: "Duplicate accounts in the company's register",
+    sharedWarn: 'Shared accounts in this file',
     sharedWarnWhy:
-      'Not ours: in their own register one account number is written against more than one name. One transfer reaches one of them and the other gets nothing. The company has to settle it on their side.',
+      'Not a fault. Some people have no bank account, so two friends share one card and divide the money when it lands. Both names sit against the same number in the company register, so the transfer reaches the same place whichever name we write. Once a man has a card of his own, put his number on his team page and it sorts itself out.',
+    nameGuessedWhy:
+      "These go out under the company's spelling rather than ours, because our name matches neither of the two on the account. The money lands correctly either way — but if a name looks wrong to you, a card number may be sitting on the wrong person's page.",
     history: 'Files sent',
     historyEmpty: 'No file has gone out yet.',
     historyHint: 'Every file is kept exactly as it went — three weeks later the question is never what was owed but what was sent.',

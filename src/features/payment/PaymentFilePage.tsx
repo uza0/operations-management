@@ -106,9 +106,7 @@ export async function PaymentFilePage({
                     ? t.payment.noCard
                     : b.kind === 'NOT_REGISTERED'
                       ? t.payment.notRegistered
-                      : b.kind === 'SHARED_ACCOUNT'
-                        ? t.payment.sharedAccount
-                        : t.payment.noEventId}
+                      : t.payment.noEventId}
                 </span>
               </li>
             ))}
@@ -123,10 +121,24 @@ export async function PaymentFilePage({
             {preview.shared.map((row) => (
               <li key={row.account} className="flex flex-wrap gap-x-2">
                 <span className="nums text-ink-400">{row.account}</span>
-                <span style={{ unicodeBidi: 'plaintext' }}>{row.names.join(' / ')}</span>
+                <span style={{ unicodeBidi: 'plaintext' }}>{row.names.join(' + ')}</span>
               </li>
             ))}
           </ul>
+          {preview.warnings.length ? (
+            <>
+              <p className="mt-4 mb-2 text-[12.5px] leading-6 text-ink-400">
+                {t.payment.nameGuessedWhy}
+              </p>
+              <ul className="space-y-1 text-[13.5px] text-ink-200">
+                {preview.warnings.map((w) => (
+                  <li key={w.label} style={{ unicodeBidi: 'plaintext' }}>
+                    {w.label}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
         </Panel>
       ) : null}
 

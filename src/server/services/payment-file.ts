@@ -113,10 +113,15 @@ const decode = (t: string) =>
 /**
  * Their register, keyed by account number — which is our card number.
  *
- * Every account keeps a list rather than a name, because three of theirs are
- * shared by two different people. One account, two names: the transfer lands
- * somewhere, and whoever is not on the row never finds out why nothing came.
- * A list makes that visible instead of letting the first row win.
+ * Every account keeps a list rather than a name, because some of theirs are
+ * shared on purpose. Not everybody has a bank account, so two friends put one
+ * card between them and divide the money when it lands. Their register lists
+ * both names against the same number, which means either name resolves to the
+ * same account and the transfer is right whichever one we write.
+ *
+ * So a shared account is an arrangement, not a fault. What the list is for is
+ * writing the right man's name on the row when we can, and saying plainly
+ * when we could not — never for refusing to pay him.
  */
 export type Register = Map<string, string[]>;
 
@@ -134,7 +139,7 @@ export function companyRegister(template: Buffer): Register {
   return out;
 }
 
-/** Their register's duplicated accounts, for the company to settle. */
+/** The accounts two people share, so the page can say who shares what. */
 export function sharedAccounts(register: Register) {
   return [...register.entries()]
     .filter(([, names]) => names.length > 1)
@@ -148,25 +153,36 @@ const fold = (name: string) =>
     .replace(/\s+/g, ' ')
     .trim();
 
-/**
- * Their spelling of this person, or null when the register cannot say.
- *
- * The account alone decides it when the account belongs to one person. When
- * two people share it, the name has to agree as well — and when it does not,
- * nothing is returned, because a guess here is a transfer to the wrong man.
- */
+export type NameMatch =
+  /** Their register knows this account and we are sure whose name to write. */
+  | { name: string; sure: true }
+  /**
+   * A shared account whose two names neither of them spells the way we do.
+   *
+   * The money still lands in the right place — both names point at the same
+   * account — so this is not a reason to hold the file. It is a reason to say
+   * on screen that the row will carry their spelling and not ours, in case
+   * what it really means is that a card number was typed in wrong.
+   */
+  | { name: string; sure: false; candidates: string[] }
+  /** The register does not have this account at all. */
+  | null;
+
+/** Their spelling of this person, and how sure we are of it. */
 export function registerName(
   register: Register,
   ourName: string,
   card: string | null,
-): string | null {
+): NameMatch {
   if (!card) return null;
   const names = register.get(card.trim());
   if (!names?.length) return null;
-  if (names.length === 1) return names[0];
+  if (names.length === 1) return { name: names[0], sure: true };
 
   const ours = fold(ourName);
-  return names.find((n) => fold(n) === ours) ?? null;
+  const exact = names.find((n) => fold(n) === ours);
+  if (exact) return { name: exact, sure: true };
+  return { name: names[0], sure: false, candidates: names };
 }
 
 export async function activeTemplate() {
@@ -346,10 +362,10 @@ export async function collect(range: Range): Promise<Bundle> {
 /* what would stop it                                                          */
 /* -------------------------------------------------------------------------- */
 
-export type Blocker = {
-  kind: 'NO_CARD' | 'NOT_REGISTERED' | 'SHARED_ACCOUNT' | 'NO_EVENT_ID';
-  label: string;
-};
+export type Blocker = { kind: 'NO_CARD' | 'NOT_REGISTERED' | 'NO_EVENT_ID'; label: string };
+
+/** Worth saying, not worth stopping for. */
+export type Warning = { kind: 'NAME_GUESSED'; label: string };
 
 /**
  * Everything that would make the file unpayable, named before it is written.
@@ -370,11 +386,8 @@ export function blockers(bundle: Bundle, register: Register): Blocker[] {
       out.push({ kind: 'NO_CARD', label: name });
       return;
     }
-    const names = register.get(card.trim());
-    if (!names?.length) {
+    if (!registerName(register, name, card)) {
       out.push({ kind: 'NOT_REGISTERED', label: `${name} — ${card}` });
-    } else if (!registerName(register, name, card)) {
-      out.push({ kind: 'SHARED_ACCOUNT', label: `${name} — ${card} (${names.join(' / ')})` });
     }
   };
 
@@ -387,13 +400,38 @@ export function blockers(bundle: Bundle, register: Register): Blocker[] {
   return out;
 }
 
+/**
+ * Rows that will carry a name we are not certain of.
+ *
+ * The account is shared and neither of the names on it is spelled the way we
+ * spell his, so the row goes out under their spelling. The transfer is right
+ * — one account, one destination — but it is the kind of thing worth a look,
+ * because the innocent explanation is a shared card and the other one is a
+ * card number typed into the wrong person's row.
+ */
+export function warnings(bundle: Bundle, register: Register): Warning[] {
+  const out: Warning[] = [];
+  const seen = new Set<string>();
+  const check = (name: string, card: string | null) => {
+    if (seen.has(name)) return;
+    seen.add(name);
+    const match = registerName(register, name, card);
+    if (match && !match.sure) {
+      out.push({ kind: 'NAME_GUESSED', label: `${name} → ${match.candidates.join(' / ')}` });
+    }
+  };
+  for (const fee of bundle.fees) check(fee.memberName, fee.card);
+  for (const cost of bundle.costs) if (cost.memberName) check(cost.memberName, cost.card);
+  return out;
+}
+
 /* -------------------------------------------------------------------------- */
 /* the workbook                                                               */
 /* -------------------------------------------------------------------------- */
 
 /** Their name for this person, so their own lookup finds the account. */
 const theirName = (register: Register, name: string, card: string | null) =>
-  registerName(register, name, card) ?? name;
+  registerName(register, name, card)?.name ?? name;
 
 export function buildWorkbook(template: Buffer, bundle: Bundle, register: Register): Buffer {
   const eventRows: CellValue[][] = [];
@@ -462,7 +500,9 @@ export type Preview = {
   range: Range;
   bundle: Bundle;
   blockers: Blocker[];
-  /** Their register's own duplicated accounts, for them to settle. */
+  /** Rows going out under a name we had to pick. */
+  warnings: Warning[];
+  /** The accounts two people share between them. */
   shared: { account: string; names: string[] }[];
   /** Null when nobody has uploaded the company's workbook yet. */
   template: { fileName: string; uploadedByName: string; createdAt: Date } | null;
@@ -471,7 +511,7 @@ export type Preview = {
 export async function previewExport(range: Range): Promise<Preview> {
   const [bundle, row] = await Promise.all([collect(range), activeTemplate()]);
   if (!row) {
-    return { range, bundle, blockers: [], shared: [], template: null };
+    return { range, bundle, blockers: [], warnings: [], shared: [], template: null };
   }
 
   const template = Buffer.from(row.bytes as Buffer);
@@ -480,7 +520,15 @@ export async function previewExport(range: Range): Promise<Preview> {
     range,
     bundle,
     blockers: blockers(bundle, register),
-    shared: sharedAccounts(register),
+    warnings: warnings(bundle, register),
+    /*
+     * Only the ones this file actually pays. Their whole register has a
+     * handful of shared cards in it; listing all of them every week would be
+     * noise about people who did not work.
+     */
+    shared: sharedAccounts(register).filter((row) =>
+      bundle.fees.some((f) => f.card?.trim() === row.account),
+    ),
     template: {
       fileName: row.fileName,
       uploadedByName: row.uploadedByName,
