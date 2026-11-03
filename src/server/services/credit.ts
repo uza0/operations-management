@@ -254,7 +254,7 @@ type SeatPay = {
   earned: Map<string, number>;
 };
 
-async function seatPayByMember(): Promise<SeatPay> {
+export async function seatPayByMember(): Promise<SeatPay> {
   const rows = await db
     .select({
       eventMemberId: seatSetupMembers.eventMemberId,

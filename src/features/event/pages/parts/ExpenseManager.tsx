@@ -103,6 +103,7 @@ export function ExpenseManager({
         <ExpenseDialog
           t={t}
           eventId={eventId}
+          roster={data.roster}
           line={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
           onDone={close}
@@ -143,6 +144,14 @@ function ExpenseRow({
           <span style={{ unicodeBidi: 'plaintext' }}>{line.createdByName}</span>
           <span aria-hidden className="text-ink-600">·</span>
           <span className="nums">{formatDateTime(line.createdAt, locale)}</span>
+          {line.paidToName ? (
+            <>
+              <span aria-hidden className="text-ink-600">·</span>
+              <span className="text-brand-300" style={{ unicodeBidi: 'plaintext' }}>
+                {t.expense.paidTo}: {line.paidToName}
+              </span>
+            </>
+          ) : null}
         </p>
       </div>
 
@@ -173,12 +182,14 @@ function ExpenseRow({
 function ExpenseDialog({
   t,
   eventId,
+  roster,
   line,
   onClose,
   onDone,
 }: {
   t: Dictionary;
   eventId: string;
+  roster: { id: string; name: string }[];
   line: ExpenseLine | null;
   onClose: () => void;
   onDone: () => void;
@@ -241,6 +252,34 @@ function ExpenseDialog({
               ))}
             </select>
           </div>
+        </div>
+
+        {/*
+          Who the money was handed to, or nobody.
+          
+          Optional on purpose, and defaulting to nobody: most of these sums are
+          the evening's own cost and naming a person for them would be wrong.
+          The ones that do go into a hand are what the company's payment file
+          wants on that person's row, beside his account number.
+        */}
+        <div>
+          <label className="field-label" htmlFor="x-paid-to">
+            {t.expense.paidTo}
+          </label>
+          <select
+            id="x-paid-to"
+            name="teamMemberId"
+            className="field"
+            defaultValue={line?.teamMemberId ?? ''}
+          >
+            <option value="">{t.expense.paidToNone}</option>
+            {roster.map((person) => (
+              <option key={person.id} value={person.id}>
+                {person.name}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1 text-[12px] leading-5 text-ink-500">{t.expense.paidToHint}</p>
         </div>
 
         <Notice tone="info">{t.expense.notPay}</Notice>

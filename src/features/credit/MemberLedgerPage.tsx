@@ -25,7 +25,21 @@ import { RateForm } from './RateForm';
  * the number, because a balance nobody can trace is a balance people argue
  * about.
  */
-export async function MemberLedgerPage({ memberId }: { memberId: string }) {
+export async function MemberLedgerPage({
+  memberId,
+  /**
+   * Whether the viewer may set this person's rate.
+   *
+   * The team leader reads this page — he is the one asked why a wage is less
+   * than last week — but the rate itself is the supervisor's to move. The
+   * action behind the form checks that for itself; the form is hidden here so
+   * nobody is offered a button that will only refuse him.
+   */
+  canSetRate = true,
+}: {
+  memberId: string;
+  canSetRate?: boolean;
+}) {
   const { locale, t } = await getT();
   const ledger = await memberLedger(memberId);
   if (!ledger) notFound();
@@ -52,16 +66,18 @@ export async function MemberLedgerPage({ memberId }: { memberId: string }) {
         subtitle={`${t.credit.ledgerSubtitle} · ${ledger.employeeCode}`}
       />
 
-      <div className="mb-4">
-        <RateForm
-          t={t}
-          locale={locale}
-          memberId={memberId}
-          current={person?.defaultPay ?? null}
-          today={today}
-          history={rateHistory}
-        />
-      </div>
+      {canSetRate ? (
+        <div className="mb-4">
+          <RateForm
+            t={t}
+            locale={locale}
+            memberId={memberId}
+            current={person?.defaultPay ?? null}
+            today={today}
+            history={rateHistory}
+          />
+        </div>
+      ) : null}
 
       <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <StatTile

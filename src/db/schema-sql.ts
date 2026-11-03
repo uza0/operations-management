@@ -1,6 +1,6 @@
 /**
  * GENERATED FILE — do not edit.
- * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql, 0014_jittery_venus.sql, 0015_curved_grim_reaper.sql, 0016_hard_the_phantom.sql, 0017_glamorous_clea.sql, 0018_loose_spacker_dave.sql, 0019_hard_slapstick.sql, 0020_oval_quentin_quire.sql, 0021_complete_viper.sql.
+ * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql, 0014_jittery_venus.sql, 0015_curved_grim_reaper.sql, 0016_hard_the_phantom.sql, 0017_glamorous_clea.sql, 0018_loose_spacker_dave.sql, 0019_hard_slapstick.sql, 0020_oval_quentin_quire.sql, 0021_complete_viper.sql, 0022_neat_turbo.sql.
  * Regenerate after changing src/db/schema.ts:
  *   npx drizzle-kit generate && node scripts/embed-schema.mjs
  */
@@ -138,4 +138,12 @@ export const SCHEMA_STATEMENTS: string[] = [
   "ALTER TABLE `team_members` ADD `access_code_hash` text",
   "ALTER TABLE `team_members` ADD `access_code_set_at` integer",
   "ALTER TABLE `team_members` ADD `access_code_revoked_at` integer",
+  "CREATE TABLE IF NOT EXISTS `payment_templates` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`file_name` text NOT NULL,\n\t`bytes` blob NOT NULL,\n\t`size` integer NOT NULL,\n\t`active` integer DEFAULT true NOT NULL,\n\t`uploaded_by_id` text,\n\t`uploaded_by_name` text NOT NULL,\n\t`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\t`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\tFOREIGN KEY (`uploaded_by_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n)",
+  "ALTER TABLE `event_expenses` ADD `team_member_id` text REFERENCES team_members(id)",
+  "ALTER TABLE `event_expenses` ADD `payout_id` text REFERENCES payouts(id)",
+  "CREATE INDEX IF NOT EXISTS `event_expenses_payout_idx` ON `event_expenses` (`payout_id`)",
+  "ALTER TABLE `payouts` ADD `expenses_total` real DEFAULT 0 NOT NULL",
+  "ALTER TABLE `payouts` ADD `row_count` integer DEFAULT 0 NOT NULL",
+  "ALTER TABLE `payouts` ADD `file_name` text",
+  "ALTER TABLE `payouts` ADD `file_bytes` blob",
 ];

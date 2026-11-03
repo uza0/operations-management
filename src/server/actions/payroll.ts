@@ -5,6 +5,7 @@ import { and, eq, gte, inArray, isNull, lte, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
+  eventExpenses,
   eventMembers,
   events,
   memberRates,
@@ -34,6 +35,8 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 function revalidate() {
   revalidatePath('/admin/credits');
   revalidatePath('/admin/team');
+  revalidatePath('/admin/payments');
+  revalidatePath('/leader/payments');
 }
 
 /**
@@ -303,6 +306,15 @@ export async function reversePayoutAction(
     .update(eventMembers)
     .set({ payoutId: null, updatedAt: new Date() })
     .where(eq(eventMembers.payoutId, id));
+  /*
+   * And the costs. A handover made from the payment file carries event costs
+   * as well as wages; untying only the wages would leave those costs tied to
+   * a handover that no longer exists, which is to say paid for ever.
+   */
+  await db
+    .update(eventExpenses)
+    .set({ payoutId: null, updatedAt: new Date() })
+    .where(eq(eventExpenses.payoutId, id));
   await db.delete(payouts).where(eq(payouts.id, id));
 
   await recordAudit({

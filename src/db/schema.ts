@@ -949,6 +949,29 @@ export const eventExpenses = sqliteTable(
     description: text('description').notNull(),
     /** Dinars. */
     amount: real('amount').notNull(),
+    /**
+     * Who it was paid to, when it was paid to somebody.
+     *
+     * Most costs belong to the evening and to nobody in particular — water for
+     * the crew, a roll of tape. Some are handed to a person: a taxi fare, a
+     * phone top-up. The company's payment file draws that same line, and draws
+     * it by bank account: a cost with a name on it goes out on the person's
+     * own row, alongside their fee, and one without goes on the sheet of
+     * running costs. Null is the ordinary case.
+     */
+    teamMemberId: text('team_member_id').references(() => teamMembers.id, {
+      onDelete: 'set null',
+    }),
+    /**
+     * The handover this cost went out in, if it has gone out.
+     *
+     * The same stamp the fees carry, and for the same reason: the file it
+     * names is a transfer instruction, and anything unstamped is picked up by
+     * the next one. Without it every export would carry the same costs again.
+     */
+    payoutId: text('payout_id').references(() => payouts.id, {
+      onDelete: 'set null',
+    }),
     /** Who entered it — a cost with no name on it is one nobody answers for. */
     createdById: text('created_by_id').references(() => users.id, {
       onDelete: 'set null',
@@ -956,7 +979,10 @@ export const eventExpenses = sqliteTable(
     createdByName: text('created_by_name').notNull(),
     ...timestamps,
   },
-  (t) => [index('event_expenses_event_idx').on(t.eventId)],
+  (t) => [
+    index('event_expenses_event_idx').on(t.eventId),
+    index('event_expenses_payout_idx').on(t.payoutId),
+  ],
 );
 
 /**
@@ -1018,6 +1044,18 @@ export const payouts = sqliteTable(
     /** How many people it covered. */
     peopleCount: integer('people_count').notNull().default(0),
     note: text('note'),
+    /** What the running costs in this handover came to, beside the fees. */
+    expensesTotal: real('expenses_total').notNull().default(0),
+    /** How many lines went out in it — fees and costs together. */
+    rowCount: integer('row_count').notNull().default(0),
+    /**
+     * The workbook exactly as it left, so it can be downloaded again as it was
+     * sent rather than regenerated. A handover is a document somebody acted
+     * on; rebuilding it later from today's data would quietly answer a
+     * different question.
+     */
+    fileName: text('file_name'),
+    fileBytes: blob('file_bytes', { mode: 'buffer' }),
     createdById: text('created_by_id').references(() => users.id, {
       onDelete: 'set null',
     }),
@@ -1026,6 +1064,32 @@ export const payouts = sqliteTable(
   },
   (t) => [index('payouts_range_idx').on(t.fromDate, t.toDate)],
 );
+
+/**
+ * The company's own payment workbook, kept as the template to fill.
+ *
+ * Their form is fixed and we do not reproduce it — we write three sheets of
+ * data into their own file and leave the rest of it, formulas and all, exactly
+ * as they built it. Their Checks sheet then audits our figures by their rules,
+ * which is what makes the file trustworthy to them on the first try. When they
+ * change the form, a new upload is the whole migration.
+ *
+ * Stored in the database rather than on disk because the host has no writable
+ * filesystem.
+ */
+export const paymentTemplates = sqliteTable('payment_templates', {
+  id: text('id').primaryKey(),
+  fileName: text('file_name').notNull(),
+  bytes: blob('bytes', { mode: 'buffer' }).notNull(),
+  size: integer('size').notNull(),
+  /** Only one is current; uploading a new one retires the last. */
+  active: integer('active', { mode: 'boolean' }).notNull().default(true),
+  uploadedById: text('uploaded_by_id').references(() => users.id, {
+    onDelete: 'set null',
+  }),
+  uploadedByName: text('uploaded_by_name').notNull(),
+  ...timestamps,
+});
 
 /* -------------------------------------------------------------------------- */
 /* Feedback                                                                    */
@@ -1452,6 +1516,7 @@ export const memberLoginAttempts = sqliteTable(
   (t) => [index('member_login_attempts_phone_idx').on(t.phoneKey, t.attemptedAt)],
 );
 
+export type PaymentTemplate = typeof paymentTemplates.$inferSelect;
 export type MemberSession = typeof memberSessions.$inferSelect;
 export type MemberLoginAttempt = typeof memberLoginAttempts.$inferSelect;
 

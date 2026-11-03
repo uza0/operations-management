@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { eventExpenses } from '@/db/schema';
+import { eventExpenses, eventMembers } from '@/db/schema';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
 import { MAX_EVENT_PAY } from '@/lib/money';
@@ -56,6 +56,24 @@ export async function saveExpenseAction(
   const amount = readAmount(str(form, 'amount'));
   if (amount === null) return fail(t.errors.invalidCredit);
 
+  /*
+   * Who the money went to, when it went to a person.
+   *
+   * Checked against this event's own roster rather than taken on trust: the
+   * field decides which row of the company's payment file the sum lands on,
+   * and a member id from another event would put somebody else's name beside
+   * a transfer. Anything that is not on this roster is treated as a general
+   * cost, which is what the field means when it is left alone.
+   */
+  const paidTo = str(form, 'teamMemberId');
+  const teamMemberId = paidTo
+    ? ((
+        await db.query.eventMembers.findFirst({
+          where: and(eq(eventMembers.eventId, eventId), eq(eventMembers.teamMemberId, paidTo)),
+        })
+      )?.teamMemberId ?? null)
+    : null;
+
   const picked = str(form, 'category');
   const category =
     picked && (EXPENSE_CATEGORIES as readonly string[]).includes(picked) ? picked : 'OTHER';
@@ -67,10 +85,16 @@ export async function saveExpenseAction(
       where: and(eq(eventExpenses.id, id), eq(eventExpenses.eventId, eventId)),
     });
     if (!existing) return fail(t.errors.notFound);
+    /*
+     * A cost that has already gone out in a payment file is history. The
+     * company has the figure; changing it here would leave our books saying
+     * one thing and the transfer saying another. Reverse the handover first.
+     */
+    if (existing.payoutId) return fail(t.credit.alreadyPaid);
 
     await db
       .update(eventExpenses)
-      .set({ category, description, amount, updatedAt: new Date() })
+      .set({ category, description, amount, teamMemberId, updatedAt: new Date() })
       .where(eq(eventExpenses.id, id));
 
     await recordAudit({
@@ -81,8 +105,8 @@ export async function saveExpenseAction(
       entity: 'EVENT',
       entityId: id,
       entityLabel: description,
-      oldValues: { amount: existing.amount },
-      newValues: { amount },
+      oldValues: { amount: existing.amount, teamMemberId: existing.teamMemberId },
+      newValues: { amount, teamMemberId },
       summary: `${t.expense.title}: ${description} — ${amount}`,
     });
   } else {
@@ -93,6 +117,7 @@ export async function saveExpenseAction(
       category,
       description,
       amount,
+      teamMemberId,
       createdById: user.id,
       createdByName: user.name,
     });
@@ -105,7 +130,7 @@ export async function saveExpenseAction(
       entity: 'EVENT',
       entityId: newRow,
       entityLabel: description,
-      newValues: { amount, category },
+      newValues: { amount, category, teamMemberId },
       summary: `${t.expense.title}: ${description} — ${amount}`,
     });
   }
@@ -130,6 +155,7 @@ export async function removeExpenseAction(
     where: and(eq(eventExpenses.id, id), eq(eventExpenses.eventId, eventId)),
   });
   if (!existing) return fail(t.errors.notFound);
+  if (existing.payoutId) return fail(t.credit.alreadyPaid);
 
   await db.delete(eventExpenses).where(eq(eventExpenses.id, id));
 

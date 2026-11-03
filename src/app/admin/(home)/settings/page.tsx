@@ -9,12 +9,23 @@ import { Badge } from '@/components/ui/status';
 import { Notice } from '@/components/ui/states';
 import type { Role } from '@/lib/constants';
 
+import { TemplateForm } from '@/features/payment/TemplateForm';
+import { activeTemplate } from '@/server/services/payment-file';
+
 import { PasswordForm } from './PasswordForm';
 
 /** Users and access. Account creation is intentionally out of MVP scope. */
 export default async function SettingsPage() {
   const me = await requireRole('ADMIN');
-  const { t } = await getT();
+  const { t, locale } = await getT();
+  const templateRow = await activeTemplate();
+  const template = templateRow
+    ? {
+        fileName: templateRow.fileName,
+        uploadedByName: templateRow.uploadedByName,
+        createdAt: templateRow.createdAt,
+      }
+    : null;
 
   const accounts = await db
     .select({
@@ -48,6 +59,10 @@ export default async function SettingsPage() {
 
         <Panel title={t.auth.changePassword} className="lg:col-span-1">
           <PasswordForm t={t} />
+        </Panel>
+
+        <Panel title={t.payment.template} className="lg:col-span-1">
+          <TemplateForm t={t} locale={locale} current={template} />
         </Panel>
 
         <Panel title={t.enums.auditEntity.USER} className="lg:col-span-3" bodyClassName="p-0">

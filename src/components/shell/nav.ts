@@ -25,6 +25,7 @@ export function globalNav(t: Dictionary, role: Role): NavSection[] {
           { href: '/admin/venues', label: t.nav.venues, icon: 'pin' },
           { href: '/admin/team', label: t.nav.team, icon: 'users' },
           { href: '/admin/credits', label: t.nav.credits, icon: 'report' },
+          { href: '/admin/payments', label: t.payment.nav, icon: 'report' },
           { href: '/admin/settings', label: t.nav.settings, icon: 'settings' },
           /*
            * Some of the people who run events also work them. Their promoter
@@ -50,6 +51,12 @@ export function globalNav(t: Dictionary, role: Role): NavSection[] {
    */
   if (role === 'TEAM_LEADER') {
     items.push({ href: '/leader/credits', label: t.nav.credits, icon: 'report' });
+    /*
+     * And the week's file. He is the one the company asks for it, so the
+     * screen that builds it belongs to him rather than to a supervisor who
+     * would have to be found on a Sunday evening.
+     */
+    items.push({ href: '/leader/payments', label: t.payment.nav, icon: 'report' });
   }
   items.push({ href: '/me', label: t.memberAuth.openAsMember, icon: 'users' });
 

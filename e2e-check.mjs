@@ -3155,6 +3155,157 @@ check('and no two people share a phone number', Number(phoneDupes.n) === 0,
   `${phoneDupes.n}`);
 
 
+
+/* ---- the company's weekly payment file --------------------------------- */
+
+/*
+ * The file is the handover. Every week the company hands the team leader a
+ * workbook, he fills it, and the money moves on what it says — so building it
+ * from here and marking the week as gone out have to be one act. A file that
+ * leaves without the mark pays everybody twice next week; a mark without a
+ * file pays nobody at all. These checks are mostly about that one pairing.
+ */
+
+/* Their register holds these account numbers; the Super Key card is one. */
+const ACCOUNTS = ["3451513422","2966234318","910177718624","8491719079","1872170244","910437364151","6551315226","3121668366","7113151521","7116308128","9297207830","9367312874","910420278814","4368317451","8238067634","4782169892","5215063586","7113508290","7113947142","7118426365","7648433014","2404324325","5066087528","7110469587","7113884923","1943362929","5875804204","910103209276","910198209157","9903960145","7118598155","917350505744","3299690747","8211870012","7169267940","9490191625","7151245581","2398940250","910162168520","7115887817","910106165004","8457396748","2680251564","6754031802","7158382049","5497470061","9216803958","2907379735","5494257503","7155965366","4970285690","7120574244","4450506581","910129479127","910478190382","4912258714","8025661839","7114942654","1671647079","4814294478"];
+
+const pay = admin;
+
+/* Nothing can be built before their workbook is here to be filled. */
+await pay.goto(`${BASE}/admin/payments`, { waitUntil: 'networkidle' });
+const noTemplateText = await pay.textContent('main');
+check('without the company template the page says so',
+  noTemplateText.includes('ما أكو قالب مرفوع'), '');
+check('and the build button is refused',
+  await pay.locator('button:has-text("سوّي الملف")').isDisabled(), '');
+
+/* Upload it. Their copy has formulas typed over; they are put back. */
+await pay.goto(`${BASE}/admin/settings`, { waitUntil: 'networkidle' });
+await pay.locator('input[type="file"]').setInputFiles('/tmp/company-template.xlsx');
+await pay.locator('button:has-text("ارفع قالب الشركة")').click();
+await pay.waitForTimeout(4000);
+const tpl = await db.prepare(
+  'select file_name, size, active from payment_templates order by created_at desc limit 1').get();
+check('the company template is stored', Boolean(tpl) && Number(tpl.size) > 50000,
+  tpl ? `${tpl.file_name} ${tpl.size}` : 'none');
+const repairMsg = await pay.textContent('main');
+check('and the formulas somebody typed over are reported as restored',
+  /انصلّحت \d+ خلية/.test(repairMsg), '');
+
+/*
+ * Nobody on the roster has a bank account yet, so every line would be a row
+ * their register cannot pay. The file must refuse rather than go out with
+ * holes in it — a row they do not recognise moves no money and raises no
+ * warning on their side either.
+ */
+const paySpan = await db.prepare(`
+  select min(date) as lo, max(date) as hi from events
+   where status in ('COMPLETED','ARCHIVED')`).get();
+await db.exec("update team_members set card_number = null");
+await pay.goto(`${BASE}/admin/payments?from=${paySpan.lo}&to=${paySpan.hi}`,
+  { waitUntil: 'networkidle' });
+const blockedText = await pay.textContent('main');
+check('a roster without bank accounts blocks the file',
+  blockedText.includes('بلا رقم بطاقة سوبر كي'), '');
+check('and the button stays refused while anything is unpayable',
+  await pay.locator('button:has-text("سوّي الملف")').isDisabled(), '');
+
+/* Give everybody an account their register knows. */
+const payPeople = await db.prepare('select id from team_members').all();
+for (let i = 0; i < payPeople.length; i++) {
+  await db.exec('update team_members set card_number = ? where id = ?',
+    ACCOUNTS[i % ACCOUNTS.length], payPeople[i].id);
+}
+
+const owedLines = Number((await db.prepare(`
+  select count(*) as n from event_members em join events e on e.id = em.event_id
+   where em.payout_id is null and e.status in ('COMPLETED','ARCHIVED')`).get()).n);
+
+await pay.goto(`${BASE}/admin/payments?from=${paySpan.lo}&to=${paySpan.hi}`,
+  { waitUntil: 'networkidle' });
+await pay.waitForSelector('button:has-text("سوّي الملف"):not([disabled])');
+await pay.locator('button:has-text("سوّي الملف")').click();
+await pay.waitForTimeout(5000);
+
+const file = await db.prepare(`
+  select id, file_name, row_count, people_count, total_amount, expenses_total,
+         length(file_bytes) as bytes
+    from payouts where file_name is not null order by created_at desc limit 1`).get();
+check('the file is built and kept beside the record',
+  Boolean(file) && Number(file.bytes) > 20000 && /\.xlsx$/.test(String(file.file_name)),
+  file ? `${file.file_name} ${file.bytes}B ${file.row_count} rows` : 'none');
+check('and it carries what it was built from',
+  Boolean(file) && Number(file.row_count) > 0 && Number(file.total_amount) > 0,
+  file ? `${file.row_count} rows / ${file.total_amount}` : 'none');
+
+const owedAfterFile = Number((await db.prepare(`
+  select count(*) as n from event_members em join events e on e.id = em.event_id
+   where em.payout_id is null and e.status in ('COMPLETED','ARCHIVED')`).get()).n);
+check('the lines in the file are no longer owed',
+  owedAfterFile < owedLines, `${owedLines} → ${owedAfterFile}`);
+
+/*
+ * The one that matters most. Pressing the button again on the same week must
+ * not send the same man's wage a second time — which is exactly what would
+ * happen if the file were derived from the dates rather than from the lines
+ * that have not gone out yet.
+ */
+const filesBefore = Number((await db.prepare(
+  'select count(*) as n from payouts where file_name is not null').get()).n);
+await pay.goto(`${BASE}/admin/payments?from=${paySpan.lo}&to=${paySpan.hi}`,
+  { waitUntil: 'networkidle' });
+const againDisabled = await pay.locator('button:has-text("سوّي الملف")').isDisabled();
+const filesAfter = Number((await db.prepare(
+  'select count(*) as n from payouts where file_name is not null').get()).n);
+check('building the same week twice emits nothing a second time',
+  againDisabled && filesAfter === filesBefore, `${filesBefore} → ${filesAfter}`);
+
+/*
+ * A cost handed to a person rides on that person's own row in their Events
+ * tab, beside his account, rather than in the general costs column. So the
+ * field that says who it went to has to survive the round trip.
+ */
+const costEvent = await db.prepare(`
+  select e.id as event_id, tm.id as member_id, tm.full_name as member_name
+    from events e
+    join event_members em on em.event_id = e.id
+    join team_members tm on tm.id = em.team_member_id
+   where e.status in ('COMPLETED','ARCHIVED') limit 1`).get();
+
+await pay.goto(`${BASE}/admin/events/${costEvent.event_id}/expenses`,
+  { waitUntil: 'networkidle' });
+await pay.locator('button:has-text("أضف مصروف")').first().click();
+await pay.waitForSelector('#x-paid-to');
+await pay.fill('#x-description', 'سلفة نقل');
+await pay.fill('#x-amount', '15000');
+await pay.selectOption('#x-paid-to', costEvent.member_id);
+await pay.locator('button:has-text("حفظ")').last().click();
+await pay.waitForTimeout(3000);
+
+const costBack = await db.prepare(`
+  select id, team_member_id from event_expenses
+   where event_id = ? and amount = 15000 order by created_at desc limit 1`)
+  .get(costEvent.event_id);
+check('a cost can name the person it was handed to',
+  Boolean(costBack) && String(costBack.team_member_id) === String(costEvent.member_id),
+  costBack ? `${costBack.team_member_id}` : 'none');
+const costId = costBack ? costBack.id : null;
+check('and his name shows on the line',
+  (await pay.textContent('main')).includes(costEvent.member_name), '');
+
+/* Reversing the file puts its wages AND its costs back to owed. */
+pay.once('dialog', (d) => d.accept());
+await pay.goto(`${BASE}/admin/payments`, { waitUntil: 'networkidle' });
+await pay.locator('button:has-text("تراجع عن الملف")').first().click();
+await pay.waitForTimeout(4000);
+const stillStamped = Number((await db.prepare(
+  'select count(*) as n from event_members where payout_id = ?').get(file.id)).n);
+const costsStillStamped = Number((await db.prepare(
+  'select count(*) as n from event_expenses where payout_id = ?').get(file.id)).n);
+check('reversing the file returns its wages to owed', stillStamped === 0, `${stillStamped}`);
+check('and its costs with them', costsStillStamped === 0, `${costsStillStamped}`);
+
+if (costId) await db.exec('delete from event_expenses where id = ?', costId);
 /* ---- RTL / LTR --------------------------------------------------------- */
 // From a known page, so this never depends on where the previous check ended.
 await admin.goto(`${BASE}/admin`);
