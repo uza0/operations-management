@@ -164,6 +164,8 @@ export type LedgerLine = {
    * single merged number is one nobody can check.
    */
   seatAmount: number | null;
+  /** How many chair days that figure is, so it can be read rather than trusted. */
+  seatDays: number;
   note: string | null;
   /** True once this line went out in a handover; it is no longer owed. */
   paid: boolean;
@@ -252,6 +254,16 @@ type SeatPay = {
   expected: Map<string, number>;
   /** Days he was confirmed at — what he has actually earned. */
   earned: Map<string, number>;
+  /*
+   * And how many days each of those is.
+   *
+   * The money alone cannot answer the question people actually ask. A man
+   * looking at ninety thousand for an evening he was paid thirty for wants to
+   * know where the other sixty came from, and "two days of chairs" is the
+   * answer. A single total is a number he has to take on trust.
+   */
+  expectedDays: Map<string, number>;
+  earnedDays: Map<string, number>;
 };
 
 export async function seatPayByMember(): Promise<SeatPay> {
@@ -267,15 +279,23 @@ export async function seatPayByMember(): Promise<SeatPay> {
 
   const expected = new Map<string, number>();
   const earned = new Map<string, number>();
+  const expectedDays = new Map<string, number>();
+  const earnedDays = new Map<string, number>();
   const add = (map: Map<string, number>, id: string, pay: number) =>
     map.set(id, (map.get(id) ?? 0) + pay);
 
   for (const row of rows) {
     const pay = row.pay ?? SEAT_SETUP_PAY;
-    if (!row.declinedAt) add(expected, row.eventMemberId, pay);
-    if (row.attended) add(earned, row.eventMemberId, pay);
+    if (!row.declinedAt) {
+      add(expected, row.eventMemberId, pay);
+      add(expectedDays, row.eventMemberId, 1);
+    }
+    if (row.attended) {
+      add(earned, row.eventMemberId, pay);
+      add(earnedDays, row.eventMemberId, 1);
+    }
   }
-  return { expected, earned };
+  return { expected, earned, expectedDays, earnedDays };
 }
 
 function toLine(
@@ -320,6 +340,8 @@ function toLine(
       row.payMode === 'SALARIED' || (row.payoutId === null && row.personSalaried)
         ? null
         : ((closed ? seatPay.earned : seatPay.expected).get(row.eventMemberId) ?? null),
+    seatDays:
+      (closed ? seatPay.earnedDays : seatPay.expectedDays).get(row.eventMemberId) ?? 0,
     note: row.creditNote,
     paid: row.payoutId !== null,
     closed,

@@ -1873,6 +1873,48 @@ await promo.goto(`${BASE}/leader`);
 await promo.waitForLoadState('networkidle');
 check('nor any leader page', !promo.url().endsWith('/leader'), promo.url());
 
+
+/*
+ * And where the figure came from.
+ *
+ * A promoter looking at ninety thousand for a night he knows pays thirty has
+ * one question, and the only way to ask it was to ring the team leader. The
+ * answer is usually the chairs: afternoons of setting out a hall, at their own
+ * rate, on their own days. So the page shows the parts, never a merged total —
+ * a merged total is exactly the number nobody can check.
+ */
+const chairLine = await db.prepare(`
+  select em.id as member_id, em.event_id, e.date from event_members em
+    join events e on e.id = em.event_id
+   where em.team_member_id = ? and em.payout_id is null
+     and e.status in ('COMPLETED','ARCHIVED') limit 1`).get(signInMan.id);
+
+if (chairLine) {
+  await db.exec(
+    `insert into seat_setup_details
+       (id, event_id, date, start_time, pay_amount, created_at, updated_at)
+     values ('e2e-chairs-1', ?, ?, '15:00',
+             (select pay_amount from seat_setup_details limit 1),
+             strftime('%s','now'), strftime('%s','now'))`,
+    chairLine.event_id, chairLine.date);
+  await db.exec(
+    `insert into seat_setup_members
+       (id, detail_id, event_id, event_member_id, attended, sort_order,
+        created_at, updated_at)
+     values ('e2e-chairm-1', 'e2e-chairs-1', ?, ?, 1, 0,
+             strftime('%s','now'), strftime('%s','now'))`,
+    chairLine.event_id, chairLine.member_id);
+
+  await promo.goto(`${BASE}/me`, { waitUntil: 'networkidle' });
+  const owedText = await promo.textContent('main');
+  check('his page shows what the owed figure is made of',
+    owedText.includes('من وين جاي هذا المبلغ'), '');
+  check('and names the chair day beside the night it belongs to',
+    owedText.includes('ترتيب كراسي') && owedText.includes('أجر الفعالية'),
+    owedText.includes('ترتيب كراسي') ? 'chairs shown' : 'chairs missing');
+  check('with the number of days, not just a total',
+    /ترتيب كراسي — \d+ يوم/.test(owedText), '');
+}
 /* ---- telling a promoter something when the app is shut ----------------- */
 
 /*

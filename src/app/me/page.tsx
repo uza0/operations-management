@@ -18,6 +18,7 @@ import type { EventStatus, EventType } from '@/lib/constants';
 
 import { MemberShell } from '../member/[token]/MemberShell';
 import { BalanceCard } from './BalanceCard';
+import { OwedLines } from './OwedLines';
 import { InstallGuide } from './InstallGuide';
 import { NotificationToggle } from './NotificationToggle';
 
@@ -186,6 +187,15 @@ export default async function MemberHomePage() {
           ledger={ledger}
           salaried={Boolean(home.person.salaried)}
         />
+      ) : null}
+
+      {/*
+        And straight under it, what that figure is made of. The question that
+        followed the number was always the same one — why ninety and not
+        thirty — and it was being answered by telephone.
+      */}
+      {ledger && !home.person.salaried ? (
+        <OwedLines t={t} locale={locale} ledger={ledger} />
       ) : null}
 
       {empty ? (
