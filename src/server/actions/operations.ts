@@ -15,6 +15,7 @@ import {
   timelineItems,
   workingPoints,
 } from '@/db/schema';
+import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
 import { nowHHmm } from '@/lib/time';
@@ -33,6 +34,7 @@ import {
 import type { AttendanceStatus, IssueStatus, Priority } from '@/lib/constants';
 import { assertEventManager, currentUser, resolveEventScope } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
+import { announcementAudience, pushToMembers } from '@/server/services/push';
 import { routeNewIssue } from '@/server/services/issue-routing';
 
 import { fail, idle, ok, type ActionState } from './types';
@@ -425,6 +427,34 @@ export async function createAnnouncementAction(
     newValues: { priority: t.enums.priority[data.priority as Priority] },
     summary: `${t.enums.priority[data.priority as Priority]}: ${data.title}`,
   });
+
+  /*
+   * And on the phones of whoever it was addressed to — the same audience the
+   * announcement itself has, not everybody. A gate-three message reaching a
+   * hundred and twenty people is how the next one gets ignored.
+   *
+   * After the record, never before it, and never able to fail it: a message
+   * that is written down and not delivered is recoverable; one that was never
+   * written down is not.
+   */
+  try {
+    const audience = await announcementAudience({
+      eventId,
+      audience: data.audience,
+      gateId: data.gateId,
+      workingPointId: data.workingPointId,
+      eventMemberId: data.eventMemberId,
+    });
+    const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+    await pushToMembers(audience, {
+      title: format(t.push.announceTitle, { event: event?.name ?? '' }),
+      body: data.title,
+      url: '/me',
+      tag: `ann:${id}`,
+    });
+  } catch {
+    /* Delivery is best effort; the announcement is already recorded. */
+  }
 
   revalidateEvent(eventId, 'announcements');
   return ok(t.announcement.sent);

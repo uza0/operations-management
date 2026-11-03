@@ -46,7 +46,7 @@ const head = await p.evaluate(()=>({
 ok('manifest linked in <head>', head.manifest);
 ok('apple-touch-icon linked', head.apple);
 ok('iOS standalone enabled', head.capable==='yes', String(head.capable));
-ok('theme-color set', head.theme==='#080b11', String(head.theme));
+ok('theme-color set', head.theme==='#0a0908', String(head.theme));
 ok('viewport-fit=cover for notches', head.viewportFit);
 
 // service worker actually registers and controls the page

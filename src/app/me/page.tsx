@@ -3,12 +3,14 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { getT } from '@/lib/i18n/server';
+import { format } from '@/lib/i18n';
 import { formatDate, formatTime } from '@/lib/time';
 import { currentMember, touchMemberSession } from '@/server/services/member-auth';
 import { currentUser, homeFor } from '@/server/auth/rbac';
 import { getMemberHome, type MemberHome } from '@/server/services/member-home';
 import { memberLedger } from '@/server/services/credit';
 import { memberSignOutAction } from '@/server/actions/member-auth';
+import { pushPublicKey, sendDueReminders, sweepInBackground } from '@/server/services/push';
 import { Badge, eventStatusTone } from '@/components/ui/status';
 import { ConfirmSubmit } from '@/components/ui/client';
 import { IconCalendar, IconClock, IconPin } from '@/components/ui/icons';
@@ -17,6 +19,7 @@ import type { EventStatus, EventType } from '@/lib/constants';
 import { MemberShell } from '../member/[token]/MemberShell';
 import { BalanceCard } from './BalanceCard';
 import { InstallGuide } from './InstallGuide';
+import { NotificationToggle } from './NotificationToggle';
 
 export const dynamic = 'force-dynamic';
 
@@ -118,6 +121,27 @@ export default async function MemberHomePage() {
   const session = await currentMember();
   if (!session) redirect('/login?as=member');
 
+  /*
+   * While somebody is here, see whether anybody is due at a gate within the
+   * hour. Not awaited and never fatal — this page is his, not the sweep's.
+   */
+  sweepInBackground(async () => {
+    const { t: text, locale: lang } = await getT();
+    void lang;
+    await sendDueReminders((row) => ({
+      title: text.push.arrivalTitle,
+      body: row.place
+        ? format(text.push.arrivalBody, {
+            event: row.event,
+            place: row.place,
+            time: row.time,
+          })
+        : format(text.push.arrivalBodyNoPlace, { event: row.event, time: row.time }),
+      url: '/me',
+      tag: 'arrival',
+    }));
+  });
+
   const [{ locale, t }, home, ledger, staff] = await Promise.all([
     getT(),
     getMemberHome(session.teamMemberId),
@@ -181,7 +205,10 @@ export default async function MemberHomePage() {
         installing is worth doing once, and the moment he has just signed in is
         the moment it makes sense.
       */}
+      {/* After the install guide: on an iPhone the one depends on the other. */}
       <InstallGuide t={t} />
+
+      <NotificationToggle t={t} publicKey={pushPublicKey()} />
 
       {/* The way back, for whoever is both. Shown only to a staff session. */}
       {staff ? (

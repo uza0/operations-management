@@ -162,6 +162,13 @@
       "when": 1793680619036,
       "tag": "0022_neat_turbo",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "6",
+      "when": 1793715175481,
+      "tag": "0023_giant_lockheed",
+      "breakpoints": true
     }
   ]
 }

@@ -1539,3 +1539,57 @@ export type MainGateMember = typeof mainGateMembers.$inferSelect;
 export type EventFeedback = typeof eventFeedback.$inferSelect;
 export type AuditLog = typeof auditLogs.$inferSelect;
 export type Upload = typeof uploads.$inferSelect;
+
+/**
+ * A phone that has agreed to be told things.
+ *
+ * One row per browser, not per person: a promoter with a phone and a tablet
+ * is two rows, and signing out of one leaves the other listening. The keys in
+ * it are the browser's own — they encrypt the message so that the push
+ * service carrying it cannot read it — and they are useless to anybody else,
+ * which is why they live here rather than behind anything.
+ *
+ * Endpoints die quietly. A phone is wiped, an app is uninstalled, a browser
+ * drops the subscription, and the push service answers 404 or 410 for ever
+ * after. Those rows are deleted the moment that answer comes back, because a
+ * dead endpoint that stays is a row that gets retried every event night until
+ * somebody wonders why sending takes a minute.
+ */
+export const pushSubscriptions = sqliteTable(
+  'push_subscriptions',
+  {
+    id: text('id').primaryKey(),
+    teamMemberId: text('team_member_id')
+      .notNull()
+      .references(() => teamMembers.id, { onDelete: 'cascade' }),
+    endpoint: text('endpoint').notNull(),
+    p256dh: text('p256dh').notNull(),
+    auth: text('auth').notNull(),
+    /** What he would recognise it by, if he ever asks which phones are on. */
+    deviceLabel: text('device_label'),
+    lastSentAt: integer('last_sent_at', { mode: 'timestamp_ms' }),
+    ...timestamps,
+  },
+  (t) => [
+    uniqueIndex('push_subscriptions_endpoint').on(t.endpoint),
+    index('push_subscriptions_member_idx').on(t.teamMemberId),
+  ],
+);
+
+export type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
+
+/**
+ * Reminders that have already gone out.
+ *
+ * The hour-before reminder is sent by whatever happens to run first — a cron,
+ * or an ordinary page load on a busy evening — so the same reminder is offered
+ * several times and must be sent once. A row here is the record that it was.
+ */
+export const pushSent = sqliteTable(
+  'push_sent',
+  {
+    /** `${kind}:${subjectId}` — the thing itself, not an arbitrary id. */
+    id: text('id').primaryKey(),
+    sentAt: integer('sent_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+);

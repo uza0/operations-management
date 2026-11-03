@@ -1873,6 +1873,115 @@ await promo.goto(`${BASE}/leader`);
 await promo.waitForLoadState('networkidle');
 check('nor any leader page', !promo.url().endsWith('/leader'), promo.url());
 
+/* ---- telling a promoter something when the app is shut ----------------- */
+
+/*
+ * Four things are worth a phone buzzing in a pocket: you have an event, it
+ * starts in an hour, your money went out, and the people running tonight have
+ * said something. A fifth would be the one that makes somebody turn all of
+ * them off, and then the first four stop arriving too.
+ *
+ * Nothing here can reach a real push service, so what is checked is the part
+ * that is ours: that the offer appears, that a reminder is sent once however
+ * often the sweep runs, that losing your code takes your phone off the list,
+ * and that none of it can break the thing that triggered it.
+ */
+
+await promo.goto(`${BASE}/me`, { waitUntil: 'networkidle' });
+const pushText = await promo.textContent('main');
+check('his page offers to turn notifications on',
+  pushText.includes('الإشعارات') &&
+  (pushText.includes('شغّل الإشعارات') || pushText.includes('لازم تنصّب التطبيق')), '');
+check('and says what will actually reach him',
+  pushText.includes('تذكير قبل وصولك بساعة'), '');
+
+/* A phone that has agreed to listen, stood in for by a row. */
+const pushMan = await db.prepare(`
+  select tm.id, tm.full_name from team_members tm
+    join event_members em on em.team_member_id = tm.id
+    join events e on e.id = em.event_id
+   where tm.id != ? limit 1`).get(signInMan.id);
+
+/* Give him a code of his own, so there is one to lose at the end. */
+await admin.goto(`${BASE}/admin/team`, { waitUntil: 'networkidle' });
+const pushCodeRow = admin.locator('tr', { hasText: String(pushMan.full_name) }).first();
+await pushCodeRow.scrollIntoViewIfNeeded();
+await pushCodeRow.locator('button[type=submit]', { hasText: 'إصدار كود' }).first().click();
+await admin.waitForTimeout(3000);
+await db.exec(
+  `insert into push_subscriptions
+     (id, team_member_id, endpoint, p256dh, auth, device_label, created_at, updated_at)
+   values ('e2e-push-1', ?, 'https://push.invalid/e2e-1', 'p', 'a', 'e2e',
+           strftime('%s','now'), strftime('%s','now'))`,
+  pushMan.id);
+
+/*
+ * The hour before. The sweep is called by whatever runs first — a cron, or an
+ * ordinary page load on a busy evening — so it is offered many times and must
+ * send once. Baghdad decides what "in an hour" means, not the server's clock.
+ */
+const baghdad = new Intl.DateTimeFormat('en-CA', {
+  timeZone: 'Asia/Baghdad', year: 'numeric', month: '2-digit', day: '2-digit',
+  hour: '2-digit', minute: '2-digit', hour12: false,
+}).formatToParts(new Date());
+const bPart = (k) => baghdad.find((p) => p.type === k).value;
+const bDate = `${bPart('year')}-${bPart('month')}-${bPart('day')}`;
+const dueAt = Number(bPart('hour')) * 60 + Number(bPart('minute')) + 70;
+const dueClock = `${String(Math.floor((dueAt % 1440) / 60)).padStart(2, '0')}:${
+  String(dueAt % 60).padStart(2, '0')}`;
+
+const pushEvent = await db.prepare(`
+  select e.id, em.id as member_id from events e
+    join event_members em on em.event_id = e.id
+   where em.team_member_id = ? limit 1`).get(pushMan.id);
+await db.exec(
+  "update events set status='READY', date=?, team_arrival_time=? where id=?",
+  bDate, dueClock, pushEvent.id);
+
+await db.exec("delete from push_sent");
+const sweep1 = await promo.evaluate((u) => fetch(u).then((r) => r.json()),
+  `${BASE}/api/push/due`);
+const afterFirst = Number((await db.prepare(
+  'select count(*) as n from push_sent').get()).n);
+const sweep2 = await promo.evaluate((u) => fetch(u).then((r) => r.json()),
+  `${BASE}/api/push/due`);
+const afterSecond = Number((await db.prepare(
+  'select count(*) as n from push_sent').get()).n);
+
+check('the sweep finds whoever is due within the hour',
+  afterFirst > 0, `${afterFirst} · checked ${sweep1.checked}`);
+check('and running it again sends nothing a second time',
+  afterSecond === afterFirst, `${afterFirst} → ${afterSecond} (second sent ${sweep2.sent})`);
+check('the reminder is recorded against the person, not the hour',
+  Boolean(await db.prepare(
+    'select id from push_sent where id = ?').get('arrival:' + pushEvent.member_id)), '');
+
+/* A man who is not due is not told. */
+await db.exec("update events set team_arrival_time='23:59' where id=?", pushEvent.id);
+await db.exec("delete from push_sent");
+await promo.evaluate((u) => fetch(u).then((r) => r.json()), `${BASE}/api/push/due`);
+const notDue = Number((await db.prepare('select count(*) as n from push_sent').get()).n);
+check('and nobody outside the window is', notDue === 0, `${notDue}`);
+
+/*
+ * Losing the code takes the phone off the list. A subscription outlives a
+ * session — the browser keeps it and the push service never hears about a
+ * sign-out — so a man taken off the team would go on being told about events
+ * he is not on.
+ */
+await admin.goto(`${BASE}/admin/team`, { waitUntil: 'networkidle' });
+const pushRow = admin.locator('tr', { hasText: String(pushMan.full_name) }).first();
+await pushRow.scrollIntoViewIfNeeded();
+const revokeBtn = pushRow.locator('button[type=submit]', { hasText: 'إلغاء الكود' });
+check('the man under test has a code to lose', (await revokeBtn.count()) > 0,
+  String(pushMan.full_name));
+await revokeBtn.first().click();
+await admin.waitForTimeout(3500);
+const leftOver = Number((await db.prepare(
+  'select count(*) as n from push_subscriptions where team_member_id = ?')
+  .get(pushMan.id)).n);
+check('revoking a code takes his phones off the list', leftOver === 0, `${leftOver}`);
+
 /* Revoking the code ends the sessions it opened, in the same breath. */
 await admin.goto(`${BASE}/admin/team`);
 await admin.waitForLoadState('networkidle');
@@ -3206,6 +3315,7 @@ const phoneDupes = await db.prepare(
   .get();
 check('and no two people share a phone number', Number(phoneDupes.n) === 0,
   `${phoneDupes.n}`);
+
 
 
 

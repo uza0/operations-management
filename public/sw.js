@@ -166,3 +166,62 @@ self.addEventListener('message', (event) => {
     event.waitUntil(dropStaleCaches(event.data.id));
   }
 });
+
+/*
+ * Being told something while the app is shut.
+ *
+ * The payload is already decrypted by the time it arrives here — the browser
+ * does that with the keys it gave us when he subscribed — so this only has to
+ * read it and show it. Anything thrown in here means a notification the user
+ * never sees, so every field has a fallback and the whole thing is wrapped.
+ */
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
+  }
+
+  const title = data.title || 'TicketZone Ops';
+  const options = {
+    body: data.body || '',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/favicon-48.png',
+    /*
+     * Same tag, same slot: a reminder that arrives twice replaces itself
+     * rather than stacking two identical lines in his shade.
+     */
+    tag: data.tag || 'ops',
+    renotify: Boolean(data.tag),
+    dir: 'rtl',
+    lang: 'ar',
+    data: { url: data.url || '/me' },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+/*
+ * Tapping it.
+ *
+ * If the app is already open somewhere, that window is brought forward and
+ * sent to the page rather than a second one being opened — a promoter with
+ * four copies of his own page open is how a phone ends up feeling broken.
+ */
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || '/me';
+
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const client of list) {
+        if ('focus' in client) {
+          if ('navigate' in client) client.navigate(url).catch(() => {});
+          return client.focus();
+        }
+      }
+      return self.clients.openWindow(url);
+    }),
+  );
+});

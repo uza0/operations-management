@@ -8,7 +8,10 @@ import { eventExpenses, events, eventMembers, paymentTemplates, payouts } from '
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
 import { str } from '@/lib/validation';
+import { format } from '@/lib/i18n';
+import { formatAmount } from '@/lib/money';
 import { requireRole } from '@/server/auth/rbac';
+import { pushToMembers } from '@/server/services/push';
 import { recordAudit } from '@/server/services/audit';
 import { CLOSED_STATUSES } from '@/server/services/credit';
 import {
@@ -216,6 +219,43 @@ export async function generatePaymentFileAction(
     },
     summary: `${t.payment.generated}: ${fromDate} → ${toDate}`,
   });
+
+  /*
+   * And each man's phone, with his own figure on it.
+   *
+   * Not the file's total — his. The question this answers is "did mine go
+   * out, and how much", and a message carrying somebody else's number
+   * answers it wrongly for everybody.
+   */
+  try {
+    const byMember = new Map<string, number>();
+    const memberOf = await db
+      .select({ id: eventMembers.id, teamMemberId: eventMembers.teamMemberId })
+      .from(eventMembers)
+      .where(
+        inArray(
+          eventMembers.id,
+          bundle.fees.map((f) => f.eventMemberId),
+        ),
+      );
+    const teamOf = new Map(memberOf.map((row) => [row.id, row.teamMemberId]));
+    for (const fee of bundle.fees) {
+      const team = teamOf.get(fee.eventMemberId);
+      if (team) byMember.set(team, (byMember.get(team) ?? 0) + fee.amount);
+    }
+    await Promise.all(
+      [...byMember.entries()].map(([teamMemberId, amount]) =>
+        pushToMembers([teamMemberId], {
+          title: t.push.paidTitle,
+          body: format(t.push.paidBody, { amount: formatAmount(amount) }),
+          url: '/me',
+          tag: `paid:${payoutId}`,
+        }),
+      ),
+    );
+  } catch {
+    /* The money is recorded as gone out; telling people is best effort. */
+  }
 
   revalidate();
   return ok(handover.fileName);

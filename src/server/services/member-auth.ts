@@ -6,7 +6,12 @@ import { cookies } from 'next/headers';
 import { and, desc, eq, gte, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { memberLoginAttempts, memberSessions, teamMembers } from '@/db/schema';
+import {
+  memberLoginAttempts,
+  memberSessions,
+  pushSubscriptions,
+  teamMembers,
+} from '@/db/schema';
 import { newId } from '@/lib/ids';
 
 /**
@@ -76,13 +81,23 @@ export async function issueAccessCode(teamMemberId: string): Promise<string> {
   return code;
 }
 
-/** Takes the code away and ends every session it opened. */
+/**
+ * Takes the code away, ends every session it opened, and stops the phones.
+ *
+ * A subscription outlives a session — the browser keeps it, and the push
+ * service does not know anybody signed out — so a man whose code is revoked
+ * would go on being told about events he is no longer on. The rows are what
+ * we control, so the rows go.
+ */
 export async function revokeAccessCode(teamMemberId: string): Promise<void> {
   await db
     .update(teamMembers)
     .set({ accessCodeRevokedAt: new Date(), updatedAt: new Date() })
     .where(eq(teamMembers.id, teamMemberId));
   await revokeMemberSessions(teamMemberId);
+  await db
+    .delete(pushSubscriptions)
+    .where(eq(pushSubscriptions.teamMemberId, teamMemberId));
 }
 
 export async function revokeMemberSessions(teamMemberId: string): Promise<number> {

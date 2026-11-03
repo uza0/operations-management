@@ -16,12 +16,14 @@ import {
 } from '@/db/schema';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
-import { MAX_EVENT_PAY } from '@/lib/money';
+import { format } from '@/lib/i18n';
+import { formatAmount, MAX_EVENT_PAY } from '@/lib/money';
 import { str } from '@/lib/validation';
 import { CLOSED_STATUSES } from '@/server/services/credit';
 import { applyStandingRate } from '@/server/services/rates';
 import { requireRole } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
+import { pushToMembers } from '@/server/services/push';
 
 import { fail, ok, type ActionState } from './types';
 
@@ -270,6 +272,32 @@ export async function settlePayoutAction(
     newValues: { total, people, lines: candidates.length },
     summary: `${t.credit.payoutDone}: ${fromDate} → ${toDate}`,
   });
+
+  /*
+   * And each man's phone, with his own figure. Money going out is the one
+   * thing people chase the leader about, and a message the moment it happens
+   * is a conversation he does not have to have.
+   */
+  try {
+    const byMember = new Map<string, number>();
+    for (const row of candidates) {
+      const amount =
+        (row.payAmount ?? row.eventDefault) + (seatBy.get(row.eventMemberId) ?? 0);
+      byMember.set(row.teamMemberId, (byMember.get(row.teamMemberId) ?? 0) + amount);
+    }
+    await Promise.all(
+      [...byMember.entries()].map(([teamMemberId, amount]) =>
+        pushToMembers([teamMemberId], {
+          title: t.push.paidTitle,
+          body: format(t.push.paidBody, { amount: formatAmount(amount) }),
+          url: '/me',
+          tag: `paid:${payoutId}`,
+        }),
+      ),
+    );
+  } catch {
+    /* Recorded is what matters; telling people is best effort. */
+  }
 
   revalidate();
   return ok();

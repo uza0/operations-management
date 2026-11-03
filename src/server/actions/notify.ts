@@ -19,6 +19,7 @@ import { RESPONSE_WINDOW_HOURS, responseDeadline } from '@/lib/journey';
 import { assertEventManager } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
 import { buildBriefings, resolveBaseUrl } from '@/server/services/notify';
+import { pushToMembers } from '@/server/services/push';
 import { readConfig, sendTemplate } from '@/server/services/whatsapp';
 
 import { fail, ok, type ActionState } from './types';
@@ -130,6 +131,40 @@ export async function markBriefedAction(
         ? `${t.notify.title}: ${rows[0].name}`
         : `${t.notify.title}: ${rows.length}`,
   });
+
+  /*
+   * And a notification, for anybody whose phone is listening.
+   *
+   * This is the moment the invitation goes out, so it is the moment his phone
+   * should say so. It does not replace the message the leader sends — a man
+   * with notifications off still gets WhatsApp — it just means most of them
+   * know before anybody types anything.
+   */
+  try {
+    const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+    if (event) {
+      const people = await db
+        .select({ teamMemberId: eventMembers.teamMemberId })
+        .from(eventMembers)
+        .where(inArray(eventMembers.id, ids));
+      const { locale } = await getT();
+      await pushToMembers(
+        people.map((p) => p.teamMemberId),
+        {
+          title: t.push.invitedTitle,
+          body: format(t.push.invitedBody, {
+            event: event.name,
+            date: formatDate(event.date, locale),
+            time: event.teamArrivalTime ?? '',
+          }),
+          url: '/me',
+          tag: `event:${eventId}`,
+        },
+      );
+    }
+  } catch {
+    /* The invitation is recorded; delivery is best effort. */
+  }
 
   for (const base of ['/admin', '/leader']) {
     revalidatePath(`${base}/events/${eventId}/notify`);
