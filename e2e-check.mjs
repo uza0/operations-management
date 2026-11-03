@@ -1699,6 +1699,28 @@ const issuedCode = (await codeRow.locator('p.nums').first().textContent() ?? '')
 check('a code is issued from the roster and shown once',
   /^[0-9]{4}$/.test(issuedCode), issuedCode || 'none');
 
+/*
+ * And the message it belongs in, ready to send.
+ *
+ * Handing somebody four digits and leaving him to write out the installing,
+ * the signing in and the notifications a hundred and twenty times is how the
+ * second half of that gets dropped by the twentieth person — and a promoter
+ * who installed the app and never turned notifications on is one the app
+ * cannot reach.
+ */
+const waLink = await codeRow.locator('a[href^="https://wa.me/"]').first().getAttribute('href');
+check('the issued code comes with the whole message, addressed to him',
+  Boolean(waLink) && decodeURIComponent(waLink).includes(issuedCode) &&
+  decodeURIComponent(waLink).includes(String(signInMan.full_name)),
+  waLink ? waLink.slice(0, 32) : 'none');
+check('and the message carries the steps, not just the code',
+  Boolean(waLink) && decodeURIComponent(waLink).includes('شغّل الإشعارات') &&
+  decodeURIComponent(waLink).includes('وصلت'), '');
+check('with a link people can actually open',
+  Boolean(waLink) && !decodeURIComponent(waLink).includes('{link}'), '');
+check('and a copy button for whoever would rather paste it',
+  (await codeRow.locator('button:has-text("انسخ الرسالة")').count()) === 1, '');
+
 const stored = await db.prepare(
   'select access_code_hash from team_members where id = ?').get(signInMan.id);
 check('and what is stored is a hash, not the code',

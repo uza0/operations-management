@@ -5,12 +5,20 @@ import { eventMembers, memberSessions, teamMembers } from '@/db/schema';
 import { requireRole } from '@/server/auth/rbac';
 import { getT } from '@/lib/i18n/server';
 import { PageHeader } from '@/components/ui/panel';
+import { resolveBaseUrl, toWhatsAppNumber } from '@/server/services/notify';
 
 import { TeamManager } from './TeamManager';
 
 export default async function TeamPage() {
   await requireRole('ADMIN');
   const { t } = await getT();
+
+  /*
+   * The address people actually open, for the invitation the roster writes.
+   * Read from the request when nothing is configured, so a link in somebody's
+   * WhatsApp never says localhost.
+   */
+  const appUrl = await resolveBaseUrl();
 
   const rows = await db
     .select({
@@ -31,10 +39,16 @@ export default async function TeamPage() {
     .from(teamMembers)
     .orderBy(teamMembers.fullName);
 
+  /* Dialling happens on the server, where the country code lives. */
+  const members = rows.map((row) => ({
+    ...row,
+    whatsapp: toWhatsAppNumber(row.phone),
+  }));
+
   return (
     <>
       <PageHeader title={t.team.title} subtitle={t.team.subtitle} />
-      <TeamManager t={t} members={rows} />
+      <TeamManager t={t} members={members} appUrl={appUrl} />
     </>
   );
 }

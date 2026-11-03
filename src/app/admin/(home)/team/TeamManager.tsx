@@ -31,6 +31,8 @@ export type TeamRow = {
   id: string;
   fullName: string;
   phone: string | null;
+  /** The same number, dialled — worked out on the server, null when unusable. */
+  whatsapp?: string | null;
   employeeCode: string;
   cardNumber: string | null;
   hasCode?: number;
@@ -231,7 +233,16 @@ function RowActions({ t, member }: { t: Dictionary; member: TeamRow }) {
   );
 }
 
-export function TeamManager({ t, members }: { t: Dictionary; members: TeamRow[] }) {
+export function TeamManager({
+  t,
+  members,
+  appUrl,
+}: {
+  t: Dictionary;
+  members: TeamRow[];
+  /** Where the app actually lives, for the invitation the roster writes. */
+  appUrl: string;
+}) {
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<TeamRow | null>(null);
@@ -375,6 +386,9 @@ export function TeamManager({ t, members }: { t: Dictionary; members: TeamRow[] 
                       <MemberCode
                         t={t}
                         memberId={member.id}
+                        name={member.fullName}
+                        whatsapp={member.whatsapp ?? null}
+                        appUrl={appUrl}
                         hasCode={Number(member.hasCode ?? 0) === 1}
                         sessions={Number(member.sessions ?? 0)}
                       />

@@ -583,6 +583,53 @@ export const en: Dictionary = {
     installHint: 'In Safari: Share, then Add to Home Screen. It opens like any app after that.',
     codeIssued: 'Code',
     codeIssuedHint: 'Copy it now and send it — it is never shown again.',
+    inviteCopy: 'Copy the message',
+    inviteCopied: 'Copied — paste it into WhatsApp',
+    inviteSend: 'Send on WhatsApp',
+    inviteNoPhone: 'No phone number on file',
+    inviteHint: 'The whole message with his code in it: installing, signing in, and turning notifications on.',
+    inviteMessage: `Hello {name}
+
+The team has an app now. Your events, your gate, when you are due, and what you are owed all live in it.
+
+*The app*
+{link}
+
+*Your code*
+{code}
+
+This code is yours alone — do not pass it on. You sign in once and stay signed in.
+
+━━━━━━━━━━
+
+Three short videos are attached: installing on Android, installing on iPhone, and a walk through the app. Watch the one for your phone.
+
+*1 — Install it*
+Open the link on your phone and add it to your home screen.
+iPhone: Share → Add to Home Screen
+Android: the three dots → Install app
+
+*2 — Sign in*
+Open it from the icon, enter your phone number, then the code above.
+
+*3 — Turn notifications on*
+Scroll to the bottom, press "Turn notifications on", then Allow. A test notification arrives straight away.
+
+iPhone: open the app from the icon, not from Safari, or the button will not be there.
+
+━━━━━━━━━━
+
+*What it gives you*
+
+Every event in one place — where, when, which gate
+A notice when you are added to an event, and an hour before you are due
+Reminders to press "I arrived" and "I am leaving"
+What you are owed, and where each figure came from
+Announcements reach you instead of you chasing them
+
+*Important*: pressing "I arrived" and "I am leaving" is what records your shift. Without them it is not counted — and the app will remind you when it is time.
+
+Any questions, message me.`,
     issueCode: 'Issue a code',
     reissueCode: 'Issue a new code',
     revokeCode: 'Revoke the code',
