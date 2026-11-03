@@ -1844,30 +1844,41 @@ check('his page lists his own events and only those',
  * are undecided, half the names on it come off again. A promoter who sees one
  * arranges his week around it and finds out it was never real when it quietly
  * disappears.
+ *
+ * One of his own evenings is pushed back to a draft, which is the one road
+ * into that state the app actually has, and then brought out of it through
+ * the screen a supervisor would use.
  */
 const draftOne = await db.prepare(`
-  select em.id, em.token, e.id as event_id, e.name from event_members em
-    join events e on e.id = em.event_id
-   where em.team_member_id = ? and em.status != 'CANCELLED' limit 1`).get(signInMan.id);
-const draftWas = (await db.prepare(
-  'select status from events where id = ?').get(draftOne.event_id)).status;
-await db.exec("update events set status='DRAFT' where id=?", draftOne.event_id);
+  select em.id, em.token, e.id as event_id, e.name, e.status as was
+    from event_members em join events e on e.id = em.event_id
+   where em.team_member_id = ? and em.status != 'CANCELLED'
+     and e.status != 'DRAFT' limit 1`).get(signInMan.id);
 
+/* The three figures, as his page prints them. */
+const balanceOf = async () =>
+  (await promo.textContent('main')).replace(/\s+/g, ' ')
+    .match(/مستحق الآن.{0,80}/)?.[0] ?? '';
+
+await db.exec("update events set status='DRAFT' where id=?", draftOne.event_id);
 await promo.goto(`${BASE}/me`, { waitUntil: 'networkidle' });
 check('a draft event is not on his page',
+  !(await promo.textContent('main')).includes(String(draftOne.name)) &&
   (await promo.locator('main a[href^="/member/"]').count()) === cards - 1,
   `${cards} → ${await promo.locator('main a[href^="/member/"]').count()}`);
-check('and its name is nowhere on it',
-  !(await promo.textContent('main')).includes(String(draftOne.name)), '');
+const balanceDraft = await balanceOf();
 
-/* Nor reachable by a link sent before it was pushed back to a draft. */
+/* Nor reachable by the link that was made for it. */
 await promo.goto(`${BASE}/member/${draftOne.token}`, { waitUntil: 'networkidle' });
 check('and a link straight to it does not open either',
   !(await promo.textContent('body')).includes(String(draftOne.name)), promo.url());
 
 /*
- * Leaving the draft is the moment it becomes real — so that is the moment
- * his phone says so, and his page starts carrying it.
+ * Leaving the draft is the moment it becomes real — so that is the moment it
+ * appears on his page, his phone says so, and its money starts counting.
+ *
+ * Hiding the evening while leaving its figure in "قيد الاحتساب" would be the
+ * worst of both: a number he cannot account for, for an event he cannot see.
  */
 await db.exec("delete from push_sent where id = ?", 'invited:' + draftOne.id);
 await admin.goto(`${BASE}/admin/events/${draftOne.event_id}`, { waitUntil: 'networkidle' });
@@ -1878,10 +1889,15 @@ check('leaving the draft tells the crew it is real',
     .get('invited:' + draftOne.id)), '');
 
 await promo.goto(`${BASE}/me`, { waitUntil: 'networkidle' });
-check('and it is back on his page',
+check('and it is on his page the moment it is',
+  (await promo.textContent('main')).includes(String(draftOne.name)) &&
   (await promo.locator('main a[href^="/member/"]').count()) === cards, '');
+const balanceReal = await balanceOf();
+check('and only now does its money count',
+  balanceDraft !== '' && balanceReal !== balanceDraft,
+  `${balanceDraft} → ${balanceReal}`);
 
-await db.exec("update events set status=? where id=?", draftWas, draftOne.event_id);
+await db.exec("update events set status=? where id=?", draftOne.was, draftOne.event_id);
 
 const someoneElse = await db.prepare(`
   select full_name from team_members where id != ? limit 1`).get(signInMan.id);

@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, eq, gte, inArray, lte } from 'drizzle-orm';
+import { and, eq, gte, inArray, lte, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -193,7 +193,19 @@ type Range = { from?: string; to?: string };
 
 /** The raw rows behind every ledger: one per person per event they were on. */
 async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
-  const conditions = [];
+  /*
+   * A draft owes nobody anything.
+   *
+   * It is an evening somebody is still building — the date moves, the names
+   * on it come off again — so a figure against it is a promise the company
+   * has not made. Leaving it in produced the worst of both: the event was
+   * hidden from the man's page and its money was still sitting in "قيد
+   * الاحتساب", a number with nothing behind it to explain it.
+   *
+   * Nothing settled can be caught by this. The only road back to a draft is
+   * from planning, so a draft has never been worked, let alone paid.
+   */
+  const conditions = [ne(events.status, 'DRAFT')];
   if (where.memberIds && where.memberIds.length > 0) {
     conditions.push(inArray(eventMembers.teamMemberId, where.memberIds));
   }
