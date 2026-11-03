@@ -19,7 +19,7 @@ import { RESPONSE_WINDOW_HOURS, responseDeadline } from '@/lib/journey';
 import { assertEventManager } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
 import { buildBriefings, resolveBaseUrl } from '@/server/services/notify';
-import { pushToMembers } from '@/server/services/push';
+import { pushOnce } from '@/server/services/push';
 import { readConfig, sendTemplate } from '@/server/services/whatsapp';
 
 import { fail, ok, type ActionState } from './types';
@@ -144,22 +144,29 @@ export async function markBriefedAction(
     const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
     if (event) {
       const people = await db
-        .select({ teamMemberId: eventMembers.teamMemberId })
+        .select({ id: eventMembers.id, teamMemberId: eventMembers.teamMemberId })
         .from(eventMembers)
         .where(inArray(eventMembers.id, ids));
       const { locale } = await getT();
-      await pushToMembers(
-        people.map((p) => p.teamMemberId),
-        {
-          title: t.push.invitedTitle,
-          body: format(t.push.invitedBody, {
-            event: event.name,
-            date: formatDate(event.date, locale),
-            time: event.teamArrivalTime ?? '',
+      const body = format(t.push.invitedBody, {
+        event: event.name,
+        date: formatDate(event.date, locale),
+        time: event.teamArrivalTime ?? '',
+      });
+      /*
+       * Once per membership, ever. The same man hears "you are on this one"
+       * when the event leaves draft and again when his invitation is sent,
+       * and the second buzz says nothing the first did not.
+       */
+      await Promise.all(
+        people.map((person) =>
+          pushOnce(`invited:${person.id}`, [person.teamMemberId], {
+            title: t.push.invitedTitle,
+            body,
+            url: '/me',
+            tag: `event:${eventId}`,
           }),
-          url: '/me',
-          tag: `event:${eventId}`,
-        },
+        ),
       );
     }
   } catch {

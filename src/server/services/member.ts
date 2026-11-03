@@ -85,6 +85,15 @@ export async function getMemberPortal(token: string) {
 
   if (!membership) return null;
 
+  /*
+   * And a draft is nobody's business but the office's, however he arrived.
+   *
+   * Dropping drafts from his own page would leave the back door open: a link
+   * sent for an evening that was later pushed back to a draft would still
+   * open it. The refusal belongs here, where every road to this page passes.
+   */
+  if (membership.eventStatus === 'DRAFT') return null;
+
   const expired =
     membership.tokenExpiresAt !== null &&
     membership.tokenExpiresAt.getTime() < Date.now();

@@ -2,11 +2,12 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { assignments, events, gates, venues } from '@/db/schema';
+import { assignments, eventMembers, events, gates, venues } from '@/db/schema';
 import { format } from '@/lib/i18n';
+import { formatDate } from '@/lib/time';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
 import { EVENT_STATUS_FLOW, type EventStatus } from '@/lib/constants';
@@ -20,6 +21,7 @@ import {
 } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
 import { unmarkedAttendance } from '@/server/services/seat-setup';
+import { pushOnce } from '@/server/services/push';
 import { cloneEventPlan } from '@/server/services/clone';
 import { setEventTeamLeader, setGateLeader } from '@/server/services/access';
 import { hrefForStep } from '@/features/event/setup-steps';
@@ -422,6 +424,47 @@ export async function changeEventStatusAction(
     reason: str(form, 'reason'),
     summary: `${event.name}: ${t.enums.eventStatus[from]} → ${t.enums.eventStatus[next]}`,
   });
+
+  /*
+   * Leaving the draft is the moment the evening becomes real.
+   *
+   * Until then it is invisible to the crew on purpose: the date moves, the
+   * gates are undecided, half the names on it come off again. The moment it
+   * stops being a draft it appears on their pages, so that is the moment
+   * their phones should say so rather than leaving them to notice.
+   *
+   * Keyed per membership, and sent once ever. Whoever is on the event now
+   * hears it here; anybody added later hears it when his invitation goes out,
+   * and a man who is on it for both of those hears it exactly once.
+   */
+  if (from === 'DRAFT' && next !== 'DRAFT') {
+    try {
+      const crew = await db
+        .select({ id: eventMembers.id, teamMemberId: eventMembers.teamMemberId })
+        .from(eventMembers)
+        .where(
+          and(eq(eventMembers.eventId, eventId), ne(eventMembers.status, 'CANCELLED')),
+        );
+      const { locale } = await getT();
+      const body = format(t.push.invitedBody, {
+        event: event.name,
+        date: formatDate(event.date, locale),
+        time: event.teamArrivalTime ?? '',
+      });
+      await Promise.all(
+        crew.map((row) =>
+          pushOnce(`invited:${row.id}`, [row.teamMemberId], {
+            title: t.push.invitedTitle,
+            body,
+            url: '/me',
+            tag: `event:${eventId}`,
+          }),
+        ),
+      );
+    } catch {
+      /* The event is out of draft; telling people is best effort. */
+    }
+  }
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/leader/events/${eventId}`);

@@ -231,8 +231,18 @@ function momentOf(date: string, clock: string, addDays = 0): number {
   );
 }
 
-/** Today and yesterday in Baghdad — yesterday because shifts cross midnight. */
+/**
+ * Yesterday, today and tomorrow in Baghdad.
+ *
+ * Yesterday because a shift crosses midnight and its event is still filed
+ * under the day it began. Tomorrow because an evening that starts in the
+ * small hours is filed under the day it starts, and at half past eleven that
+ * event is seventy minutes away and invisible to a sweep that only looks
+ * back. The windows are under two hours wide, so the extra day costs nothing
+ * and closes the one night of the week this would have gone quiet on.
+ */
 function baghdadDates() {
+  const day = 24 * 60 * 60 * 1000;
   const fmt = (shift: number) =>
     new Intl.DateTimeFormat('en-CA', {
       timeZone: TZ,
@@ -240,7 +250,7 @@ function baghdadDates() {
       month: '2-digit',
       day: '2-digit',
     }).format(new Date(Date.now() + shift));
-  return [fmt(0), fmt(-24 * 60 * 60 * 1000)];
+  return [fmt(day), fmt(0), fmt(-day)];
 }
 
 export type DueResult = { checked: number; sent: number };

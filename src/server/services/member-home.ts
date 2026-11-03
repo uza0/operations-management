@@ -51,6 +51,13 @@ export async function getMemberHome(teamMemberId: string) {
    * right now, then what is coming, then what is over. A cancelled membership
    * is dropped rather than shown greyed out — he is not on that event, and a
    * line saying so is one more thing to read at a gate.
+   *
+   * A draft is dropped too, and for a stronger reason. A draft is an evening
+   * somebody is still building: the date moves, the gates are not decided,
+   * half the crew on it will be taken off again. A promoter who sees one puts
+   * it in his week and arranges his life around it, and the first he hears
+   * that it was never real is when it quietly disappears. It becomes his
+   * business the moment it stops being a draft.
    */
   const live = [];
   const upcoming = [];
@@ -58,6 +65,7 @@ export async function getMemberHome(teamMemberId: string) {
 
   for (const row of rows) {
     if (row.status === 'CANCELLED') continue;
+    if (row.eventStatus === 'DRAFT') continue;
     if (row.eventStatus === 'LIVE') live.push(row);
     else if (row.eventStatus === 'COMPLETED' || row.eventStatus === 'ARCHIVED') past.push(row);
     else upcoming.push(row);

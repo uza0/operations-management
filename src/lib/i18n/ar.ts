@@ -1429,6 +1429,7 @@ export const ar = {
       FESTIVAL: 'مهرجان',
       EXHIBITION: 'معرض',
       CONFERENCE: 'مؤتمر',
+      WORKSHOP: 'ورشة',
       PROMOTIONAL: 'فعالية ترويجية',
       OTHER: 'أخرى',
     },

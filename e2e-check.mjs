@@ -1829,11 +1829,59 @@ check('and the steps change with the device',
 await promo.goto(`${BASE}/me`);
 await promo.waitForLoadState('networkidle');
 const mine = await db.prepare(`
-  select count(*) as n from event_members
-   where team_member_id = ? and status != 'CANCELLED'`).get(signInMan.id);
+  select count(*) as n from event_members em
+    join events e on e.id = em.event_id
+   where em.team_member_id = ? and em.status != 'CANCELLED'
+     and e.status != 'DRAFT'`).get(signInMan.id);
 const cards = await promo.locator('main a[href^="/member/"]').count();
 check('his page lists his own events and only those',
   cards === Number(mine.n), `${cards}/${mine.n}`);
+
+/*
+ * And not the ones still being built.
+ *
+ * A draft is an evening somebody is still deciding: the date moves, the gates
+ * are undecided, half the names on it come off again. A promoter who sees one
+ * arranges his week around it and finds out it was never real when it quietly
+ * disappears.
+ */
+const draftOne = await db.prepare(`
+  select em.id, em.token, e.id as event_id, e.name from event_members em
+    join events e on e.id = em.event_id
+   where em.team_member_id = ? and em.status != 'CANCELLED' limit 1`).get(signInMan.id);
+const draftWas = (await db.prepare(
+  'select status from events where id = ?').get(draftOne.event_id)).status;
+await db.exec("update events set status='DRAFT' where id=?", draftOne.event_id);
+
+await promo.goto(`${BASE}/me`, { waitUntil: 'networkidle' });
+check('a draft event is not on his page',
+  (await promo.locator('main a[href^="/member/"]').count()) === cards - 1,
+  `${cards} → ${await promo.locator('main a[href^="/member/"]').count()}`);
+check('and its name is nowhere on it',
+  !(await promo.textContent('main')).includes(String(draftOne.name)), '');
+
+/* Nor reachable by a link sent before it was pushed back to a draft. */
+await promo.goto(`${BASE}/member/${draftOne.token}`, { waitUntil: 'networkidle' });
+check('and a link straight to it does not open either',
+  !(await promo.textContent('body')).includes(String(draftOne.name)), promo.url());
+
+/*
+ * Leaving the draft is the moment it becomes real — so that is the moment
+ * his phone says so, and his page starts carrying it.
+ */
+await db.exec("delete from push_sent where id = ?", 'invited:' + draftOne.id);
+await admin.goto(`${BASE}/admin/events/${draftOne.event_id}`, { waitUntil: 'networkidle' });
+await admin.locator('button:has-text("تخطيط")').first().click();
+await admin.waitForTimeout(3500);
+check('leaving the draft tells the crew it is real',
+  Boolean(await db.prepare('select id from push_sent where id = ?')
+    .get('invited:' + draftOne.id)), '');
+
+await promo.goto(`${BASE}/me`, { waitUntil: 'networkidle' });
+check('and it is back on his page',
+  (await promo.locator('main a[href^="/member/"]').count()) === cards, '');
+
+await db.exec("update events set status=? where id=?", draftWas, draftOne.event_id);
 
 const someoneElse = await db.prepare(`
   select full_name from team_members where id != ? limit 1`).get(signInMan.id);
@@ -1990,9 +2038,27 @@ const baghdad = new Intl.DateTimeFormat('en-CA', {
 }).formatToParts(new Date());
 const bPart = (k) => baghdad.find((p) => p.type === k).value;
 const bDate = `${bPart('year')}-${bPart('month')}-${bPart('day')}`;
-const dueAt = Number(bPart('hour')) * 60 + Number(bPart('minute')) + 70;
-const dueClock = `${String(Math.floor((dueAt % 1440) / 60)).padStart(2, '0')}:${
-  String(dueAt % 60).padStart(2, '0')}`;
+/*
+ * A clock and a date, because a fixture written at half past eleven at night
+ * wraps past midnight — and the sweep reads the event's own date, so a time
+ * of 00:39 filed under today is twenty-three hours in the past, not seventy
+ * minutes ahead. The suite passed for weeks by never being run this late.
+ */
+const bMinutes = Number(bPart('hour')) * 60 + Number(bPart('minute'));
+const whenIn = (offsetMinutes) => {
+  const total = bMinutes + offsetMinutes;
+  const dayShift = Math.floor(total / 1440);
+  const mins = ((total % 1440) + 1440) % 1440;
+  const day = new Date(`${bDate}T00:00:00Z`);
+  day.setUTCDate(day.getUTCDate() + dayShift);
+  return {
+    date: day.toISOString().slice(0, 10),
+    clock: `${String(Math.floor(mins / 60)).padStart(2, '0')}:${
+      String(mins % 60).padStart(2, '0')}`,
+  };
+};
+const due = whenIn(70);
+const dueClock = due.clock;
 
 const pushEvent = await db.prepare(`
   select e.id, em.id as member_id from events e
@@ -2000,7 +2066,7 @@ const pushEvent = await db.prepare(`
    where em.team_member_id = ? limit 1`).get(pushMan.id);
 await db.exec(
   "update events set status='READY', date=?, team_arrival_time=? where id=?",
-  bDate, dueClock, pushEvent.id);
+  due.date, dueClock, pushEvent.id);
 
 await db.exec("delete from push_sent");
 const sweep1 = await promo.evaluate((u) => fetch(u).then((r) => r.json()),
@@ -2012,8 +2078,13 @@ const sweep2 = await promo.evaluate((u) => fetch(u).then((r) => r.json()),
 const afterSecond = Number((await db.prepare(
   'select count(*) as n from push_sent').get()).n);
 
+const pushDiag = await db.prepare(
+  'select status, date, team_arrival_time as t from events where id = ?').get(pushEvent.id);
+const pushSubs = Number((await db.prepare(
+  'select count(*) as n from push_subscriptions').get()).n);
 check('the sweep finds whoever is due within the hour',
-  afterFirst > 0, `${afterFirst} · checked ${sweep1.checked}`);
+  afterFirst > 0,
+  `${afterFirst} · checked ${sweep1.checked} · ${pushDiag.status} ${pushDiag.date} ${pushDiag.t} · now ${bDate} ${bPart('hour')}:${bPart('minute')} · subs ${pushSubs}`);
 check('and running it again sends nothing a second time',
   afterSecond === afterFirst, `${afterFirst} → ${afterSecond} (second sent ${sweep2.sent})`);
 check('the reminder is recorded against the person, not the hour',
@@ -2034,15 +2105,12 @@ check('and nobody outside the window is', notDue === 0, `${notDue}`);
  * his pocket, and an unpressed arrival is a man who worked a night the system
  * has no record of — and is paid nothing for when it closes.
  */
-const clockAt = (offsetMinutes) => {
-  const at = Number(bPart('hour')) * 60 + Number(bPart('minute')) + offsetMinutes;
-  return `${String(Math.floor((at % 1440) / 60)).padStart(2, '0')}:${
-    String(at % 60).padStart(2, '0')}`;
-};
+const soon = whenIn(30);
 
 await db.exec(
-  "update events set team_arrival_time='23:59', start_time=?, team_departure_time=null where id=?",
-  clockAt(30), pushEvent.id);
+  `update events set date=?, team_arrival_time='23:59', start_time=?,
+          team_departure_time=null where id=?`,
+  soon.date, soon.clock, pushEvent.id);
 await db.exec(
   `update attendance set reported_arrival_at = null, reported_departure_at = null
     where event_member_id = ?`, pushEvent.member_id);
@@ -2073,9 +2141,16 @@ check('and whoever already pressed it is left alone',
  * night that ends at half past midnight and wrong for the 23:59 the previous
  * check left behind.
  */
+/*
+ * The event's date is the date he ARRIVED on, which is what makes a departure
+ * clock earlier than the arrival clock mean "the next morning" — the ordinary
+ * shape of a night that ends after midnight, and the shape this fixture takes
+ * by itself when it is built late in the evening.
+ */
+const came = whenIn(-90);
 await db.exec(
-  "update events set team_arrival_time=?, team_departure_time=? where id=?",
-  clockAt(-90), clockAt(30), pushEvent.id);
+  "update events set date=?, team_arrival_time=?, team_departure_time=? where id=?",
+  came.date, came.clock, soon.clock, pushEvent.id);
 await db.exec("delete from push_sent");
 await promo.evaluate((u) => fetch(u).then((r) => r.json()), `${BASE}/api/push/due`);
 check('half an hour before the shift ends he is reminded to press «خروج»',

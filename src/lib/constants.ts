@@ -43,6 +43,7 @@ export const EVENT_TYPES = [
   'FESTIVAL',
   'EXHIBITION',
   'CONFERENCE',
+  'WORKSHOP',
   'PROMOTIONAL',
   'OTHER',
 ] as const;
