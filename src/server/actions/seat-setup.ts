@@ -333,3 +333,63 @@ export async function setSeatSetupPersonAction(
   revalidate(eventId);
   return ok();
 }
+
+/** Marks the selected members present on one specific setup shift. */
+export async function markSeatSetupAttendanceAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  const user = await assertEventManager(eventId).catch(() => null);
+  if (!user) return fail(t.errors.forbidden);
+
+  const detailId = str(form, 'detailId');
+  if (!detailId) return fail(t.seatSetup.needsShift);
+
+  const shift = await db.query.seatSetupDetails.findFirst({
+    where: and(eq(seatSetupDetails.id, detailId), eq(seatSetupDetails.eventId, eventId)),
+  });
+  if (!shift) return fail(t.seatSetup.needsShift);
+
+  const wanted = [...new Set(form.getAll('seatMemberIds').map(String).filter(Boolean))];
+  if (wanted.length === 0) return fail(t.errors.required);
+
+  const rows = await db
+    .select({ id: seatSetupMembers.id })
+    .from(seatSetupMembers)
+    .where(
+      and(
+        eq(seatSetupMembers.eventId, eventId),
+        eq(seatSetupMembers.detailId, detailId),
+        inArray(seatSetupMembers.id, wanted),
+      ),
+    );
+  if (rows.length === 0) return fail(t.errors.notFound);
+
+  const updatedAt = new Date();
+  await db
+    .update(seatSetupMembers)
+    .set({ attended: true, updatedAt })
+    .where(
+      and(
+        eq(seatSetupMembers.eventId, eventId),
+        eq(seatSetupMembers.detailId, detailId),
+        inArray(seatSetupMembers.id, rows.map((row) => row.id)),
+      ),
+    );
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'ATTENDANCE',
+    summary: `${t.seatSetup.markPresentSelected.replace('{n}', String(rows.length))}`,
+    oldValues: { selected: rows.length },
+    newValues: { attended: true, selected: rows.length },
+  });
+
+  revalidate(eventId);
+  return ok();
+}

@@ -8,6 +8,7 @@ import {
   saveSeatSetupAction,
   setSeatSetupCrewAction,
   setSeatSetupPersonAction,
+  markSeatSetupAttendanceAction,
 } from '@/server/actions/seat-setup';
 import { approveSeatArrivalsAction } from '@/server/actions/journey';
 import { idle } from '@/server/actions/types';
@@ -57,28 +58,36 @@ export function SeatSetupManager({
     (sum, shift) => sum + shift.people.filter((p) => p.attended).length * shift.payAmount,
     0,
   );
+  const assigned = data.shifts.reduce((sum, shift) => sum + shift.people.length, 0);
+  const attended = data.shifts.reduce(
+    (sum, shift) => sum + shift.people.filter((person) => person.attended).length,
+    0,
+  );
 
   return (
     <>
-      <div className="flex flex-col gap-3 border-b border-ink-800 p-4 sm:flex-row sm:items-center">
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold text-ink-200">
-            {format(t.seatSetup.dayCount, { n: data.shifts.length })}
-          </p>
-          <p className="mt-0.5 text-[12px] leading-5 text-ink-500">{t.seatSetup.daysHint}</p>
+      <div className="border-b border-ink-800 p-4 sm:p-5">
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <p className="max-w-2xl text-[14px] leading-6 text-ink-300">{t.seatSetup.daysHint}</p>
+          <button
+            type="button"
+            className="btn-primary btn-sm w-full justify-center sm:w-auto"
+            onClick={() => setEditing('new')}
+          >
+            <IconPlus width={15} height={15} />
+            {t.seatSetup.add}
+          </button>
         </div>
-        <p className="nums text-[13px] text-ink-300">
-          {t.seatSetup.total}: <span className="font-semibold">{formatAmount(total)}</span>{' '}
-          {t.credit.currency}
-        </p>
-        <button
-          type="button"
-          className="btn-primary btn-sm w-full justify-center sm:w-auto"
-          onClick={() => setEditing('new')}
-        >
-          <IconPlus width={15} height={15} />
-          {t.seatSetup.add}
-        </button>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <SummaryStat label={t.seatSetup.daysLabel} value={data.shifts.length} />
+          <SummaryStat label={t.seatSetup.assignedCrew} value={assigned} />
+          <SummaryStat label={t.seatSetup.attendanceSummary} value={`${attended} / ${assigned}`} />
+          <SummaryStat
+            label={t.seatSetup.total}
+            value={`${formatAmount(total)} ${t.credit.currency}`}
+            prominent
+          />
+        </div>
       </div>
 
       {data.shifts.length === 0 ? (
@@ -126,6 +135,25 @@ export function SeatSetupManager({
   );
 }
 
+function SummaryStat({
+  label,
+  value,
+  prominent = false,
+}: {
+  label: string;
+  value: string | number;
+  prominent?: boolean;
+}) {
+  return (
+    <div className="min-w-0 rounded-card border border-ink-700 bg-ink-900/70 px-3 py-2.5">
+      <p className="text-[12px] font-medium text-ink-300">{label}</p>
+      <p className={`nums mt-1 truncate text-[16px] font-bold ${prominent ? 'text-brand-300' : 'text-ink-50'}`}>
+        {value}
+      </p>
+    </div>
+  );
+}
+
 /** One chair day: its hours, its rate, and who stood in the room. */
 function ShiftBlock({
   t,
@@ -144,15 +172,32 @@ function ShiftBlock({
   onPick: () => void;
   onDone: () => void;
 }) {
+  const router = useRouter();
   const [removeState, remove] = useActionState(removeSeatSetupAction, idle);
+  const [attendanceState, markAttendance] = useActionState(markSeatSetupAttendanceAction, idle);
+  const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const attended = shift.people.filter((p) => p.attended).length;
+  const confirmed = shift.people.filter((person) => person.confirmedAt).length;
+  const waiting = shift.people.filter((person) => person.notifiedAt && !person.confirmedAt && !person.declinedAt).length;
+  const notInvited = shift.people.filter((person) => !person.notifiedAt).length;
+  const declined = shift.people.filter((person) => person.declinedAt).length;
+  const selectedIds = shift.people.filter((person) => selected.has(person.id)).map((person) => person.id);
+  const selectedCount = selectedIds.length;
+  const allSelected = shift.people.length > 0 && selectedCount === shift.people.length;
 
   useEffect(() => {
     if (removeState.status === 'success') onDone();
   }, [removeState, onDone]);
 
+  useEffect(() => {
+    if (attendanceState.status === 'success') {
+      setSelected(new Set());
+      router.refresh();
+    }
+  }, [attendanceState, router]);
+
   return (
-    <section className="border-b border-ink-800">
+    <section className="border-b border-ink-800 p-3 sm:p-4">
       {/*
         Stacked on a phone, side by side on a desk.
 
@@ -161,13 +206,13 @@ function ShiftBlock({
         wide — the day of the shift, which is the only thing on this header
         anybody reads first.
       */}
-      <div className="flex flex-col gap-3 bg-ink-900/40 px-4 py-3 sm:flex-row sm:items-center">
+      <div className="rounded-card border border-ink-700 bg-ink-900/70 p-3 sm:p-4">
+       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="min-w-0 flex-1">
-          <p className="text-[15px] font-semibold text-ink-100">
+          <p className="text-[16px] font-bold text-ink-50">
             {formatDate(shift.date, locale)}
           </p>
-          {/* Each fact its own chip, so none of them has to fit on one line. */}
-          <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-ink-400">
+          <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-ink-300">
             <span className="nums">
               {shift.startTime}
               {shift.endTime ? ` → ${shift.endTime}` : ''}
@@ -182,7 +227,7 @@ function ShiftBlock({
             </span>
           </p>
           {shift.notes ? (
-            <p className="mt-1 text-[12.5px] leading-5 text-ink-500">{shift.notes}</p>
+          <p className="mt-1 text-[13px] leading-5 text-ink-300">{shift.notes}</p>
           ) : null}
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -205,14 +250,59 @@ function ShiftBlock({
         </div>
       </div>
 
+      <div className="mt-3 flex flex-wrap gap-1.5" aria-label={t.seatSetup.shiftStatus}>
+        <Badge tone="ok">{t.seatSetup.confirmedList}: {confirmed}</Badge>
+        {waiting > 0 ? <Badge tone="warn">{t.seatSetup.waitingReply}: {waiting}</Badge> : null}
+        {notInvited > 0 ? <Badge tone="neutral">{t.seatSetup.notAsked}: {notInvited}</Badge> : null}
+        {declined > 0 ? <Badge tone="crit">{t.seatSetup.declinedList}: {declined}</Badge> : null}
+        <Badge tone="neutral">{t.seatSetup.attendedCount.replace('{n}', String(attended))} / {shift.people.length}</Badge>
+      </div>
+      </div>
+
       {shift.people.length === 0 ? (
         <p className="px-4 py-3 text-[12.5px] text-ink-500">{t.seatSetup.empty}</p>
       ) : (
-        <ul className="divide-y divide-ink-800">
-          {shift.people.map((person) => (
-            <PersonRow key={person.id} t={t} eventId={eventId} person={person} />
-          ))}
-        </ul>
+        <>
+          <form action={markAttendance} className="mt-2 flex flex-wrap items-center gap-3 rounded-card border border-ink-800 bg-ink-900/50 px-3 py-2.5">
+            <input type="hidden" name="eventId" value={eventId} />
+            <input type="hidden" name="detailId" value={shift.id} />
+            {selectedIds.map((id) => <input key={id} type="hidden" name="seatMemberIds" value={id} />)}
+            <label className="flex min-h-10 items-center gap-2 text-[13px] font-medium text-ink-200">
+              <input
+                type="checkbox"
+                checked={allSelected}
+                onChange={(event) => setSelected(event.target.checked ? new Set(shift.people.map((person) => person.id)) : new Set())}
+                className="h-4.5 w-4.5 accent-brand-500"
+              />
+              {t.seatSetup.selectAll}
+            </label>
+            <span className="text-[13px] text-ink-300">{format(t.seatSetup.selectedCount, { n: selectedCount })}</span>
+            <SubmitButton
+              className="btn-primary btn-sm"
+              disabled={selectedCount === 0}
+            >
+              {format(t.seatSetup.markPresentSelected, { n: selectedCount })}
+            </SubmitButton>
+            {attendanceState.status === 'error' ? <FormError message={attendanceState.message} /> : null}
+          </form>
+          <ul className="mt-2 space-y-2">
+            {shift.people.map((person) => (
+              <PersonRow
+                key={person.id}
+                t={t}
+                eventId={eventId}
+                person={person}
+                selected={selected.has(person.id)}
+                onSelect={(checked) => setSelected((current) => {
+                  const next = new Set(current);
+                  if (checked) next.add(person.id);
+                  else next.delete(person.id);
+                  return next;
+                })}
+              />
+            ))}
+          </ul>
+        </>
       )}
     </section>
   );
@@ -425,10 +515,14 @@ function PersonRow({
   t,
   eventId,
   person,
+  selected,
+  onSelect,
 }: {
   t: Dictionary;
   eventId: string;
   person: SeatSetupData['shifts'][number]['people'][number];
+  selected: boolean;
+  onSelect: (checked: boolean) => void;
 }) {
   const router = useRouter();
   const [state, action] = useActionState(setSeatSetupPersonAction, idle);
@@ -447,57 +541,60 @@ function PersonRow({
    */
   const waiting = Boolean(person.reportedArrivalAt) && !person.approvedAt;
 
-  return (
-    <li className="p-3">
-      <div className="mb-2 flex flex-wrap items-center gap-2">
-        {person.declinedAt ? (
-          <Badge tone="crit">{t.seatSetup.declinedList}</Badge>
-        ) : person.confirmedAt ? (
-          <Badge tone="ok">{t.seatSetup.confirmedList}</Badge>
-        ) : person.notifiedAt ? (
-          <Badge tone="warn">{t.seatSetup.waitingReply}</Badge>
-        ) : (
-          <Badge tone="neutral">{t.seatSetup.notAsked}</Badge>
-        )}
+  const invitationLabel = person.declinedAt
+    ? t.seatSetup.declinedList
+    : person.confirmedAt
+      ? t.seatSetup.confirmedList
+      : person.notifiedAt
+        ? t.seatSetup.waitingReply
+        : t.seatSetup.notAsked;
 
+  return (
+    <li className={`rounded-card border p-3 sm:px-4 ${selected ? 'border-brand-500/70 bg-brand-500/5' : 'border-ink-800 bg-ink-900/40'}`}>
+      <div className="flex flex-wrap items-start gap-3">
+        <label className="flex min-h-11 min-w-0 flex-1 cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={(event) => onSelect(event.target.checked)}
+            aria-label={format(t.seatSetup.selectMember, { name: person.name })}
+            className="mt-1 h-4.5 w-4.5 shrink-0 accent-brand-500"
+          />
+          <span className="min-w-0 flex-1">
+            <span className="block text-[15px] font-semibold text-ink-50" style={{ unicodeBidi: 'plaintext' }}>{person.name}</span>
+            <span className="mt-0.5 block text-[13px] text-ink-300">
+              <span className="nums">{person.employeeCode}</span>
+              {person.normalPlace ? ` · ${person.normalPlace}` : ''}
+            </span>
+          </span>
+        </label>
+        <div className="flex flex-wrap items-center gap-1.5">
+          <Badge tone={person.declinedAt ? 'crit' : person.confirmedAt ? 'ok' : person.notifiedAt ? 'warn' : 'neutral'}>
+            {invitationLabel}
+          </Badge>
+          <Badge tone={person.attended ? 'ok' : 'neutral'}>
+            {person.attended ? t.seatSetup.attended : t.seatSetup.notAttended}
+          </Badge>
+          {waiting ? <Badge tone="warn">{t.seatSetup.approveTitle}</Badge> : null}
+          {person.approvedAt ? <Badge tone="ok">{t.journey.approved}</Badge> : null}
+        </div>
         {waiting ? (
-          <form action={approve} className="flex items-center gap-2">
+          <form action={approve} className="w-full sm:w-auto">
             <input type="hidden" name="eventId" value={eventId} />
             <input type="hidden" name="seatMemberId" value={person.id} />
-            <Badge tone="warn">{t.seatSetup.approveTitle}</Badge>
-            <SubmitButton className="btn-primary btn-sm">{t.journey.approve}</SubmitButton>
+            <SubmitButton className="btn-primary btn-sm w-full sm:w-auto">{t.journey.approve}</SubmitButton>
           </form>
         ) : null}
-        {person.approvedAt ? <Badge tone="ok">{t.journey.approved}</Badge> : null}
       </div>
-      {/*
-        Stacked on a phone, in a row on a desk.
 
-        It used to be one flex-wrap row for both. On a 390px screen the name
-        column was squeezed to a word per line, the two time fields and the
-        checkbox fought over what was left, and the whole crew list came out
-        as the unreadable thing a supervisor was looking at in the hall. The
-        name is now its own line, the controls are a grid under it, and
-        nothing has a fixed width.
-      */}
-      <form action={action} className="space-y-2.5">
+      <details className="mt-2 border-t border-ink-800 pt-2">
+        <summary className="min-h-10 cursor-pointer py-2 text-[13px] font-medium text-ink-300 hover:text-ink-100">
+          {t.seatSetup.editAttendance}
+        </summary>
+      <form action={action} className="space-y-3 pb-1">
         <input type="hidden" name="eventId" value={eventId} />
         <input type="hidden" name="id" value={person.id} />
-
-        <div className="min-w-0">
-          <p
-            className="text-[14.5px] font-semibold text-ink-100"
-            style={{ unicodeBidi: 'plaintext' }}
-          >
-            {person.name}
-          </p>
-          <p className="text-[12px] text-ink-500">
-            <span className="nums">{person.employeeCode}</span>
-            {person.normalPlace ? ` · ${person.normalPlace}` : ''}
-          </p>
-        </div>
-
-        <label className="flex min-h-[44px] items-center gap-2 text-[13.5px] text-ink-200">
+        <label className="flex min-h-11 items-center gap-2.5 text-[14px] font-medium text-ink-200">
           <input
             type="checkbox"
             name="attended"
@@ -506,8 +603,7 @@ function PersonRow({
           />
           {t.seatSetup.attended}
         </label>
-
-        <div className="grid grid-cols-2 gap-2.5">
+        <div className="grid grid-cols-2 gap-2.5 sm:max-w-md">
           <div className="min-w-0">
             <label className="field-label" htmlFor={`in-${person.id}`}>
               {t.seatSetup.checkIn}
@@ -538,6 +634,7 @@ function PersonRow({
           {t.common.save}
         </SubmitButton>
       </form>
+      </details>
       {state.status === 'error' ? <FormError message={state.message} /> : null}
     </li>
   );
