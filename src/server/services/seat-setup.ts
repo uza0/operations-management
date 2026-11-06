@@ -61,6 +61,7 @@ export type SeatSetupCandidate = {
 
 export type SeatSetupShift = {
   id: string;
+  status: 'PLANNING' | 'READY';
   date: string;
   startTime: string;
   endTime: string | null;
@@ -226,6 +227,7 @@ export async function buildSeatSetup(eventId: string): Promise<SeatSetupData> {
 
   const shifts: SeatSetupShift[] = details.map((detail) => ({
     id: detail.id,
+    status: detail.status === 'READY' ? 'READY' : 'PLANNING',
     date: detail.date,
     startTime: detail.startTime,
     endTime: detail.endTime,
@@ -266,6 +268,7 @@ export function dayBefore(date: string): string {
 export type MySeatSetup = {
   /** The crew row itself: the thing his two buttons act on. */
   id: string;
+  status: 'PLANNING' | 'READY';
   date: string;
   startTime: string;
   endTime: string | null;
@@ -298,6 +301,7 @@ export async function seatSetupForMember(
   const rows = await db
     .select({
       id: seatSetupMembers.id,
+      status: seatSetupDetails.status,
       date: seatSetupDetails.date,
       startTime: seatSetupDetails.startTime,
       endTime: seatSetupDetails.endTime,
@@ -325,6 +329,7 @@ export async function seatSetupForMember(
   const now = new Date();
   return rows.map((row) => ({
     ...row,
+    status: row.status === 'READY' ? 'READY' as const : 'PLANNING' as const,
     payAmount: row.payAmount ?? SEAT_SETUP_PAY,
     stage: seatStageFor({
       confirmedAt: row.confirmedAt,

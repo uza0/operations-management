@@ -32,6 +32,7 @@ export function SeatSetupCard({
   t,
   token,
   seatMemberId,
+  setupStatus,
   stage,
   when,
   hours,
@@ -43,6 +44,7 @@ export function SeatSetupCard({
   t: Dictionary;
   token: string;
   seatMemberId: string;
+  setupStatus: 'PLANNING' | 'READY';
   stage: 'INVITED' | 'DECLINED' | 'CONFIRMED' | 'ARRIVING' | 'AWAITING_APPROVAL' | 'ON_DUTY' | 'DONE';
   when: string;
   hours: string;
@@ -80,6 +82,9 @@ export function SeatSetupCard({
   return (
     <li className="rounded-control border border-ink-700 bg-ink-900 p-3.5">
       <p className="text-[16px] font-bold leading-tight text-ink-100">{when}</p>
+      <p className={`mt-1 text-[12px] font-semibold ${setupStatus === 'READY' ? 'text-ok-text' : 'text-ink-400'}`}>
+        {setupStatus === 'READY' ? t.seatSetup.memberReadyNotice : t.seatSetup.memberPlanningNotice}
+      </p>
       <p className="nums mt-0.5 text-[14px] font-semibold text-ink-200">{hours}</p>
       {notes ? (
         <p className="mt-0.5 text-[12.5px] leading-5 text-ink-400">{notes}</p>

@@ -545,6 +545,7 @@ export default async function MemberPortalPage({
                       t={t}
                       token={token}
                       seatMemberId={shift.id}
+                      setupStatus={shift.status}
                       stage={shift.stage}
                       when={formatDate(shift.date, locale)}
                       hours={

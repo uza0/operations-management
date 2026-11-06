@@ -9,6 +9,7 @@ import {
   setSeatSetupCrewAction,
   setSeatSetupPersonAction,
   markSeatSetupAttendanceAction,
+  setSeatSetupStatusAction,
 } from '@/server/actions/seat-setup';
 import { approveSeatArrivalsAction } from '@/server/actions/journey';
 import { idle } from '@/server/actions/types';
@@ -97,13 +98,14 @@ export function SeatSetupManager({
           icon={<IconUsers width={20} height={20} />}
         />
       ) : (
-        data.shifts.map((shift) => (
+        data.shifts.map((shift, index) => (
           <ShiftBlock
             key={shift.id}
             t={t}
             locale={locale}
             eventId={eventId}
             shift={shift}
+            defaultExpanded={index === 0}
             onEdit={() => setEditing(shift)}
             onPick={() => setPicking(shift)}
             onDone={refresh}
@@ -160,6 +162,7 @@ function ShiftBlock({
   locale,
   eventId,
   shift,
+  defaultExpanded,
   onEdit,
   onPick,
   onDone,
@@ -168,6 +171,7 @@ function ShiftBlock({
   locale: Locale;
   eventId: string;
   shift: SeatSetupData['shifts'][number];
+  defaultExpanded: boolean;
   onEdit: () => void;
   onPick: () => void;
   onDone: () => void;
@@ -175,6 +179,8 @@ function ShiftBlock({
   const router = useRouter();
   const [removeState, remove] = useActionState(removeSeatSetupAction, idle);
   const [attendanceState, markAttendance] = useActionState(markSeatSetupAttendanceAction, idle);
+  const [statusState, setStatus] = useActionState(setSeatSetupStatusAction, idle);
+  const [expanded, setExpanded] = useState(defaultExpanded);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const attended = shift.people.filter((p) => p.attended).length;
   const confirmed = shift.people.filter((person) => person.confirmedAt).length;
@@ -196,6 +202,10 @@ function ShiftBlock({
     }
   }, [attendanceState, router]);
 
+  useEffect(() => {
+    if (statusState.status === 'success') router.refresh();
+  }, [statusState, router]);
+
   return (
     <section className="border-b border-ink-800 p-3 sm:p-4">
       {/*
@@ -208,11 +218,13 @@ function ShiftBlock({
       */}
       <div className="rounded-card border border-ink-700 bg-ink-900/70 p-3 sm:p-4">
        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <div className="min-w-0 flex-1">
-          <p className="text-[16px] font-bold text-ink-50">
+        <button type="button" className="min-w-0 flex-1 text-start" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>
+          <span className="flex items-center gap-2 text-[16px] font-bold text-ink-50">
+            <span aria-hidden>{expanded ? '⌄' : '›'}</span>
             {formatDate(shift.date, locale)}
-          </p>
-          <p className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-ink-300">
+            <Badge tone={shift.status === 'READY' ? 'ok' : 'warn'}>{shift.status === 'READY' ? t.seatSetup.statusReady : t.seatSetup.statusPlanning}</Badge>
+          </span>
+          <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-ink-300">
             <span className="nums">
               {shift.startTime}
               {shift.endTime ? ` → ${shift.endTime}` : ''}
@@ -225,12 +237,20 @@ function ShiftBlock({
             <span className="nums">
               {format(t.seatSetup.attendedCount, { n: attended })} / {shift.people.length}
             </span>
-          </p>
+          </span>
           {shift.notes ? (
-          <p className="mt-1 text-[13px] leading-5 text-ink-300">{shift.notes}</p>
+          <span className="mt-1 block text-[13px] leading-5 text-ink-300">{shift.notes}</span>
           ) : null}
-        </div>
+        </button>
         <div className="flex flex-wrap items-center gap-2">
+          <form action={setStatus}>
+            <input type="hidden" name="eventId" value={eventId} />
+            <input type="hidden" name="detailId" value={shift.id} />
+            <input type="hidden" name="status" value={shift.status === 'READY' ? 'PLANNING' : 'READY'} />
+            <SubmitButton className={shift.status === 'READY' ? 'btn-secondary btn-sm' : 'btn-primary btn-sm'}>
+              {shift.status === 'READY' ? t.seatSetup.returnToPlanning : t.seatSetup.markReady}
+            </SubmitButton>
+          </form>
           <button type="button" className="btn-secondary btn-sm" onClick={onPick}>
             {t.seatSetup.pick}
           </button>
@@ -250,6 +270,8 @@ function ShiftBlock({
         </div>
       </div>
 
+      {statusState.status === 'error' ? <div className="mt-2"><FormError message={statusState.message} /></div> : null}
+      {expanded ? <>
       <div className="mt-3 flex flex-wrap gap-1.5" aria-label={t.seatSetup.shiftStatus}>
         <Badge tone="ok">{t.seatSetup.confirmedList}: {confirmed}</Badge>
         {waiting > 0 ? <Badge tone="warn">{t.seatSetup.waitingReply}: {waiting}</Badge> : null}
@@ -304,6 +326,7 @@ function ShiftBlock({
           </ul>
         </>
       )}
+      </> : null}
     </section>
   );
 }

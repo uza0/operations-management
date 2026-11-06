@@ -853,6 +853,10 @@ export const seatSetupDetails = sqliteTable(
      */
     endTime: text('end_time'),
     notes: text('notes'),
+    /** PLANNING | READY - READY means the assigned crew has been notified. */
+    status: text('status').notNull().default('PLANNING'),
+    /** Lets a later return to READY produce a fresh notification. */
+    readyVersion: integer('ready_version').notNull().default(0),
     /** Flat, for everyone on the shift. 30,000 IQD unless changed. */
     payAmount: real('pay_amount').notNull().default(30000),
     ...timestamps,

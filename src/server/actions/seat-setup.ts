@@ -6,16 +6,20 @@ import { and, eq, inArray, ne } from 'drizzle-orm';
 import { db } from '@/db';
 import {
   eventMembers,
+  events,
   seatSetupDetails,
   seatSetupMembers,
   teamMembers,
 } from '@/db/schema';
+import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
 import { SEAT_SETUP_PAY, MAX_EVENT_PAY } from '@/lib/money';
+import { formatDate, formatTime } from '@/lib/time';
 import { str } from '@/lib/validation';
 import { assertEventManager } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
+import { pushConfigured, pushOnce } from '@/server/services/push';
 
 import { fail, ok, type ActionState } from './types';
 
@@ -40,6 +44,82 @@ function revalidate(eventId: string) {
 
 const CLOCK = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Publishes one setup day and notifies the crew assigned to that day. */
+export async function setSeatSetupStatusAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t, locale } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  const user = await assertEventManager(eventId).catch(() => null);
+  if (!user) return fail(t.errors.forbidden);
+
+  const detailId = str(form, 'detailId');
+  const nextStatus = str(form, 'status');
+  if (!detailId || (nextStatus !== 'PLANNING' && nextStatus !== 'READY')) {
+    return fail(t.seatSetup.needsShift);
+  }
+
+  const shift = await db.query.seatSetupDetails.findFirst({
+    where: and(eq(seatSetupDetails.id, detailId), eq(seatSetupDetails.eventId, eventId)),
+  });
+  if (!shift) return fail(t.seatSetup.needsShift);
+  if (shift.status === nextStatus) return ok();
+
+  let teamMemberIds: string[] = [];
+  if (nextStatus === 'READY') {
+    if (!pushConfigured()) return fail(t.seatSetup.pushUnavailable);
+    const crew = await db
+      .select({ teamMemberId: eventMembers.teamMemberId })
+      .from(seatSetupMembers)
+      .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
+      .where(
+        and(
+          eq(seatSetupMembers.eventId, eventId),
+          eq(seatSetupMembers.detailId, detailId),
+          ne(eventMembers.status, 'CANCELLED'),
+        ),
+      );
+    teamMemberIds = [...new Set(crew.map((row) => row.teamMemberId))];
+    if (teamMemberIds.length === 0) return fail(t.seatSetup.readyNeedsCrew);
+  }
+
+  const readyVersion = nextStatus === 'READY' ? (shift.readyVersion ?? 0) + 1 : shift.readyVersion;
+  await db
+    .update(seatSetupDetails)
+    .set({ status: nextStatus, readyVersion, updatedAt: new Date() })
+    .where(and(eq(seatSetupDetails.id, detailId), eq(seatSetupDetails.eventId, eventId)));
+
+  if (nextStatus === 'READY') {
+    const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+    if (event) {
+      await pushOnce(`seat-setup-ready:${detailId}:${readyVersion}`, teamMemberIds, {
+        title: t.seatSetup.readyPushTitle,
+        body: format(t.seatSetup.readyPushBody, {
+          event: event.name,
+          date: formatDate(shift.date, locale),
+          time: formatTime(shift.startTime, locale),
+        }),
+        url: '/me',
+        tag: `seat-setup:${detailId}`,
+      });
+    }
+  }
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'SEAT_SETUP',
+    summary: `${formatDate(shift.date, locale)}: ${nextStatus === 'READY' ? t.seatSetup.statusReady : t.seatSetup.statusPlanning}`,
+    oldValues: { status: shift.status },
+    newValues: { status: nextStatus, readyVersion },
+  });
+  revalidate(eventId);
+  return ok();
+}
 
 /** Creates the shift, or edits its day, hours, rate and note. */
 export async function saveSeatSetupAction(
