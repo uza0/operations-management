@@ -14,12 +14,15 @@ export function ReportSection({
   title,
   children,
   hint,
+  visible = true,
 }: {
   index: number;
   title: string;
   children: ReactNode;
   hint?: string;
+  visible?: boolean;
 }) {
+  if (!visible) return null;
   return (
     <section className="report-section">
       <h2 className="report-h2">

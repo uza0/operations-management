@@ -17,6 +17,7 @@ import {
 } from '@/lib/constants';
 
 import { PrintButton, ReportNotes } from './parts/ReportParts';
+import { ReportTypeSelector, type ReportView } from './parts/ReportTypeSelector';
 import {
   CoverageBar,
   Fact,
@@ -36,11 +37,46 @@ import {
  * application around it, so "save as PDF" produces something that can be sent
  * to a manager as-is.
  */
-export async function EventReportPage({ eventId }: { eventId: string }) {
+export async function EventReportPage({
+  eventId,
+  base,
+  requestedView,
+}: {
+  eventId: string;
+  base: '/admin' | '/leader';
+  requestedView?: string;
+}) {
   const { scope, event, locale, t } = await loadManagedEventPage(eventId);
   const canSeeFinance = scope.user.role === 'ADMIN';
+  const allowedViews: ReportView[] = ['general', 'attendance', 'expenses', 'issues', 'survey', 'operations'];
+  const view: ReportView = allowedViews.includes(requestedView as ReportView)
+    && (requestedView !== 'expenses' || canSeeFinance)
+    ? (requestedView as ReportView)
+    : 'general';
+  const visible = (category: ReportView | 'all') =>
+    view === 'general' || category === 'all' || category === view;
   const data = await buildReport(eventId);
   const expenses = canSeeFinance ? await buildExpenses(eventId) : null;
+  const hasExpenses = Boolean(expenses?.lines.length);
+  const sectionIndex = (section: string) => {
+    if (view === 'general') {
+      const general: Record<string, number> = {
+        summary: 1, event: 2, staff: 3, attendance: 4, changes: 5, issues: 6,
+        timeline: 7, communication: 8, expenses: 9, notes: hasExpenses ? 10 : 9,
+        survey: hasExpenses ? 11 : 10, signoff: hasExpenses ? 12 : 11,
+      };
+      return general[section];
+    }
+    const selected: Record<ReportView, Record<string, number>> = {
+      general: {},
+      attendance: { event: 1, staff: 2, attendance: 3, changes: 4 },
+      expenses: { event: 1, expenses: 2 },
+      issues: { event: 1, issues: 2 },
+      survey: { event: 1, survey: 2 },
+      operations: { event: 1, staff: 2, changes: 3, timeline: 4, communication: 5, notes: 6 },
+    };
+    return selected[view][section] ?? 0;
+  };
   const { findings, recommendations } = buildFindings(data, t, format);
 
   const generatedAt = new Date();
@@ -56,17 +92,19 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
     <>
       <div className="app-chrome mb-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-[20px] font-bold text-ink-100">{t.report.title}</h1>
+          <h1 className="text-[20px] font-bold text-ink-100">{t.report.views[view]}</h1>
           <p className="mt-0.5 text-[13px] text-ink-400">{t.report.subtitle}</p>
         </div>
         <PrintButton label={t.report.printReport} />
       </div>
 
+      <ReportTypeSelector eventId={eventId} base={base} current={view} canSeeFinance={canSeeFinance} t={t} />
+
       <article className="report-doc">
         {/* Masthead ------------------------------------------------------- */}
         <header className="report-masthead">
           <p className="report-kicker">{t.app.name}</p>
-          <h1 className="report-title">{t.report.documentTitle}</h1>
+          <h1 className="report-title">{t.report.documentTitles[view]}</h1>
           <p className="report-subtitle">
             {event.name} · {event.venue.name} ·{' '}
             <span className="nums">{formatDate(event.date, locale)}</span>
@@ -89,12 +127,12 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
         </header>
 
         {/* 1 — Executive summary ------------------------------------------ */}
-        <ReportSection index={1} title={t.report.section1}>
+        <ReportSection index={sectionIndex('summary')} title={t.report.section1} visible={view === 'general'}>
           <Statements items={findings} />
         </ReportSection>
 
         {/* 2 — Event details ---------------------------------------------- */}
-        <ReportSection index={2} title={t.report.section2}>
+        <ReportSection index={sectionIndex('event')} title={t.report.section2} visible={visible('all')}>
           <FactGrid>
             <div>
               <Fact label={t.event.name}>{event.name}</Fact>
@@ -137,7 +175,7 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
         </ReportSection>
 
         {/* 3 — Staffing and coverage --------------------------------------- */}
-        <ReportSection index={3} title={t.report.section3}>
+        <ReportSection index={sectionIndex('staff')} title={t.report.section3} visible={view === 'attendance' || view === 'operations' || view === 'general'}>
           {data.locations.length === 0 ? (
             <p className="report-hint">{t.report.none}</p>
           ) : (
@@ -200,7 +238,7 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
         </ReportSection>
 
         {/* 4 — Attendance --------------------------------------------------- */}
-        <ReportSection index={4} title={t.report.section4}>
+        <ReportSection index={sectionIndex('attendance')} title={t.report.section4} visible={view === 'attendance' || view === 'general'}>
           <FactGrid>
             <div>
               {(['PRESENT', 'LATE', 'ABSENT'] as const).map((status) => (
@@ -313,7 +351,7 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
         </ReportSection>
 
         {/* 5 — Changes during the event ------------------------------------ */}
-        <ReportSection index={5} title={t.report.section5}>
+        <ReportSection index={sectionIndex('changes')} title={t.report.section5} visible={view === 'attendance' || view === 'operations' || view === 'general'}>
           {data.changes.length === 0 ? (
             <p className="report-hint">{t.report.none}</p>
           ) : (
@@ -344,7 +382,7 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
         </ReportSection>
 
         {/* 6 — Issues ------------------------------------------------------- */}
-        <ReportSection index={6} title={t.report.section6}>
+        <ReportSection index={sectionIndex('issues')} title={t.report.section6} visible={view === 'issues' || view === 'general'}>
           <FactGrid>
             <div>
               <Fact label={t.common.total}>
@@ -417,7 +455,7 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
         </ReportSection>
 
         {/* 7 — Timeline ----------------------------------------------------- */}
-        <ReportSection index={7} title={t.report.section7}>
+        <ReportSection index={sectionIndex('timeline')} title={t.report.section7} visible={view === 'operations' || view === 'general'}>
           {data.timeline.length === 0 ? (
             <p className="report-hint">{t.report.none}</p>
           ) : (
@@ -447,7 +485,7 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
         </ReportSection>
 
         {/* 8 — Communication ------------------------------------------------ */}
-        <ReportSection index={8} title={t.report.section8}>
+        <ReportSection index={sectionIndex('communication')} title={t.report.section8} visible={view === 'operations' || view === 'general'}>
           <FactGrid>
             <div>
               <Fact label={t.announcement.title}>
@@ -474,35 +512,47 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
           "what the night cost us" are two numbers a closing report has to
           keep apart, or neither of them can be checked against anything.
         */}
-        {expenses && expenses.lines.length > 0 ? (
-          <ReportSection index={9} title={t.expense.title} hint={t.expense.notPay}>
-            <FactGrid>
-              <div>
-                <Fact label={t.expense.total}>
-                  <span className="nums">{formatAmount(expenses.total)}</span>
-                </Fact>
-              </div>
-              <div>
-                <Fact label={t.expense.count.replace('{n}', '')}>
-                  <span className="nums">{expenses.lines.length}</span>
-                </Fact>
-              </div>
-            </FactGrid>
-            <ReportTable head={[t.expense.description, t.expense.category, t.expense.addedBy, t.expense.amount]}>
-              {expenses.lines.map((line) => (
-                <tr key={line.id}>
-                  <td>{line.description}</td>
-                  <td>{t.enums.expenseCategory[line.category as ExpenseCategory]}</td>
-                  <td style={{ unicodeBidi: 'plaintext' }}>{line.createdByName}</td>
-                  <td className="nums">{formatAmount(line.amount)}</td>
-                </tr>
-              ))}
-            </ReportTable>
+        {expenses && (view === 'expenses' || (view === 'general' && expenses.lines.length > 0)) ? (
+          <ReportSection index={sectionIndex('expenses')} title={t.expense.title} hint={t.expense.notPay}>
+            {expenses.lines.length === 0 ? (
+              <p className="report-hint">{t.report.none}</p>
+            ) : (
+              <>
+                <FactGrid>
+                  <div>
+                    <Fact label={t.report.expenseReportPayroll}>
+                      <span className="nums">{formatAmount(data.totalPay)}</span>
+                    </Fact>
+                    <Fact label={t.report.expenseReportOperating}>
+                      <span className="nums">{formatAmount(expenses.total)}</span>
+                    </Fact>
+                  </div>
+                  <div>
+                    <Fact label={t.report.expenseReportTotal}>
+                      <span className="nums">{formatAmount(data.totalPay + expenses.total)}</span>
+                    </Fact>
+                    <Fact label={t.expense.count.replace('{n}', '')}>
+                      <span className="nums">{expenses.lines.length}</span>
+                    </Fact>
+                  </div>
+                </FactGrid>
+                <ReportTable head={[t.expense.description, t.expense.category, t.expense.addedBy, t.expense.amount]}>
+                  {expenses.lines.map((line) => (
+                    <tr key={line.id}>
+                      <td>{line.description}</td>
+                      <td>{t.enums.expenseCategory[line.category as ExpenseCategory]}</td>
+                      <td style={{ unicodeBidi: 'plaintext' }}>{line.createdByName}</td>
+                      <td className="nums">{formatAmount(line.amount)}</td>
+                    </tr>
+                  ))}
+                </ReportTable>
+              </>
+            )}
           </ReportSection>
         ) : null}
 
         {/* 9 — Notes and recommendations ------------------------------------ */}
-        <ReportSection index={expenses && expenses.lines.length > 0 ? 10 : 9} title={t.report.section9}>
+        <ReportSection index={sectionIndex('notes')} title={t.report.section9} visible={view === 'operations' || view === 'general'}>
           <h3 className="text-[13.5px] font-semibold text-ink-200">
             {t.report.recommendations}
           </h3>
@@ -521,9 +571,10 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
 
         {/* 10 — What the team said ----------------------------------------- */}
         <ReportSection
-          index={expenses && expenses.lines.length > 0 ? 11 : 10}
+          index={sectionIndex('survey')}
           title={t.feedback.adminTitle}
           hint={t.feedback.adminAnonymous}
+          visible={view === 'survey' || view === 'general'}
         >
           <FactGrid>
             <div>
@@ -586,7 +637,7 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
         </ReportSection>
 
         {/* 11 — Sign-off ---------------------------------------------------- */}
-        <ReportSection index={11} title={t.report.section10}>
+        <ReportSection index={sectionIndex('signoff')} title={t.report.section10} visible={view === 'general'}>
           <SignatureBlock
             preparedBy={scope.user.name}
             labels={{
