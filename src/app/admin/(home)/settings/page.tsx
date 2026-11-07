@@ -5,6 +5,7 @@ import { users } from '@/db/schema';
 import { requireRole } from '@/server/auth/rbac';
 import { getT } from '@/lib/i18n/server';
 import { PageHeader, Panel, KeyValue } from '@/components/ui/panel';
+import { Badge } from '@/components/ui/status';
 import { Notice } from '@/components/ui/states';
 
 import { TemplateForm } from '@/features/payment/TemplateForm';
