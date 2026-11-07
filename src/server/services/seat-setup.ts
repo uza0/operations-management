@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, asc, desc, eq, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -344,6 +344,91 @@ export async function seatSetupForMember(
       now,
     }),
   }));
+}
+
+/**
+ * A restricted chair-only view for a promoter invited before the event is
+ * published. It intentionally returns no venue, event time, event status,
+ * team list, map, or assignment data.
+ */
+export async function seatSetupInvitationByToken(token: string) {
+  if (!/^[a-f0-9]{32}$/i.test(token)) return null;
+
+  const membership = await db
+    .select({
+      id: eventMembers.id,
+      eventId: events.id,
+      memberName: teamMembers.fullName,
+      eventName: events.name,
+      eventStatus: events.status,
+      memberStatus: eventMembers.status,
+      tokenExpiresAt: eventMembers.tokenExpiresAt,
+    })
+    .from(eventMembers)
+    .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+    .innerJoin(events, eq(eventMembers.eventId, events.id))
+    .where(eq(eventMembers.token, token))
+    .get();
+
+  if (
+    !membership ||
+    membership.memberStatus === 'CANCELLED' ||
+    (membership.tokenExpiresAt && membership.tokenExpiresAt.getTime() < Date.now())
+  ) {
+    return null;
+  }
+
+  const rows = await db
+    .select({
+      id: seatSetupMembers.id,
+      date: seatSetupDetails.date,
+      startTime: seatSetupDetails.startTime,
+      endTime: seatSetupDetails.endTime,
+      notes: seatSetupDetails.notes,
+      payAmount: seatSetupDetails.payAmount,
+      confirmedAt: seatSetupMembers.confirmedAt,
+      declinedAt: seatSetupMembers.declinedAt,
+      respondBy: seatSetupMembers.respondBy,
+      reportedArrivalAt: seatSetupMembers.reportedArrivalAt,
+      approvedAt: seatSetupMembers.approvedAt,
+      reportedDepartureAt: seatSetupMembers.reportedDepartureAt,
+      checkInTime: seatSetupMembers.checkInTime,
+      attended: seatSetupMembers.attended,
+    })
+    .from(seatSetupMembers)
+    .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
+    .where(
+      and(
+        eq(seatSetupMembers.eventMemberId, membership.id),
+        eq(seatSetupMembers.eventId, membership.eventId),
+        eq(seatSetupDetails.status, 'READY'),
+        isNotNull(seatSetupMembers.notifiedAt),
+      ),
+    )
+    .orderBy(asc(seatSetupDetails.date), asc(seatSetupDetails.startTime));
+
+  const now = new Date();
+  return {
+    memberName: membership.memberName,
+    eventName: membership.eventName,
+    eventStatus: membership.eventStatus,
+    shifts: rows.map((row) => ({
+      ...row,
+      payAmount: row.payAmount ?? SEAT_SETUP_PAY,
+      stage: seatStageFor({
+        confirmedAt: row.confirmedAt,
+        declinedAt: row.declinedAt,
+        reportedArrivalAt: row.reportedArrivalAt,
+        approvedAt: row.approvedAt,
+        reportedDepartureAt: row.reportedDepartureAt,
+        attended: row.attended,
+        date: row.date,
+        startTime: row.startTime,
+        arrivalWindowHours: ARRIVAL_WINDOW_HOURS,
+        now,
+      }),
+    })),
+  };
 }
 
 /* -------------------------------------------------------------------------- */

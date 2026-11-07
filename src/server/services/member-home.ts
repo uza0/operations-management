@@ -1,9 +1,18 @@
 import 'server-only';
 
-import { desc, eq } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { eventMembers, events, teamMembers, venues } from '@/db/schema';
+import {
+  eventMembers,
+  events,
+  seatSetupDetails,
+  seatSetupMembers,
+  teamMembers,
+  venues,
+} from '@/db/schema';
+import { ARRIVAL_WINDOW_HOURS, seatStageFor } from '@/lib/journey';
+import { SEAT_SETUP_PAY } from '@/lib/money';
 
 /**
  * Everything a promoter's own page needs: himself, and his events.
@@ -46,6 +55,45 @@ export async function getMemberHome(teamMemberId: string) {
     .where(eq(eventMembers.teamMemberId, teamMemberId))
     .orderBy(desc(events.date));
 
+  // A chair setup invitation is a separate piece of work. While its event is
+  // still a draft, show only the setup day and its event name on the promoter
+  // home page; the event card itself stays hidden until the event is ready.
+  const seatInvitations = await db
+    .select({
+      token: eventMembers.token,
+      eventName: events.name,
+      shiftId: seatSetupDetails.id,
+      date: seatSetupDetails.date,
+      startTime: seatSetupDetails.startTime,
+      endTime: seatSetupDetails.endTime,
+      notes: seatSetupDetails.notes,
+      payAmount: seatSetupDetails.payAmount,
+      seatMemberId: seatSetupMembers.id,
+      status: seatSetupDetails.status,
+      confirmedAt: seatSetupMembers.confirmedAt,
+      declinedAt: seatSetupMembers.declinedAt,
+      respondBy: seatSetupMembers.respondBy,
+      reportedArrivalAt: seatSetupMembers.reportedArrivalAt,
+      approvedAt: seatSetupMembers.approvedAt,
+      reportedDepartureAt: seatSetupMembers.reportedDepartureAt,
+      checkInTime: seatSetupMembers.checkInTime,
+      attended: seatSetupMembers.attended,
+    })
+    .from(seatSetupMembers)
+    .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
+    .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
+    .innerJoin(events, eq(seatSetupMembers.eventId, events.id))
+    .where(
+      and(
+        eq(eventMembers.teamMemberId, teamMemberId),
+        ne(eventMembers.status, 'CANCELLED'),
+        eq(events.status, 'DRAFT'),
+        eq(seatSetupDetails.status, 'READY'),
+        isNotNull(seatSetupMembers.notifiedAt),
+      ),
+    )
+    .orderBy(asc(seatSetupDetails.date), asc(seatSetupDetails.startTime));
+
   /*
    * Three groups, in the order a man actually wants them: what is happening
    * right now, then what is coming, then what is over. A cancelled membership
@@ -73,7 +121,25 @@ export async function getMemberHome(teamMemberId: string) {
 
   upcoming.sort((a, b) => a.date.localeCompare(b.date));
 
-  return { person, live, upcoming, past };
+  const now = new Date();
+  const readySeatInvitations = seatInvitations.map((row) => ({
+    ...row,
+    payAmount: row.payAmount ?? SEAT_SETUP_PAY,
+    stage: seatStageFor({
+      confirmedAt: row.confirmedAt,
+      declinedAt: row.declinedAt,
+      reportedArrivalAt: row.reportedArrivalAt,
+      approvedAt: row.approvedAt,
+      reportedDepartureAt: row.reportedDepartureAt,
+      attended: row.attended,
+      date: row.date,
+      startTime: row.startTime,
+      arrivalWindowHours: ARRIVAL_WINDOW_HOURS,
+      now,
+    }),
+  }));
+
+  return { person, live, upcoming, past, seatInvitations: readySeatInvitations };
 }
 
 export type MemberHome = NonNullable<Awaited<ReturnType<typeof getMemberHome>>>;

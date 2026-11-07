@@ -39,6 +39,7 @@ function revalidate(eventId: string) {
     revalidatePath(`${base}/events/${eventId}/seats`);
     revalidatePath(`${base}/events/${eventId}/reports`);
   }
+  revalidatePath('/me');
   revalidatePath('/admin/credits');
 }
 
@@ -94,6 +95,16 @@ export async function setSeatSetupStatusAction(
   if (nextStatus === 'READY') {
     const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
     if (event) {
+      const notifiedAt = new Date();
+      await db
+        .update(seatSetupMembers)
+        .set({ notifiedAt, updatedAt: notifiedAt })
+        .where(
+          and(
+            eq(seatSetupMembers.eventId, eventId),
+            eq(seatSetupMembers.detailId, detailId),
+          ),
+        );
       await pushOnce(`seat-setup-ready:${detailId}:${readyVersion}`, teamMemberIds, {
         title: t.seatSetup.readyPushTitle,
         body: format(t.seatSetup.readyPushBody, {

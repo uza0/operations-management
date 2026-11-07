@@ -26,6 +26,7 @@ import { BalanceCard } from './BalanceCard';
 import { OwedLines } from './OwedLines';
 import { InstallGuide } from './InstallGuide';
 import { NotificationToggle } from './NotificationToggle';
+import { formatAmount } from '@/lib/money';
 
 export const dynamic = 'force-dynamic';
 
@@ -34,6 +35,73 @@ export const metadata: Metadata = { title: 'TicketZone Ops' };
 type T = Awaited<ReturnType<typeof getT>>['t'];
 type Locale = Awaited<ReturnType<typeof getT>>['locale'];
 type Row = MemberHome['live'][number];
+type SetupInvite = MemberHome['seatInvitations'][number];
+
+function SetupInvitations({
+  t,
+  locale,
+  rows,
+}: {
+  t: T;
+  locale: Locale;
+  rows: SetupInvite[];
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <section>
+      <h2 className="mb-2 px-1 text-[15px] font-bold text-ink-100">
+        {t.seatSetup.invitationSection}
+      </h2>
+      <div className="space-y-2.5">
+        {rows.map((row) => (
+          <Link
+            key={row.shiftId}
+            href={`/setup/${row.token}`}
+            className="block rounded-card border border-brand-700/60 bg-ink-850 p-4 transition-colors hover:border-brand-600"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0">
+                <p className="text-[12px] font-semibold text-brand-300">
+                  {t.seatSetup.inviteTitle}
+                </p>
+                <h3
+                  className="mt-1 text-[15px] font-bold leading-6 text-ink-100"
+                  style={{ unicodeBidi: 'plaintext' }}
+                >
+                  {row.eventName}
+                </h3>
+              </div>
+              <Badge tone={row.declinedAt ? 'crit' : row.confirmedAt ? 'ok' : 'warn'}>
+                {row.declinedAt
+                  ? t.seatSetup.declinedCard
+                  : row.confirmedAt
+                    ? t.seatSetup.confirmedList
+                    : t.seatSetup.waitingReply}
+              </Badge>
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-2 text-[12.5px]">
+              <div className="flex items-center gap-1.5 text-ink-300">
+                <IconCalendar width={14} height={14} className="shrink-0 text-ink-500" />
+                <span className="nums truncate">{formatDate(row.date, locale)}</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-ink-300">
+                <IconClock width={14} height={14} className="shrink-0 text-ink-500" />
+                <span className="nums truncate">
+                  {formatTime(row.startTime, locale)}
+                  {row.endTime ? ` – ${formatTime(row.endTime, locale)}` : ''}
+                </span>
+              </div>
+              <div className="col-span-2 nums font-semibold text-ink-200">
+                {formatAmount(row.payAmount)} {t.credit.currency}
+              </div>
+            </dl>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
 
 function EventCard({ t, locale, row }: { t: T; locale: Locale; row: Row }) {
   return (
@@ -147,7 +215,10 @@ export default async function MemberHomePage() {
   await touchMemberSession(session.sessionId);
 
   const empty =
-    home.live.length === 0 && home.upcoming.length === 0 && home.past.length === 0;
+    home.live.length === 0 &&
+    home.upcoming.length === 0 &&
+    home.past.length === 0 &&
+    home.seatInvitations.length === 0;
 
   return (
     <MemberShell>
@@ -197,6 +268,7 @@ export default async function MemberHomePage() {
         </section>
       ) : (
         <>
+          <SetupInvitations t={t} locale={locale} rows={home.seatInvitations} />
           <Group t={t} locale={locale} title={t.memberAuth.live} rows={home.live} />
           <Group t={t} locale={locale} title={t.memberAuth.upcoming} rows={home.upcoming} />
           <Group t={t} locale={locale} title={t.memberAuth.past} rows={home.past} />
