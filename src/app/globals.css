@@ -139,7 +139,7 @@
   --ink-750: 232 229 226; /* #E8E5E2  hairline-strength fill */
   --ink-700: 232 229 226; /* #E8E5E2  the hairline itself */
   --ink-600: 214 210 205; /* #D6D2CD  strong hairline, input border */
-  --ink-500: 121 115 107; /* #79736B  muted text */
+  --ink-500: 121 115 107; /* #79736B muted text */
   --ink-400: 121 115 107; /* #79736B  label text */
   --ink-300: 69 65 59;    /* #45413B  secondary text */
   --ink-200: 42 39 36;    /* #2A2724  near-primary text */
@@ -193,7 +193,7 @@
   --ink-750: 52 48 44;    /* DERIVED  hover */
   --ink-700: 61 57 52;    /* DERIVED  hairline */
   --ink-600: 79 74 68;    /* DERIVED  input border */
-  --ink-500: 121 115 107; /* #79736B  muted text */
+  --ink-500: 145 139 129; /* lifted for readable secondary text on dark surfaces */
   --ink-400: 150 143 134; /* DERIVED  label text */
   --ink-300: 186 180 172; /* DERIVED  secondary text */
   --ink-200: 214 210 205; /* #D6D2CD */
@@ -245,7 +245,7 @@
     --ink-750: 52 48 44;
     --ink-700: 61 57 52;
     --ink-600: 79 74 68;
-    --ink-500: 121 115 107;
+    --ink-500: 145 139 129;
     --ink-400: 150 143 134;
     --ink-300: 186 180 172;
     --ink-200: 214 210 205;

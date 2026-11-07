@@ -279,7 +279,7 @@ function MemberActions({
           {t.eventTeam.revoke}
         </ConfirmSubmit>
         {revokeState.status === 'error' ? (
-          <span className="max-w-[200px] text-end text-[11.5px] leading-4 text-crit-text">
+          <span className="max-w-[200px] text-end text-[12.5px] leading-4 text-crit-text">
             {revokeState.message}
           </span>
         ) : null}

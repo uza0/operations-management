@@ -1,8 +1,8 @@
 import Link from 'next/link';
-import { eq } from 'drizzle-orm';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { teamMembers } from '@/db/schema';
+import { eventAccess, teamMembers } from '@/db/schema';
 import { requireRole } from '@/server/auth/rbac';
 import { getT } from '@/lib/i18n/server';
 import { listEventsForUser } from '@/server/services/events';
@@ -19,7 +19,8 @@ import {
   IconPin,
   IconTarget,
 } from '@/components/ui/icons';
-import { formatDateTime, todayISO } from '@/lib/time';
+import { formatDate, formatDateTime, todayISO } from '@/lib/time';
+import { format } from '@/lib/i18n';
 import type { AuditAction } from '@/lib/constants';
 
 export default async function AdminDashboard() {
@@ -41,6 +42,50 @@ export default async function AdminDashboard() {
     ['COMPLETED', 'ARCHIVED'].includes(e.status),
   );
   const openIssues = allEvents.reduce((n, e) => n + e.openIssues, 0);
+  const leaderGrants = allEvents.length
+    ? await db
+        .select({ eventId: eventAccess.eventId })
+        .from(eventAccess)
+        .where(
+          and(
+            inArray(eventAccess.eventId, allEvents.map((event) => event.id)),
+            eq(eventAccess.role, 'TEAM_LEADER'),
+            isNull(eventAccess.gateId),
+          ),
+        )
+    : [];
+  const eventsWithLeader = new Set(leaderGrants.map((grant) => grant.eventId));
+  const attentionItems = [
+    ...allEvents
+      .filter((event) => event.openIssues > 0)
+      .map((event) => ({
+        key: `issues-${event.id}`,
+        event,
+        href: `/admin/events/${event.id}/issues`,
+        title: format(t.dashboard.attentionOpenIssues, { n: event.openIssues }),
+      })),
+    ...allEvents
+      .filter(
+        (event) =>
+          !eventsWithLeader.has(event.id) &&
+          !['COMPLETED', 'ARCHIVED'].includes(event.status),
+      )
+      .map((event) => ({
+        key: `leader-${event.id}`,
+        event,
+        href: `/admin/events/${event.id}/edit`,
+        title: t.dashboard.attentionMissingLeader,
+      })),
+    ...upcoming
+      .filter((event) => ['DRAFT', 'PLANNING'].includes(event.status))
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((event) => ({
+        key: `setup-${event.id}`,
+        event,
+        href: `/admin/events/${event.id}`,
+        title: t.dashboard.attentionIncomplete,
+      })),
+  ].slice(0, 6);
 
   return (
     <>
@@ -93,6 +138,35 @@ export default async function AdminDashboard() {
           tone={openIssues ? 'crit' : 'ok'}
           icon={<IconAlert width={16} height={16} />}
         />
+      </div>
+
+      <div className="mt-5">
+        <Panel
+          title={t.dashboard.attention}
+          subtitle={t.dashboard.attentionHint}
+          action={<Link href="/admin/events" className="btn-ghost btn-sm">{t.nav.events}</Link>}
+          bodyClassName="p-0"
+        >
+          {attentionItems.length === 0 ? (
+            <p className="px-4 py-5 text-[13.5px] text-ink-400">{t.dashboard.attentionEmpty}</p>
+          ) : (
+            <ul className="divide-y divide-ink-800">
+              {attentionItems.map((item) => (
+                <li key={item.key}>
+                  <Link href={item.href} className="flex min-h-[64px] items-center justify-between gap-4 px-4 py-3 transition-colors hover:bg-ink-850/60 sm:px-5">
+                    <span className="min-w-0">
+                      <span className="block truncate text-[14px] font-semibold text-ink-100">{item.title}</span>
+                      <span className="mt-1 block truncate text-[12.5px] text-ink-400">
+                        {item.event.name} · {formatDate(item.event.date, locale)} · {item.event.venueName}
+                      </span>
+                    </span>
+                    <span className="shrink-0 text-[12.5px] font-semibold text-brand-300">{t.common.view}</span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Panel>
       </div>
 
       <div className="mt-5 grid grid-cols-1 gap-4 lg:grid-cols-3">
@@ -160,7 +234,7 @@ export default async function AdminDashboard() {
                 {recentActivity.map((row) => (
                   <li key={row.id} className="px-4 py-3">
                     <p className="text-[13.5px] leading-5 text-ink-200">{row.summary}</p>
-                    <p className="mt-1 text-[11.5px] text-ink-500">
+                    <p className="mt-1 text-[12.5px] text-ink-500">
                       {t.enums.auditAction[row.action as AuditAction]} · {row.actorName} ·{' '}
                       <span className="nums">{formatDateTime(row.createdAt, locale)}</span>
                     </p>

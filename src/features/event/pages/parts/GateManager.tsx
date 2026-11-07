@@ -353,7 +353,7 @@ function DeleteLocation({
         {t.common.delete}
       </ConfirmSubmit>
       {state.status === 'error' ? (
-        <span className="max-w-[220px] text-end text-[11.5px] leading-4 text-crit-text">
+        <span className="max-w-[220px] text-end text-[12.5px] leading-4 text-crit-text">
           {state.message}
         </span>
       ) : null}

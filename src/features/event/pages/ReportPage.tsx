@@ -340,7 +340,7 @@ export async function EventReportPage({
                     </td>
                     {canSeeFinance ? <td className="nums">
                       {line.amount}
-                      {line.note ? <span className="block text-[11px] text-ink-500">{line.note}</span> : null}
+                      {line.note ? <span className="block text-[12px] text-ink-500">{line.note}</span> : null}
                     </td> : null}
                   </tr>
                 ))}

@@ -11,7 +11,7 @@ import { ThemeToggle } from '@/components/pwa/ThemeToggle';
 import { InstallPrompt } from '@/components/pwa/InstallPrompt';
 import { OfflineBanner } from '@/components/pwa/OfflineBanner';
 
-import type { NavSection } from './nav';
+import type { NavItem, NavSection } from './nav';
 import { DesktopNav, MobileNav, MobileTabBar } from './SidebarNav';
 
 /**
@@ -29,6 +29,7 @@ export async function AppShell({
   contextTitle,
   contextSubtitle,
   homeHref,
+  mobileItems,
 }: {
   user: SessionUser;
   sections: NavSection[];
@@ -36,9 +37,10 @@ export async function AppShell({
   contextTitle?: string;
   contextSubtitle?: string;
   homeHref: string;
+  mobileItems?: NavItem[];
 }) {
   const { locale, t } = await getT();
-  const tabs = sections.flatMap((section) => section.items).slice(0, 5);
+  const tabs = mobileItems ?? sections.flatMap((section) => section.items).slice(0, 5);
 
   return (
     <div className="flex min-h-screen bg-ink-950">
@@ -54,7 +56,7 @@ export async function AppShell({
               >
                 {t.app.name}
               </span>
-              <span className="block truncate text-[11.5px] text-ink-500">
+              <span className="block truncate text-[12px] text-ink-500">
                 {t.app.tagline}
               </span>
             </span>
@@ -75,9 +77,9 @@ export async function AppShell({
         </div>
 
         <div className="border-t border-ink-800 px-4 py-3">
-          <p className="text-[11.5px] text-ink-500">{t.common.signedInAs}</p>
+          <p className="text-[12px] text-ink-500">{t.common.signedInAs}</p>
           <p className="truncate text-[13.5px] font-semibold text-ink-200">{user.name}</p>
-          <p className="text-[11.5px] text-ink-500">{t.enums.role[user.role]}</p>
+          <p className="text-[12px] text-ink-500">{t.enums.role[user.role]}</p>
         </div>
       </aside>
 
@@ -97,7 +99,7 @@ export async function AppShell({
                 {contextTitle ?? t.app.name}
               </p>
               {contextSubtitle ? (
-                <p className="truncate text-[11.5px] text-ink-500">{contextSubtitle}</p>
+                <p className="truncate text-[12px] text-ink-500">{contextSubtitle}</p>
               ) : null}
             </div>
           </div>
@@ -121,7 +123,7 @@ export async function AppShell({
           {children}
         </main>
 
-        <MobileTabBar items={tabs} />
+        <MobileTabBar items={tabs} ariaLabel={t.nav.quickAccess} />
       </div>
 
       <InstallPrompt t={t} />

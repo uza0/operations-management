@@ -8,7 +8,7 @@ import { getEventOr404 } from '@/server/services/events';
 import { AppShell } from '@/components/shell/AppShell';
 
 import { SetupWizard } from './SetupWizard';
-import { eventNav } from '@/components/shell/nav';
+import { eventMobileTabs, eventNav } from '@/components/shell/nav';
 import { formatDate, formatTime } from '@/lib/time';
 import type { EventStatus, EventType } from '@/lib/constants';
 
@@ -29,12 +29,14 @@ export async function EventWorkspaceLayout({
   const { locale, t } = await getT();
   const event = await getEventOr404(eventId);
   if (!event) notFound();
+  const sections = eventNav(t, base, eventId, scope.canManage);
 
   return (
     <AppShell
       user={scope.user}
       homeHref={base}
-      sections={eventNav(t, base, eventId, scope.canManage)}
+      sections={sections}
+      mobileItems={eventMobileTabs(sections, eventId, event.status, scope.canManage)}
       contextTitle={event.name}
       contextSubtitle={`${formatDate(event.date, locale)} · ${formatTime(event.startTime, locale)}`}
     >

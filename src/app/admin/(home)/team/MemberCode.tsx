@@ -100,7 +100,7 @@ export function MemberCode({
 
       {code ? (
         <div className="rounded-card border border-brand-600/50 bg-brand-600/10 p-3 text-center">
-          <p className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-400">
+          <p className="text-[12.5px] font-semibold uppercase tracking-wide text-ink-400">
             {t.memberAuth.codeIssued}
           </p>
           <p className="nums my-1 text-[30px] font-bold tracking-[0.3em] text-ink-100" dir="ltr">
@@ -146,7 +146,7 @@ export function MemberCode({
               </span>
             )}
           </div>
-          <p className="mt-2 text-[11.5px] leading-5 text-ink-500">
+          <p className="mt-2 text-[12.5px] leading-5 text-ink-500">
             {t.memberAuth.inviteHint}
           </p>
         </div>

@@ -108,8 +108,9 @@ export function eventNav(
   if (!canManage) {
     // Gate leaders get a deliberately narrow view (spec §3.3).
     return [
-      { items: home },
+      { label: t.nav.eventBack, items: home },
       {
+        label: t.nav.eventRun,
         items: [
           { href: root, label: t.nav.overview, icon: 'dashboard', exact: true },
           { href: `${root}/team`, label: t.nav.team, icon: 'users' },
@@ -122,5 +123,35 @@ export function eventNav(
     ];
   }
 
-  return [{ items: home }, { items: core }, { items: ops }, { items: closing }];
+  return [
+    { label: t.nav.eventBack, items: home },
+    { label: t.nav.eventSetup, items: core },
+    { label: t.nav.eventRun, items: ops },
+    { label: t.nav.eventClose, items: closing },
+  ];
+}
+
+/** Five phone tabs that follow the work happening in this event. */
+export function eventMobileTabs(
+  sections: NavSection[],
+  eventId: string,
+  status: string,
+  canManage: boolean,
+): NavItem[] {
+  const items = sections.flatMap((section) => section.items);
+  const root = items.find((item) => item.href.endsWith(`/events/${eventId}`))?.href;
+  if (!root) return items.slice(0, 5);
+
+  const bySuffix = (suffix: string) => items.find((item) => item.href === `${root}${suffix}`);
+  const priorities = !canManage
+    ? ['', '/attendance', '/team', '/issues', '/map']
+    : status === 'LIVE'
+      ? ['', '/gates', '/assignments', '/attendance', '/issues']
+      : status === 'COMPLETED' || status === 'ARCHIVED'
+        ? ['', '/attendance', '/reports', '/activity', '/team']
+        : ['', '/map', '/board', '/assignments', '/seats'];
+
+  return priorities
+    .map(bySuffix)
+    .filter((item): item is NavItem => Boolean(item));
 }

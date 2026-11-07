@@ -92,7 +92,7 @@ export function FeedbackForm({
             style={{ width: `${((step + 1) / STEPS) * 100}%` }}
           />
         </div>
-        <span className="nums shrink-0 text-[11.5px] text-ink-500">
+        <span className="nums shrink-0 text-[12.5px] text-ink-500">
           {format(t.feedback.stepOf, { n: step + 1, total: STEPS })}
         </span>
       </div>
@@ -241,7 +241,7 @@ function Score({
           </button>
         ))}
       </div>
-      <div className="mt-1 flex justify-between text-[11px] text-ink-600">
+      <div className="mt-1 flex justify-between text-[12px] text-ink-600">
         <span>{t.feedback.scale1}</span>
         <span>{t.feedback.scale5}</span>
       </div>
@@ -267,7 +267,7 @@ function Choice({
   return (
     <div>
       <p className="field-label">
-        {label} <span className="text-[11px] font-normal text-ink-600">{t.feedback.optional}</span>
+        {label} <span className="text-[12px] font-normal text-ink-600">{t.feedback.optional}</span>
       </p>
       <div className="grid gap-1.5">
         {options.map((option) => (
@@ -299,7 +299,7 @@ function Note({ t, name, label }: { t: Dictionary; name: string; label: string }
   return (
     <div>
       <label className="field-label" htmlFor={`fb-${name}`}>
-        {label} <span className="text-[11px] font-normal text-ink-600">{t.feedback.optional}</span>
+        {label} <span className="text-[12px] font-normal text-ink-600">{t.feedback.optional}</span>
       </label>
       <textarea id={`fb-${name}`} name={name} rows={3} className="field" maxLength={1200} />
     </div>

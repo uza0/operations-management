@@ -130,7 +130,7 @@ export function NotificationToggle({
 
   return (
     <section className="rounded-card border border-ink-700 bg-ink-850 p-4">
-      <p className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-500">
+      <p className="text-[12.5px] font-semibold uppercase tracking-wide text-ink-500">
         {t.push.title}
       </p>
       <p className="mt-1.5 text-[13px] leading-6 text-ink-300">{t.push.hint}</p>

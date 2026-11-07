@@ -120,7 +120,7 @@ function EventCard({
       {/* The two numbers that decide when to leave the house. */}
       <div className="grid grid-cols-2 divide-x divide-ink-700 border-t border-ink-700 rtl:divide-x-reverse">
         <div className="px-4 py-3">
-          <p className="flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
+          <p className="flex items-center gap-1.5 text-[12.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
             <IconCalendar width={13} height={13} />
             {t.member.date}
           </p>
@@ -129,7 +129,7 @@ function EventCard({
           </p>
         </div>
         <div className="px-4 py-3">
-          <p className="flex items-center gap-1.5 text-[11.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
+          <p className="flex items-center gap-1.5 text-[12.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
             <IconClock width={13} height={13} />
             {t.event.kickoff}
           </p>
@@ -194,7 +194,7 @@ function PostCard({
        */}
       <div className="grid grid-cols-2 divide-x divide-brand-600/20 border-t border-brand-600/20 bg-ink-900 rtl:divide-x-reverse">
         <div className="px-4 py-3">
-          <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
+          <p className="text-[12.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
             {t.member.yourArrival}
           </p>
           <p className="nums mt-1 text-[24px] font-extrabold leading-tight text-ink-100">
@@ -202,7 +202,7 @@ function PostCard({
           </p>
         </div>
         <div className="px-4 py-3">
-          <p className="text-[11.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
+          <p className="text-[12.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
             {t.member.yourShift}
           </p>
           <p className="nums mt-1 text-[15px] font-semibold leading-tight text-ink-100">
@@ -855,7 +855,7 @@ export default async function MemberPortalPage({
           </>
         ) : null}
 
-        <p className="pb-2 text-center text-[11.5px] text-ink-600">
+        <p className="pb-2 text-center text-[12.5px] text-ink-600">
           {t.member.savedOffline}
         </p>
       </div>

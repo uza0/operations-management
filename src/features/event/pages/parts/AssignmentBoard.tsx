@@ -326,7 +326,7 @@ function AssignmentForm({
             <span className="text-ink-500">({t.common.optional})</span>
           </label>
           <input id="a-reason" name="reason" className="field" />
-          <p className="mt-1 text-[11.5px] text-ink-500">{t.assignment.moveReasonHint}</p>
+          <p className="mt-1 text-[12.5px] text-ink-500">{t.assignment.moveReasonHint}</p>
         </div>
       ) : null}
 

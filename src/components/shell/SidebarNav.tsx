@@ -50,7 +50,7 @@ function NavList({ sections, onNavigate }: { sections: NavSection[]; onNavigate?
       {sections.map((section, i) => (
         <div key={i}>
           {section.label ? (
-            <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-ink-500">
+            <p className="mb-2 px-3 text-[12px] font-semibold uppercase tracking-wider text-ink-500">
               {section.label}
             </p>
           ) : null}
@@ -93,14 +93,14 @@ export function DesktopNav({ sections }: { sections: NavSection[] }) {
  * Thumb-reachable navigation for phones. It carries the sections a leader
  * touches most during an event; everything else stays in the drawer.
  */
-export function MobileTabBar({ items }: { items: NavItem[] }) {
+export function MobileTabBar({ items, ariaLabel }: { items: NavItem[]; ariaLabel: string }) {
   const pathname = usePathname();
   if (items.length === 0) return null;
 
   return (
     <nav
       className="app-chrome fixed inset-x-0 bottom-0 z-40 border-t border-ink-800 bg-ink-900/95 backdrop-blur pb-[env(safe-area-inset-bottom)] lg:hidden"
-      aria-label="primary"
+      aria-label={ariaLabel}
     >
       <ul className="flex items-stretch">
         {items.map((item) => {
@@ -113,7 +113,7 @@ export function MobileTabBar({ items }: { items: NavItem[] }) {
               <Link
                 href={item.href}
                 aria-current={active ? 'page' : undefined}
-                className={`flex min-h-[56px] flex-col items-center justify-center gap-1 px-1 py-1.5 text-[11px] font-medium transition-colors ${
+                className={`flex min-h-[56px] flex-col items-center justify-center gap-1 px-1 py-1.5 text-[12px] font-medium transition-colors ${
                   active ? 'text-brand-300' : 'text-ink-400'
                 }`}
               >

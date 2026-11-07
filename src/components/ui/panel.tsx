@@ -87,11 +87,11 @@ export function StatTile({
   return (
     <div className={`panel p-4 ${className}`}>
       <div className="flex items-start justify-between gap-2">
-        <p className="text-[12.5px] font-medium text-ink-400">{label}</p>
+      <p className="text-[13px] font-medium text-ink-400">{label}</p>
         {icon ? <span className="text-ink-500">{icon}</span> : null}
       </div>
       <p className={`nums mt-2 text-[28px] font-bold leading-none ${accent}`}>{value}</p>
-      {hint ? <p className="mt-1.5 text-[12px] text-ink-400">{hint}</p> : null}
+      {hint ? <p className="mt-1.5 text-[12.5px] text-ink-400">{hint}</p> : null}
     </div>
   );
 }

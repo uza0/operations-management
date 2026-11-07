@@ -36,7 +36,7 @@ export function OwedLines({
     <details className="owed-lines rounded-card border border-ink-700 bg-ink-850">
       <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-ink-700 px-4 py-3">
         <span className="min-w-0">
-          <span className="block text-[11.5px] font-semibold uppercase tracking-wide text-ink-500">
+          <span className="block text-[12.5px] font-semibold uppercase tracking-wide text-ink-500">
             {t.memberAuth.owedBreakdown}
           </span>
           <span className="mt-1 block text-[12px] leading-5 text-ink-500">

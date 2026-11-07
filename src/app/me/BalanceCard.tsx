@@ -30,7 +30,7 @@ export function BalanceCard({
   if (salaried) {
     return (
       <section className="rounded-card border border-ink-700 bg-ink-850 p-4">
-        <p className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-500">
+        <p className="text-[12.5px] font-semibold uppercase tracking-wide text-ink-500">
           {t.credit.title}
         </p>
         <p className="mt-2 text-[13.5px] leading-6 text-ink-300">
@@ -43,7 +43,7 @@ export function BalanceCard({
   return (
     <section className="rounded-card border border-ink-700 bg-ink-850 p-4">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-500">
+        <p className="text-[12.5px] font-semibold uppercase tracking-wide text-ink-500">
           {t.credit.title}
         </p>
         <MoneyVisibilityToggle showLabel={t.memberAuth.showMoney} hideLabel={t.memberAuth.hideMoney} />
@@ -56,20 +56,20 @@ export function BalanceCard({
 
       <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-ink-700 pt-3">
         <div>
-          <dt className="text-[11.5px] text-ink-500">{t.credit.pendingAmount}</dt>
+          <dt className="text-[12px] text-ink-500">{t.credit.pendingAmount}</dt>
           <dd className="nums mt-0.5 text-[15px] font-semibold text-ink-200">
             <MoneyValue value={formatMoney(ledger.pendingAmount, locale)} />
           </dd>
         </div>
         <div>
-          <dt className="text-[11.5px] text-ink-500">{t.memberAuth.received}</dt>
+          <dt className="text-[12px] text-ink-500">{t.memberAuth.received}</dt>
           <dd className="nums mt-0.5 text-[15px] font-semibold text-ink-200">
             <MoneyValue value={formatMoney(ledger.paidAmount, locale)} />
           </dd>
         </div>
       </dl>
 
-      <p className="mt-3 text-[12px] leading-5 text-ink-500">{t.memberAuth.balanceHint}</p>
+      <p className="mt-3 text-[12.5px] leading-5 text-ink-400">{t.memberAuth.balanceHint}</p>
     </section>
   );
 }

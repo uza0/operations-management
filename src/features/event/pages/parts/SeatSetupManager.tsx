@@ -525,7 +525,7 @@ function CrewDialog({
               <span className="min-w-0 flex-1" style={{ unicodeBidi: 'plaintext' }}>
                 {person.name}
                 {person.normalPlace ? (
-                  <span className="block text-[11.5px] text-ink-500">{person.normalPlace}</span>
+                  <span className="block text-[12.5px] text-ink-500">{person.normalPlace}</span>
                 ) : null}
               </span>
             </label>

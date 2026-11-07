@@ -96,7 +96,7 @@ export function SetupWizard({
               <Link
                 href={hrefForStep(base, eventId, n)}
                 aria-current={state === 'current' ? 'step' : undefined}
-                className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-3 text-[11.5px] transition sm:min-h-0 sm:px-2.5 sm:py-1 ${
+                className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-full px-3 text-[12.5px] transition sm:min-h-0 sm:px-2.5 sm:py-1 ${
                   state === 'current'
                     ? 'bg-brand-500 font-semibold text-ink-950'
                     : state === 'past'
@@ -112,7 +112,7 @@ export function SetupWizard({
         })}
       </ol>
 
-      <p className="mt-1 text-[11.5px] text-ink-500">
+      <p className="mt-1 text-[12.5px] text-ink-500">
         <Link
           href={done}
           className="inline-flex min-h-[40px] items-center underline hover:text-ink-300 sm:min-h-0"

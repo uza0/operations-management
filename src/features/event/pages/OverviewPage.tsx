@@ -262,7 +262,7 @@ export async function EventOverviewPage({
                 {audit.map((row) => (
                   <li key={row.id} className="px-4 py-3">
                     <p className="text-[13.5px] leading-5 text-ink-200">{row.summary}</p>
-                    <p className="mt-1 text-[11.5px] text-ink-500">
+                    <p className="mt-1 text-[12.5px] text-ink-500">
                       {row.actorName} ·{' '}
                       <span className="nums">{formatDateTime(row.createdAt, locale)}</span>
                       {row.reason ? ` · ${t.common.reason}: ${row.reason}` : ''}

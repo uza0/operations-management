@@ -215,6 +215,21 @@ export default async function MemberHomePage() {
   if (!home) redirect('/login');
   await touchMemberSession(session.sessionId);
 
+  const nextEvent = home.live[0] ?? home.upcoming[0] ?? null;
+  const activeSeat = home.seatInvitations.find((row) =>
+    ['ARRIVING', 'AWAITING_APPROVAL', 'ON_DUTY'].includes(row.stage),
+  );
+  const unansweredSeat = home.seatInvitations.find((row) => row.stage === 'INVITED');
+  const confirmedSeat = home.seatInvitations.find((row) => row.stage === 'CONFIRMED');
+  const nextSeat =
+    activeSeat ??
+    unansweredSeat ??
+    (!home.live.length &&
+    confirmedSeat &&
+    (!home.upcoming[0] || confirmedSeat.date <= home.upcoming[0].date)
+      ? confirmedSeat
+      : undefined);
+
   const empty =
     home.live.length === 0 &&
     home.upcoming.length === 0 &&
@@ -225,7 +240,7 @@ export default async function MemberHomePage() {
     <MemberShell>
       <MoneyVisibilityProvider>
       <section className="rounded-card border border-ink-700 bg-ink-850 p-4">
-        <p className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-500">
+        <p className="text-[12.5px] font-semibold uppercase tracking-wide text-ink-500">
           {t.member.you}
         </p>
         <p
@@ -240,6 +255,39 @@ export default async function MemberHomePage() {
           </p>
         ) : null}
       </section>
+
+      {nextSeat || nextEvent ? (
+        <section className="rounded-card border border-brand-600/45 bg-brand-50/50 p-4">
+          <p className="text-[12.5px] font-semibold text-brand-900">{t.memberAuth.nextStep}</p>
+          <h2 className="mt-1 text-[16px] font-bold leading-6 text-ink-100">
+            {nextSeat?.eventName ?? nextEvent?.name}
+          </h2>
+          <p className="mt-1 text-[13px] leading-5 text-ink-300">
+            {nextSeat
+              ? t.memberAuth.nextStepSeat
+              : home.live.length > 0
+                ? t.memberAuth.nextStepLive
+                : t.memberAuth.nextStepUpcoming}
+          </p>
+          {nextSeat && nextSeat.stage === 'INVITED' ? (
+            <p className="mt-1 text-[12.5px] leading-5 text-ink-400">{t.memberAuth.nextStepSeatInvite}</p>
+          ) : nextSeat ? (
+            <p className="mt-1 text-[12.5px] leading-5 text-ink-400">{t.memberAuth.nextStepSeatProgress}</p>
+          ) : null}
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+            <p className="nums text-[12.5px] text-ink-400">
+              {formatDate(nextSeat?.date ?? nextEvent!.date, locale)} ·{' '}
+              {formatTime(nextSeat?.startTime ?? nextEvent!.teamArrivalTime, locale)}
+            </p>
+            <Link
+              href={nextSeat ? `/setup/${nextSeat.token}` : `/member/${nextEvent!.token}`}
+              className="btn-primary btn-sm"
+            >
+              {t.memberAuth.nextStepOpen}
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       {!ledger || home.person.salaried ? (
         <div className="flex justify-end">

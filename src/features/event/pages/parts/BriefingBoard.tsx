@@ -250,7 +250,7 @@ export function BriefingBoard({
                   {api.configured ? t.notify.apiReady : t.notify.apiSetupHint}
                 </p>
                 {!api.configured && api.missing.length > 0 ? (
-                  <p className="mt-1 text-[11.5px] text-ink-600" dir="ltr">
+                  <p className="mt-1 text-[12.5px] text-ink-600" dir="ltr">
                     {t.notify.apiMissing}: {api.missing.join(', ')}
                   </p>
                 ) : null}

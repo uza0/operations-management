@@ -33,7 +33,7 @@ export function ReportTypeSelector({
           }`}
         >
           <span className="block text-[13px] font-semibold">{t.report.views[view]}</span>
-          <span className="mt-1 block text-[11px] leading-5 text-ink-500">{t.report.viewHints[view]}</span>
+          <span className="mt-1 block text-[12px] leading-5 text-ink-500">{t.report.viewHints[view]}</span>
         </Link>
       ))}
     </nav>

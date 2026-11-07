@@ -190,7 +190,7 @@ export function MapEditor({
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[196px_minmax(0,1fr)_284px]">
       {/* Toolbox ---------------------------------------------------------- */}
       <aside className="panel order-2 p-3 lg:order-1">
-        <p className="mb-2 px-1 text-[11.5px] font-semibold uppercase tracking-wide text-ink-500">
+        <p className="mb-2 px-1 text-[12.5px] font-semibold uppercase tracking-wide text-ink-500">
           {t.map.toolbox}
         </p>
         {/* Two columns on a phone, three on a tablet, a single rail on desktop. */}
@@ -305,7 +305,7 @@ export function MapEditor({
 
       {/* Properties ------------------------------------------------------- */}
       <aside className="panel order-3 p-4">
-        <p className="mb-3 text-[11.5px] font-semibold uppercase tracking-wide text-ink-500">
+        <p className="mb-3 text-[12.5px] font-semibold uppercase tracking-wide text-ink-500">
           {t.map.properties}
         </p>
 
@@ -449,7 +449,7 @@ export function MapEditor({
             ) : null}
 
             <div className="rounded-lg border border-ink-700 bg-ink-850 px-3 py-2">
-              <p className="text-[11.5px] text-ink-500">{t.map.position}</p>
+              <p className="text-[12.5px] text-ink-500">{t.map.position}</p>
               <p className="nums mt-0.5 text-[13px] text-ink-200">
                 x {selected.x.toFixed(3)} · y {selected.y.toFixed(3)}
               </p>

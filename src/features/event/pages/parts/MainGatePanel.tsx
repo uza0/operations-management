@@ -96,15 +96,15 @@ export function MainGatePanel({
             {data.groups.map((group) => (
               <div key={group.task} className="rounded-lg border border-ink-800 p-2.5">
                 <div className="mb-2 flex items-center gap-2">
-                  <span className="rounded bg-ink-800 px-1.5 py-0.5 text-[11px] font-medium text-ink-300">
+                  <span className="rounded bg-ink-800 px-1.5 py-0.5 text-[12px] font-medium text-ink-300">
                     {t.enums.task[group.task]}
                   </span>
-                  <span className="nums ms-auto text-[11.5px] text-ink-500">
+                  <span className="nums ms-auto text-[12.5px] text-ink-500">
                     {group.people.length}
                   </span>
                 </div>
                 {group.people.length === 0 ? (
-                  <p className="py-2 text-center text-[11.5px] text-ink-600">{t.mainGate.nobody}</p>
+                  <p className="py-2 text-center text-[12.5px] text-ink-600">{t.mainGate.nobody}</p>
                 ) : (
                   <ul className="space-y-1.5">
                     {group.people.map((person) => (
@@ -121,7 +121,7 @@ export function MainGatePanel({
                           </p>
                           {/* Where they go when the detail ends — the thing a
                               supervisor is checking when he reads this list. */}
-                          <p className="truncate text-[11.5px] text-ink-500">
+                          <p className="truncate text-[12.5px] text-ink-500">
                             {person.normalPlace
                               ? format(t.mainGate.thenBackTo, { place: person.normalPlace })
                               : t.mainGate.noPlace}
@@ -380,7 +380,7 @@ function PeoplePicker({
                 >
                   {person.name}
                 </p>
-                <p className="truncate text-[11.5px] text-ink-500">
+                <p className="truncate text-[12.5px] text-ink-500">
                   {person.normalPlace ?? t.mainGate.noPlace}
                 </p>
               </div>

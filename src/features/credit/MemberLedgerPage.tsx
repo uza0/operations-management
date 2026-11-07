@@ -138,7 +138,7 @@ export async function MemberLedgerPage({
                     <td data-label={t.common.date} className="nums text-ink-300">
                       {formatDate(line.eventDate, locale)}
                       {!line.closed ? (
-                        <span className="block text-[11.5px] text-warn-text">
+                        <span className="block text-[12.5px] text-warn-text">
                           {t.credit.openEvent}
                         </span>
                       ) : null}
@@ -189,12 +189,12 @@ export async function MemberLedgerPage({
                         it — a merged number is one nobody can check.
                       */}
                       {line.seatAmount ? (
-                        <span className="nums block text-[11.5px] leading-4 text-ink-500">
+                        <span className="nums block text-[12.5px] leading-4 text-ink-500">
                           + {formatAmount(line.seatAmount)} · {t.seatSetup.title}
                         </span>
                       ) : null}
                       {line.note ? (
-                        <span className="block max-w-[220px] text-[11.5px] leading-4 text-ink-500">
+                        <span className="block max-w-[220px] text-[12.5px] leading-4 text-ink-500">
                           {line.note}
                         </span>
                       ) : null}

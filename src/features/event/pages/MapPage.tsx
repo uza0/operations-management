@@ -95,7 +95,7 @@ export async function EventMapPage({ eventId }: { eventId: string }) {
 
           {usedTypes.length > 0 ? (
             <div className="panel mt-4 p-4">
-              <p className="mb-2.5 text-[11.5px] font-semibold uppercase tracking-wide text-ink-500">
+              <p className="mb-2.5 text-[12.5px] font-semibold uppercase tracking-wide text-ink-500">
                 {t.map.legend}
               </p>
               <ul className="flex flex-wrap gap-x-5 gap-y-2">

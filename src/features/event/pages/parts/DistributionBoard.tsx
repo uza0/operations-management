@@ -95,7 +95,7 @@ function Chip({
           : 'border-ink-700 bg-ink-900 hover:border-ink-500'
       } ${draggable ? 'cursor-grab active:cursor-grabbing' : ''}`}
     >
-      <span className="nums w-4 shrink-0 text-center text-[11px] text-ink-500">
+      <span className="nums w-4 shrink-0 text-center text-[12px] text-ink-500">
         {String(index + 1).padStart(2, '0')}
       </span>
       <button
@@ -108,7 +108,7 @@ function Chip({
       >
         {person.name}
         {person.isReserve ? (
-          <span className="ms-1.5 text-[11px] text-info-text">{t.eventTeam.reserve}</span>
+          <span className="ms-1.5 text-[12px] text-info-text">{t.eventTeam.reserve}</span>
         ) : null}
       </button>
       {onRole ? (
@@ -177,7 +177,7 @@ function SelectAll({
       type="button"
       onClick={() => onToggle(ids, !all)}
       aria-pressed={all}
-      className={`press inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-colors sm:min-h-[26px] ${
+      className={`press inline-flex min-h-[40px] shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[12px] font-semibold transition-colors sm:min-h-[26px] ${
         mine > 0
           ? 'border-brand-600/50 bg-brand-50 text-brand-900'
           : 'border-ink-700 text-ink-500 hover:border-ink-500 hover:text-ink-300'
@@ -468,7 +468,7 @@ export function DistributionBoard({ t, locale, data, canManage }: Props) {
                     <h3 className="truncate text-[14.5px] font-semibold text-ink-100">
                       {location.name}
                     </h3>
-                    <p className="nums text-[11.5px] text-ink-500">
+                    <p className="nums text-[12.5px] text-ink-500">
                       {location.placed} / {location.requiredStaff}
                       {short > 0 ? (
                         <span className="ms-1.5 text-warn-text">
@@ -531,12 +531,12 @@ export function DistributionBoard({ t, locale, data, canManage }: Props) {
                                 people: lane.people.length,
                               })
                             }
-                            className="press flex min-h-[40px] items-center rounded bg-ink-800 px-2 py-0.5 text-[11px] font-medium text-ink-300 hover:bg-ink-700 hover:text-ink-100 sm:min-h-0"
+                            className="press flex min-h-[40px] items-center rounded bg-ink-800 px-2 py-0.5 text-[12px] font-medium text-ink-300 hover:bg-ink-700 hover:text-ink-100 sm:min-h-0"
                           >
                             {t.enums.task[lane.task]}
                           </button>
                         ) : (
-                          <span className="rounded bg-ink-800 px-1.5 py-0.5 text-[11px] font-medium text-ink-300">
+                          <span className="rounded bg-ink-800 px-1.5 py-0.5 text-[12px] font-medium text-ink-300">
                             {t.enums.task[lane.task]}
                           </span>
                         )}
@@ -548,12 +548,12 @@ export function DistributionBoard({ t, locale, data, canManage }: Props) {
                             onToggle={toggleMany}
                           />
                         ) : null}
-                        <span className="nums ms-auto text-[11.5px] text-ink-500">
+                        <span className="nums ms-auto text-[12.5px] text-ink-500">
                           {lane.people.length}
                         </span>
                       </div>
                       {lane.people.length === 0 ? (
-                        <p className="py-2 text-center text-[11.5px] text-ink-600">
+                        <p className="py-2 text-center text-[12.5px] text-ink-600">
                           {selected.size > 0 ? t.board.tapToPlace : t.board.dropHere}
                         </p>
                       ) : (
@@ -586,7 +586,7 @@ export function DistributionBoard({ t, locale, data, canManage }: Props) {
                         <button
                           type="button"
                           onClick={() => place([...selected], lane.key)}
-                          className="press mt-1 min-h-[40px] w-full rounded-lg border border-dashed border-brand-600/60 bg-brand-50 py-1.5 text-[11.5px] font-semibold text-brand-900 sm:min-h-[30px]"
+                          className="press mt-1 min-h-[40px] w-full rounded-lg border border-dashed border-brand-600/60 bg-brand-50 py-1.5 text-[12.5px] font-semibold text-brand-900 sm:min-h-[30px]"
                         >
                           {format(t.board.placeHere, { n: selected.size })}
                         </button>

@@ -60,7 +60,7 @@ export function InstallGuide({ t }: { t: Dictionary }) {
       <ol className="mt-3 space-y-2">
         {steps[tab].map((step, i) => (
           <li key={step} className="flex gap-2.5 text-[12.5px] leading-5 text-ink-300">
-            <span className="nums mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink-800 text-[11px] font-bold text-ink-400">
+            <span className="nums mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-ink-800 text-[12px] font-bold text-ink-400">
               {i + 1}
             </span>
             <span>{step}</span>

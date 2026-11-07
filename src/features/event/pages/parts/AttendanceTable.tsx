@@ -498,7 +498,7 @@ export function AttendanceTable({
                         {t.enums.attendanceStatus[row.status]}
                       </Badge>
                       {row.notes ? (
-                        <p className="mt-1 max-w-[220px] text-[11.5px] leading-4 text-ink-500">
+                        <p className="mt-1 max-w-[220px] text-[12.5px] leading-4 text-ink-500">
                           {row.notes}
                         </p>
                       ) : null}
@@ -523,7 +523,7 @@ export function AttendanceTable({
                       </span>
                       {/* A figure someone set by hand says so, and why. */}
                       {row.payAmount !== null ? (
-                        <span className="ms-2 text-[11.5px] text-ink-500">
+                        <span className="ms-2 text-[12.5px] text-ink-500">
                           {row.creditNote || t.credit.manual}
                         </span>
                       ) : null}

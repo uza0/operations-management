@@ -299,7 +299,7 @@ export function IssueManager({
         ) : null}
 
         {issue.resolvedAt ? (
-          <p className="mt-2 text-[11.5px] text-ink-500">
+          <p className="mt-2 text-[12.5px] text-ink-500">
             {t.issue.resolvedBy}: {issue.resolvedByName ?? '—'} ·{' '}
             <span className="nums">{formatDateTime(issue.resolvedAt, locale)}</span>
           </p>
