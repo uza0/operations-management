@@ -112,7 +112,7 @@ export async function setSeatSetupStatusAction(
     actorId: user.id,
     actorName: user.name,
     action: 'UPDATE',
-    entity: 'SEAT_SETUP',
+    entity: 'EVENT',
     summary: `${formatDate(shift.date, locale)}: ${nextStatus === 'READY' ? t.seatSetup.statusReady : t.seatSetup.statusPlanning}`,
     oldValues: { status: shift.status },
     newValues: { status: nextStatus, readyVersion },

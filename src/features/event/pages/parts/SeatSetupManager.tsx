@@ -279,7 +279,6 @@ function ShiftBlock({
         {declined > 0 ? <Badge tone="crit">{t.seatSetup.declinedList}: {declined}</Badge> : null}
         <Badge tone="neutral">{t.seatSetup.attendedCount.replace('{n}', String(attended))} / {shift.people.length}</Badge>
       </div>
-      </div>
 
       {shift.people.length === 0 ? (
         <p className="px-4 py-3 text-[12.5px] text-ink-500">{t.seatSetup.empty}</p>
@@ -327,6 +326,7 @@ function ShiftBlock({
         </>
       )}
       </> : null}
+      </div>
     </section>
   );
 }
