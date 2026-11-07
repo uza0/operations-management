@@ -1118,3 +1118,10 @@
     break-before: page;
   }
 }
+details.owed-lines > summary::-webkit-details-marker {
+  display: none;
+}
+
+details.owed-lines[open] > summary .owed-lines-chevron {
+  transform: rotate(90deg);
+}

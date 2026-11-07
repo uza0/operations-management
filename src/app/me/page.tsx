@@ -27,6 +27,7 @@ import { OwedLines } from './OwedLines';
 import { InstallGuide } from './InstallGuide';
 import { NotificationToggle } from './NotificationToggle';
 import { formatAmount } from '@/lib/money';
+import { MoneyValue, MoneyVisibilityProvider, MoneyVisibilityToggle } from './MoneyVisibility';
 
 export const dynamic = 'force-dynamic';
 
@@ -93,7 +94,7 @@ function SetupInvitations({
                 </span>
               </div>
               <div className="col-span-2 nums font-semibold text-ink-200">
-                {formatAmount(row.payAmount)} {t.credit.currency}
+                <MoneyValue value={`${formatAmount(row.payAmount)} ${t.credit.currency}`} />
               </div>
             </dl>
           </Link>
@@ -222,6 +223,7 @@ export default async function MemberHomePage() {
 
   return (
     <MemberShell>
+      <MoneyVisibilityProvider>
       <section className="rounded-card border border-ink-700 bg-ink-850 p-4">
         <p className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-500">
           {t.member.you}
@@ -238,6 +240,12 @@ export default async function MemberHomePage() {
           </p>
         ) : null}
       </section>
+
+      {!ledger || home.person.salaried ? (
+        <div className="flex justify-end">
+          <MoneyVisibilityToggle showLabel={t.memberAuth.showMoney} hideLabel={t.memberAuth.hideMoney} />
+        </div>
+      ) : null}
 
       {/*
         What he is owed, straight under his name. It is the question he opens
@@ -308,6 +316,7 @@ export default async function MemberHomePage() {
           {t.memberAuth.signOut}
         </ConfirmSubmit>
       </form>
+      </MoneyVisibilityProvider>
     </MemberShell>
   );
 }

@@ -2,6 +2,8 @@ import { format, type Dictionary, type Locale } from '@/lib/i18n';
 import { formatAmount } from '@/lib/money';
 import { formatDate } from '@/lib/time';
 import type { MemberLedger } from '@/server/services/credit';
+import { IconChevron } from '@/components/ui/icons';
+import { MoneyValue } from './MoneyVisibility';
 
 /**
  * Where the figure above it came from.
@@ -31,15 +33,18 @@ export function OwedLines({
   if (owed.length === 0) return null;
 
   return (
-    <section className="rounded-card border border-ink-700 bg-ink-850">
-      <div className="border-b border-ink-700 px-4 py-3">
-        <p className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-500">
-          {t.memberAuth.owedBreakdown}
-        </p>
-        <p className="mt-1 text-[12px] leading-5 text-ink-500">
-          {t.memberAuth.owedBreakdownHint}
-        </p>
-      </div>
+    <details className="owed-lines rounded-card border border-ink-700 bg-ink-850">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 border-b border-ink-700 px-4 py-3">
+        <span className="min-w-0">
+          <span className="block text-[11.5px] font-semibold uppercase tracking-wide text-ink-500">
+            {t.memberAuth.owedBreakdown}
+          </span>
+          <span className="mt-1 block text-[12px] leading-5 text-ink-500">
+            {t.memberAuth.owedBreakdownHint}
+          </span>
+        </span>
+        <IconChevron className="owed-lines-chevron shrink-0 text-ink-400" width={18} height={18} />
+      </summary>
 
       <ul className="divide-y divide-ink-800">
         {owed.map((line) => {
@@ -60,7 +65,7 @@ export function OwedLines({
                   </p>
                 </div>
                 <p className="nums shrink-0 text-[15px] font-bold text-brand-300">
-                  {formatAmount(fee + chairs)} {t.credit.currency}
+                  <MoneyValue value={`${formatAmount(fee + chairs)} ${t.credit.currency}`} />
                 </p>
               </div>
 
@@ -74,7 +79,7 @@ export function OwedLines({
                     <div className="flex items-center justify-between gap-3">
                       <dt className="text-ink-400">{t.memberAuth.nightFee}</dt>
                       <dd className="nums text-ink-200">
-                        {formatAmount(fee)} {t.credit.currency}
+                        <MoneyValue value={`${formatAmount(fee)} ${t.credit.currency}`} />
                       </dd>
                     </div>
                   ) : null}
@@ -83,7 +88,7 @@ export function OwedLines({
                       {format(t.memberAuth.chairDays, { n: line.seatDays })}
                     </dt>
                     <dd className="nums text-ink-200">
-                      {formatAmount(chairs)} {t.credit.currency}
+                      <MoneyValue value={`${formatAmount(chairs)} ${t.credit.currency}`} />
                     </dd>
                   </div>
                 </dl>
@@ -92,6 +97,6 @@ export function OwedLines({
           );
         })}
       </ul>
-    </section>
+    </details>
   );
 }

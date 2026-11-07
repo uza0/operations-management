@@ -548,6 +548,8 @@ export const en: Dictionary = {
     signOutConfirm: 'You will be signed out. You need your phone number and code to get back in. Sure?',
     salariedNote: "You are on a monthly contract — your salary comes from the company, so nothing is counted here.",
     owedNow: "Owed now — finished events, not yet handed over",
+    showMoney: 'Show amounts',
+    hideMoney: 'Hide amounts',
     owedBreakdown: 'Where this comes from',
     owedBreakdownHint: 'Each event and what it is worth to you. A chair day is counted on its own, at its own rate.',
     nightFee: 'The night',

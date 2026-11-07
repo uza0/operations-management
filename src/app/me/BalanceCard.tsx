@@ -1,6 +1,7 @@
 import { formatMoney } from '@/lib/money';
 import type { MemberLedger } from '@/server/services/credit';
 import type { Dictionary } from '@/lib/i18n';
+import { MoneyValue, MoneyVisibilityToggle } from './MoneyVisibility';
 
 /**
  * What he is owed, on his own page.
@@ -41,12 +42,15 @@ export function BalanceCard({
 
   return (
     <section className="rounded-card border border-ink-700 bg-ink-850 p-4">
-      <p className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-500">
-        {t.credit.title}
-      </p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[11.5px] font-semibold uppercase tracking-wide text-ink-500">
+          {t.credit.title}
+        </p>
+        <MoneyVisibilityToggle showLabel={t.memberAuth.showMoney} hideLabel={t.memberAuth.hideMoney} />
+      </div>
 
       <p className="nums mt-2 text-[30px] font-bold leading-10 text-brand-300">
-        {formatMoney(ledger.totalAmount, locale)}
+        <MoneyValue value={formatMoney(ledger.totalAmount, locale)} />
       </p>
       <p className="text-[12.5px] text-ink-400">{t.memberAuth.owedNow}</p>
 
@@ -54,13 +58,13 @@ export function BalanceCard({
         <div>
           <dt className="text-[11.5px] text-ink-500">{t.credit.pendingAmount}</dt>
           <dd className="nums mt-0.5 text-[15px] font-semibold text-ink-200">
-            {formatMoney(ledger.pendingAmount, locale)}
+            <MoneyValue value={formatMoney(ledger.pendingAmount, locale)} />
           </dd>
         </div>
         <div>
           <dt className="text-[11.5px] text-ink-500">{t.memberAuth.received}</dt>
           <dd className="nums mt-0.5 text-[15px] font-semibold text-ink-200">
-            {formatMoney(ledger.paidAmount, locale)}
+            <MoneyValue value={formatMoney(ledger.paidAmount, locale)} />
           </dd>
         </div>
       </dl>
