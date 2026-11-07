@@ -6,7 +6,7 @@ import { createEventAction, updateEventAction } from '@/server/actions/events';
 import { idle } from '@/server/actions/types';
 import { FormError } from '@/components/ui/states';
 import { SubmitButton } from '@/components/ui/client';
-import { EVENT_TYPES, type EventType } from '@/lib/constants';
+import { EVENT_TYPES, type EventType, type Role } from '@/lib/constants';
 import type { Dictionary } from '@/lib/i18n';
 
 export type EventFormValues = {
@@ -244,10 +244,13 @@ export function EventForm({
             <span className="text-ink-500">({t.common.optional})</span>
           </legend>
           <div className="grid gap-2 rounded-xl border border-ink-800 p-3 sm:grid-cols-2">
-            {leaders.filter((leader) => leader.role === 'TEAM_LEADER').map((leader) => (
+            {leaders.filter((leader) => leader.role === 'TEAM_LEADER' || leader.role === 'ADMIN').map((leader) => (
               <label key={leader.id} className="flex min-h-11 items-center gap-2.5 rounded-lg px-2 text-[14px] text-ink-200 hover:bg-ink-900/60">
                 <input type="checkbox" name="leaderIds" value={leader.id} defaultChecked={values?.leaderIds?.includes(leader.id)} className="h-4 w-4 accent-brand-500" />
-                {leader.label}
+                <span className="min-w-0 truncate">{leader.label}</span>
+                <span className="ms-auto shrink-0 rounded-full bg-ink-800 px-2 py-0.5 text-[12px] text-ink-400">
+                  {t.enums.role[leader.role as Role]}
+                </span>
               </label>
             ))}
           </div>

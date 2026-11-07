@@ -70,7 +70,7 @@ export async function createEventAction(
         and(
           inArray(users.id, leaderIds),
           eq(users.active, true),
-          eq(users.role, 'TEAM_LEADER'),
+          inArray(users.role, ['ADMIN', 'TEAM_LEADER']),
         ),
       );
     if (validLeaders.length !== leaderIds.length) return fail(t.errors.forbidden);
@@ -185,7 +185,7 @@ export async function updateEventAction(
       ? await db.select({ id: users.id }).from(users).where(and(
           inArray(users.id, selectedLeaderIds),
           eq(users.active, true),
-          eq(users.role, 'TEAM_LEADER'),
+          inArray(users.role, ['ADMIN', 'TEAM_LEADER']),
         ))
       : [];
     if (validLeaders.length !== selectedLeaderIds.length) return fail(t.errors.forbidden);

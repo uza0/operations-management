@@ -178,8 +178,9 @@ export async function changeAccountRoleAction(formData: FormData): Promise<void>
   const target = await db.query.users.findFirst({ where: eq(users.id, userId) });
   if (!target || target.role === role) return;
   await db.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, userId));
-  // A role change also removes grants that no longer match the account type.
-  if (role !== 'TEAM_LEADER') {
+  // ADMIN accounts can still be appointed as an event's team leader; the
+  // event grant is separate from the account's system-wide role.
+  if (role !== 'TEAM_LEADER' && role !== 'ADMIN') {
     await db.delete(eventAccess).where(and(eq(eventAccess.userId, userId), eq(eventAccess.role, 'TEAM_LEADER')));
   }
   if (role !== 'GATE_LEADER') {
