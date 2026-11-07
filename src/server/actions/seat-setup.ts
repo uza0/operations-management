@@ -158,8 +158,19 @@ export async function saveSeatSetupAction(
     return fail(t.seatSetup.endBeforeStart);
   }
 
+  const detailId = str(form, 'detailId');
+  const existing = detailId
+    ? await db.query.seatSetupDetails.findFirst({ where: eq(seatSetupDetails.id, detailId) })
+    : null;
+  if (detailId && (!existing || existing.eventId !== eventId)) return fail(t.errors.notFound);
+
   const raw = str(form, 'payAmount');
-  const payAmount = raw === null ? SEAT_SETUP_PAY : Number(raw.replace(/[,\s]/g, ''));
+  if (user.role !== 'ADMIN' && raw !== null) return fail(t.errors.forbidden);
+  const payAmount = user.role === 'ADMIN'
+    ? raw === null
+      ? existing?.payAmount ?? SEAT_SETUP_PAY
+      : Number(raw.replace(/[,\s]/g, ''))
+    : existing?.payAmount ?? SEAT_SETUP_PAY;
   if (
     !Number.isFinite(payAmount) ||
     !Number.isInteger(payAmount) ||
@@ -168,16 +179,6 @@ export async function saveSeatSetupAction(
   ) {
     return fail(t.errors.invalidCredit);
   }
-
-  /*
-   * One of possibly several days. Editing addresses a day by id; adding one
-   * sends no id at all, which is how the same form does both.
-   */
-  const detailId = str(form, 'detailId');
-  const existing = detailId
-    ? await db.query.seatSetupDetails.findFirst({ where: eq(seatSetupDetails.id, detailId) })
-    : null;
-  if (detailId && (!existing || existing.eventId !== eventId)) return fail(t.errors.notFound);
 
   if (existing) {
     await db

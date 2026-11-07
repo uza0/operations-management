@@ -133,7 +133,7 @@ export async function generatePaymentFileAction(
   form: FormData,
 ): Promise<ActionState> {
   const { t } = await getT();
-  const user = await requireRole('ADMIN', 'TEAM_LEADER').catch(() => null);
+  const user = await requireRole('ADMIN').catch(() => null);
   if (!user) return fail(t.errors.forbidden);
 
   const fromDate = str(form, 'fromDate') ?? '';
@@ -263,6 +263,8 @@ export async function generatePaymentFileAction(
 
 /** Past files, newest first — the answer to "what did we actually send". */
 export async function listHandovers() {
+  const user = await requireRole('ADMIN').catch(() => null);
+  if (!user) return [];
   return db
     .select({
       id: payouts.id,
@@ -284,6 +286,8 @@ export async function listHandovers() {
 
 /** What is still unpaid outside any range, so a week is never skipped. */
 export async function oldestOwed(): Promise<string | null> {
+  const user = await requireRole('ADMIN').catch(() => null);
+  if (!user) return null;
   const row = await db
     .select({ date: events.date })
     .from(eventMembers)

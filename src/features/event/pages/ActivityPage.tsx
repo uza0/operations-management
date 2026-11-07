@@ -18,8 +18,17 @@ function parseJson(value: string | null): Record<string, unknown> | null {
 
 /** Read-only for operational users — the log is never edited from the UI. */
 export async function EventActivityPage({ eventId }: { eventId: string }) {
-  const { locale, t } = await loadManagedEventPage(eventId);
-  const rows = await listEventAudit(eventId, 300);
+  const { scope, locale, t } = await loadManagedEventPage(eventId);
+  const allRows = await listEventAudit(eventId, 300);
+  const rows = scope.user.role === 'ADMIN'
+    ? allRows
+    : allRows.filter((row) => {
+        const sensitive = (value: string | null) =>
+          Object.keys(parseJson(value) ?? {}).some((key) =>
+            /pay|credit|amount|total|fee|cost|expense|rate|salary|wage/i.test(key),
+          );
+        return !sensitive(row.oldValues) && !sensitive(row.newValues);
+      });
 
   return (
     <>

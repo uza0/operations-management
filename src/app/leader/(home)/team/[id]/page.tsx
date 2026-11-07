@@ -17,7 +17,7 @@ export default async function TeamMemberPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireRole('TEAM_LEADER');
+  await requireRole('ADMIN');
   const { id } = await params;
   return <MemberLedgerPage memberId={id} canSetRate={false} />;
 }

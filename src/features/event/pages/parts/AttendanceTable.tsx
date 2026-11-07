@@ -130,11 +130,13 @@ function EditRecord({
   eventId,
   row,
   eventDefault,
+  canSeeFinance,
 }: {
   t: Dictionary;
   eventId: string;
   row: AttendanceRow;
   eventDefault: number;
+  canSeeFinance: boolean;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -188,7 +190,7 @@ function EditRecord({
             </SubmitButton>
           </form>
 
-          <div className="border-t border-ink-800 pt-4">
+          {canSeeFinance ? <div className="border-t border-ink-800 pt-4">
             <form action={creditAction} className="space-y-3">
               <input type="hidden" name="eventId" value={eventId} />
               <input type="hidden" name="eventMemberId" value={row.eventMemberId} />
@@ -225,7 +227,7 @@ function EditRecord({
                 {t.credit.saveCredit}
               </SubmitButton>
             </form>
-          </div>
+          </div> : null}
         </div>
       </Dialog>
     </>
@@ -239,6 +241,7 @@ export function AttendanceTable({
   rows,
   canRecord,
   canManage = false,
+  canSeeFinance = false,
   eventDefault = 1,
 }: {
   t: Dictionary;
@@ -248,6 +251,7 @@ export function AttendanceTable({
   canRecord: boolean;
   /** Editing times and credit is the supervisor's, not every gate leader's. */
   canManage?: boolean;
+  canSeeFinance?: boolean;
   eventDefault?: number;
 }) {
   const router = useRouter();
@@ -451,9 +455,9 @@ export function AttendanceTable({
                   <th>{t.common.status}</th>
                   <th>{t.attendance.checkIn}</th>
                   <th>{t.attendance.checkOut}</th>
-                  <th>
-                    {t.credit.days} <span className="text-ink-500">({t.credit.currency})</span>
-                  </th>
+                  {canSeeFinance ? (
+                    <th>{t.credit.days} <span className="text-ink-500">({t.credit.currency})</span></th>
+                  ) : null}
                   {canRecord ? <th className="text-end">{t.common.actions}</th> : null}
                 </tr>
               </thead>
@@ -507,7 +511,7 @@ export function AttendanceTable({
                     <td data-label={t.attendance.checkOut} className="nums text-ink-300">
                       {row.checkOutTime ? formatTime(row.checkOutTime, locale) : '—'}
                     </td>
-                    <td data-label={t.credit.days}>
+                    {canSeeFinance ? <td data-label={t.credit.days}>
                       <span
                         className={`nums font-medium ${
                           (row.effectiveAmount ?? 0) > 0 ? 'text-ink-100' : 'text-ink-500'
@@ -523,7 +527,7 @@ export function AttendanceTable({
                           {row.creditNote || t.credit.manual}
                         </span>
                       ) : null}
-                    </td>
+                    </td> : null}
                     {canRecord ? (
                       <td data-label="">
                         <div className="flex flex-col gap-1 sm:items-end">
@@ -536,6 +540,7 @@ export function AttendanceTable({
                                 eventId={eventId}
                                 row={row}
                                 eventDefault={eventDefault}
+                                canSeeFinance={canSeeFinance}
                               />
                             ) : null}
                           </div>

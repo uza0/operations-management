@@ -10,7 +10,7 @@ import { newId } from '@/lib/ids';
 import { MAX_EVENT_PAY } from '@/lib/money';
 import { str } from '@/lib/validation';
 import { EXPENSE_CATEGORIES } from '@/lib/constants';
-import { assertEventManager } from '@/server/auth/rbac';
+import { assertRole } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
 
 import { fail, ok, type ActionState } from './types';
@@ -47,7 +47,7 @@ export async function saveExpenseAction(
 ): Promise<ActionState> {
   const { t } = await getT();
   const eventId = String(form.get('eventId') ?? '');
-  const user = await assertEventManager(eventId).catch(() => null);
+  const user = await assertRole('ADMIN').catch(() => null);
   if (!user) return fail(t.errors.forbidden);
 
   const description = str(form, 'description');
@@ -145,7 +145,7 @@ export async function removeExpenseAction(
 ): Promise<ActionState> {
   const { t } = await getT();
   const eventId = String(form.get('eventId') ?? '');
-  const user = await assertEventManager(eventId).catch(() => null);
+  const user = await assertRole('ADMIN').catch(() => null);
   if (!user) return fail(t.errors.forbidden);
 
   const id = str(form, 'id');

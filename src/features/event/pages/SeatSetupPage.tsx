@@ -9,8 +9,12 @@ import { SeatSetupManager } from './parts/SeatSetupManager';
  * Management-only, like every other screen that prints what somebody is owed.
  */
 export async function EventSeatSetupPage({ eventId }: { eventId: string }) {
-  const { event, locale, t } = await loadManagedEventPage(eventId);
+  const { scope, event, locale, t } = await loadManagedEventPage(eventId);
   const data = await buildSeatSetup(eventId);
+  const canSeeFinance = scope.user.role === 'ADMIN';
+  const visibleData = canSeeFinance
+    ? data
+    : { ...data, shifts: data.shifts.map((shift) => ({ ...shift, payAmount: 0 })) };
 
   return (
     <>
@@ -20,8 +24,9 @@ export async function EventSeatSetupPage({ eventId }: { eventId: string }) {
           t={t}
           locale={locale}
           eventId={eventId}
-          data={data}
+          data={visibleData}
           defaultDate={dayBefore(event.date)}
+          canSeeFinance={canSeeFinance}
         />
       </Panel>
     </>

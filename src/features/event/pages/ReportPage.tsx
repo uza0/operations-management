@@ -38,8 +38,9 @@ import {
  */
 export async function EventReportPage({ eventId }: { eventId: string }) {
   const { scope, event, locale, t } = await loadManagedEventPage(eventId);
+  const canSeeFinance = scope.user.role === 'ADMIN';
   const data = await buildReport(eventId);
-  const expenses = await buildExpenses(eventId);
+  const expenses = canSeeFinance ? await buildExpenses(eventId) : null;
   const { findings, recommendations } = buildFindings(data, t, format);
 
   const generatedAt = new Date();
@@ -269,7 +270,7 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
                   t.assignment.location,
                   t.common.status,
                   t.attendance.checkIn,
-                  t.credit.days,
+                  ...(canSeeFinance ? [t.credit.days] : []),
                 ]}
               >
                 {data.roster.map((line) => (
@@ -299,18 +300,14 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
                         ? ` — ${formatTime(line.checkOutTime, locale)}`
                         : ''}
                     </td>
-                    <td className="nums">
+                    {canSeeFinance ? <td className="nums">
                       {line.amount}
-                      {line.note ? (
-                        <span className="block text-[11px] text-ink-500">{line.note}</span>
-                      ) : null}
-                    </td>
+                      {line.note ? <span className="block text-[11px] text-ink-500">{line.note}</span> : null}
+                    </td> : null}
                   </tr>
                 ))}
               </ReportTable>
-              <p className="report-hint">
-                {format(t.credit.eventTotal, { n: data.totalPay })}
-              </p>
+              {canSeeFinance ? <p className="report-hint">{format(t.credit.eventTotal, { n: data.totalPay })}</p> : null}
             </>
           ) : null}
         </ReportSection>
@@ -477,7 +474,7 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
           "what the night cost us" are two numbers a closing report has to
           keep apart, or neither of them can be checked against anything.
         */}
-        {expenses.lines.length > 0 ? (
+        {expenses && expenses.lines.length > 0 ? (
           <ReportSection index={9} title={t.expense.title} hint={t.expense.notPay}>
             <FactGrid>
               <div>
@@ -505,7 +502,7 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
         ) : null}
 
         {/* 9 — Notes and recommendations ------------------------------------ */}
-        <ReportSection index={expenses.lines.length > 0 ? 10 : 9} title={t.report.section9}>
+        <ReportSection index={expenses && expenses.lines.length > 0 ? 10 : 9} title={t.report.section9}>
           <h3 className="text-[13.5px] font-semibold text-ink-200">
             {t.report.recommendations}
           </h3>
@@ -524,7 +521,7 @@ export async function EventReportPage({ eventId }: { eventId: string }) {
 
         {/* 10 — What the team said ----------------------------------------- */}
         <ReportSection
-          index={expenses.lines.length > 0 ? 11 : 10}
+          index={expenses && expenses.lines.length > 0 ? 11 : 10}
           title={t.feedback.adminTitle}
           hint={t.feedback.adminAnonymous}
         >

@@ -23,6 +23,7 @@ import { ArrivalApprovals } from './parts/ArrivalApprovals';
 
 export async function EventAttendancePage({ eventId }: { eventId: string }) {
   const { scope, event, locale, t } = await loadEventPage(eventId);
+  const canSeeFinance = scope.user.role === 'ADMIN';
 
   const rows = await db
     .select({
@@ -76,18 +77,20 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
       checkOutTime: r.checkOutTime,
       recordedBy: r.recordedBy,
       notes: r.notes,
-      payAmount: r.payAmount,
-      creditNote: r.creditNote,
-      effectiveAmount: creditFor({
-        payMode: r.payMode,
-        status: (r.status ?? 'PENDING') as AttendanceStatus,
-        payAmount: r.payAmount,
-        eventDefault: event.payDefault,
-        eventStatus: event.status,
-        paid: r.payoutId !== null,
-        personSalaried: r.personSalaried,
-        personDefaultPay: r.personDefaultPay,
-      }),
+      payAmount: canSeeFinance ? r.payAmount : null,
+      creditNote: canSeeFinance ? r.creditNote : null,
+      effectiveAmount: canSeeFinance
+        ? creditFor({
+            payMode: r.payMode,
+            status: (r.status ?? 'PENDING') as AttendanceStatus,
+            payAmount: r.payAmount,
+            eventDefault: event.payDefault,
+            eventStatus: event.status,
+            paid: r.payoutId !== null,
+            personSalaried: r.personSalaried,
+            personDefaultPay: r.personDefaultPay,
+          })
+        : null,
     }))
     .sort(byName);
 
@@ -97,7 +100,9 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
   }, {});
 
   // What the event currently owes in total, at today's figures.
-  const totalPay = data.reduce((sum, row) => sum + (row.effectiveAmount ?? 0), 0);
+  const totalPay = canSeeFinance
+    ? data.reduce((sum, row) => sum + (row.effectiveAmount ?? 0), 0)
+    : 0;
 
   /* Event day's first question, above everything else on the page. */
   const arrivals = await buildArrivals(eventId);
@@ -152,7 +157,7 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
         The days this event is worth, and what that adds up to across the team.
         It sits above the table because it is the number every row inherits.
       */}
-      {scope.canManage ? (
+      {canSeeFinance ? (
         <EventCreditDefault
           t={t}
           eventId={eventId}
@@ -168,7 +173,8 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
         rows={data}
         canRecord
         canManage={scope.canManage}
-        eventDefault={event.payDefault}
+        canSeeFinance={canSeeFinance}
+        eventDefault={canSeeFinance ? event.payDefault : 0}
       />
     </>
   );

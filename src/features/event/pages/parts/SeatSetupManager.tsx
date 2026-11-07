@@ -37,12 +37,14 @@ export function SeatSetupManager({
   eventId,
   data,
   defaultDate,
+  canSeeFinance,
 }: {
   t: Dictionary;
   locale: Locale;
   eventId: string;
   data: SeatSetupData;
   defaultDate: string;
+  canSeeFinance: boolean;
 }) {
   const router = useRouter();
   /** Which shift the dialogs are about: a shift object, 'new', or nothing. */
@@ -55,10 +57,10 @@ export function SeatSetupManager({
     router.refresh();
   };
 
-  const total = data.shifts.reduce(
+  const total = canSeeFinance ? data.shifts.reduce(
     (sum, shift) => sum + shift.people.filter((p) => p.attended).length * shift.payAmount,
     0,
-  );
+  ) : 0;
   const assigned = data.shifts.reduce((sum, shift) => sum + shift.people.length, 0);
   const attended = data.shifts.reduce(
     (sum, shift) => sum + shift.people.filter((person) => person.attended).length,
@@ -79,15 +81,15 @@ export function SeatSetupManager({
             {t.seatSetup.add}
           </button>
         </div>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        <div className={`grid grid-cols-2 gap-2 ${canSeeFinance ? 'sm:grid-cols-4' : 'sm:grid-cols-3'}`}>
           <SummaryStat label={t.seatSetup.daysLabel} value={data.shifts.length} />
           <SummaryStat label={t.seatSetup.assignedCrew} value={assigned} />
           <SummaryStat label={t.seatSetup.attendanceSummary} value={`${attended} / ${assigned}`} />
-          <SummaryStat
+          {canSeeFinance ? <SummaryStat
             label={t.seatSetup.total}
             value={`${formatAmount(total)} ${t.credit.currency}`}
             prominent
-          />
+          /> : null}
         </div>
       </div>
 
@@ -105,6 +107,7 @@ export function SeatSetupManager({
             locale={locale}
             eventId={eventId}
             shift={shift}
+            canSeeFinance={canSeeFinance}
             defaultExpanded={index === 0}
             onEdit={() => setEditing(shift)}
             onPick={() => setPicking(shift)}
@@ -119,6 +122,7 @@ export function SeatSetupManager({
           eventId={eventId}
           detail={editing === 'new' ? null : editing}
           defaultDate={defaultDate}
+          canSeeFinance={canSeeFinance}
           onDone={refresh}
         />
       ) : null}
@@ -162,6 +166,7 @@ function ShiftBlock({
   locale,
   eventId,
   shift,
+  canSeeFinance,
   defaultExpanded,
   onEdit,
   onPick,
@@ -171,6 +176,7 @@ function ShiftBlock({
   locale: Locale;
   eventId: string;
   shift: SeatSetupData['shifts'][number];
+  canSeeFinance: boolean;
   defaultExpanded: boolean;
   onEdit: () => void;
   onPick: () => void;
@@ -229,10 +235,10 @@ function ShiftBlock({
               {shift.startTime}
               {shift.endTime ? ` → ${shift.endTime}` : ''}
             </span>
-            <span aria-hidden className="text-ink-600">·</span>
-            <span className="nums">
-              {formatAmount(shift.payAmount)} {t.credit.currency}
-            </span>
+            {canSeeFinance ? <>
+              <span aria-hidden className="text-ink-600">·</span>
+              <span className="nums">{formatAmount(shift.payAmount)} {t.credit.currency}</span>
+            </> : null}
             <span aria-hidden className="text-ink-600">·</span>
             <span className="nums">
               {format(t.seatSetup.attendedCount, { n: attended })} / {shift.people.length}
@@ -337,12 +343,14 @@ function ShiftDialog({
   eventId,
   detail,
   defaultDate,
+  canSeeFinance,
   onDone,
 }: {
   t: Dictionary;
   eventId: string;
   detail: SeatSetupData['shifts'][number] | null;
   defaultDate: string;
+  canSeeFinance: boolean;
   onDone: () => void;
 }) {
   const [state, action] = useActionState(saveSeatSetupAction, idle);
@@ -401,7 +409,7 @@ function ShiftDialog({
           </div>
         </div>
 
-        <div>
+        {canSeeFinance ? <div>
           <label className="field-label" htmlFor="ss-pay">
             {t.seatSetup.pay}
           </label>
@@ -414,7 +422,7 @@ function ShiftDialog({
           />
           <p className="mt-1 text-[12px] leading-5 text-ink-500">{t.seatSetup.payHint}</p>
           <p className="text-[12px] leading-5 text-ink-500">{t.seatSetup.payNote}</p>
-        </div>
+        </div> : null}
 
         <div>
           <label className="field-label" htmlFor="ss-notes">

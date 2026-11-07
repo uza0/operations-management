@@ -32,7 +32,7 @@ import {
   timelineSchema,
 } from '@/lib/validation';
 import type { AttendanceStatus, IssueStatus, Priority } from '@/lib/constants';
-import { assertEventManager, currentUser, resolveEventScope } from '@/server/auth/rbac';
+import { assertEventManager, assertRole, currentUser, resolveEventScope } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
 import { announcementAudience, pushToMembers } from '@/server/services/push';
 import { routeNewIssue } from '@/server/services/issue-routing';
@@ -273,7 +273,7 @@ export async function setMemberCreditAction(
 ): Promise<ActionState> {
   const { t } = await getT();
   const eventId = String(form.get('eventId') ?? '');
-  const user = await assertEventManager(eventId);
+  const user = await assertRole('ADMIN').catch(() => null);
   if (!user) return fail(t.errors.forbidden);
 
   const parsed = creditSchema.safeParse({
@@ -332,7 +332,7 @@ export async function setEventCreditDefaultAction(
 ): Promise<ActionState> {
   const { t } = await getT();
   const eventId = String(form.get('eventId') ?? '');
-  const user = await assertEventManager(eventId);
+  const user = await assertRole('ADMIN').catch(() => null);
   if (!user) return fail(t.errors.forbidden);
 
   const parsed = eventCreditSchema.safeParse({

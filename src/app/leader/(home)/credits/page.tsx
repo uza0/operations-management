@@ -20,7 +20,7 @@ export default async function LeaderCreditsPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string }>;
 }) {
-  await requireRole('ADMIN', 'TEAM_LEADER');
+  await requireRole('ADMIN');
   const { from, to } = await searchParams;
   return (
     <Suspense>

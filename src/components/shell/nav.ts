@@ -42,22 +42,7 @@ export function globalNav(t: Dictionary, role: Role): NavSection[] {
     { href: '/leader/events', label: t.nav.myEvents, icon: 'calendar' },
   ];
 
-  /*
-   * The accounts, for the team leader only. He is the one who hands the money
-   * over and the one who gets asked whether it went out, so settling after
-   * payday should not have to travel through somebody else. A gate leader has
-   * no business here and does not see the link — nor reach the page, which
-   * checks the role itself rather than trusting this menu.
-   */
-  if (role === 'TEAM_LEADER') {
-    items.push({ href: '/leader/credits', label: t.nav.credits, icon: 'report' });
-    /*
-     * And the week's file. He is the one the company asks for it, so the
-     * screen that builds it belongs to him rather than to a supervisor who
-     * would have to be found on a Sunday evening.
-     */
-    items.push({ href: '/leader/payments', label: t.payment.nav, icon: 'report' });
-  }
+  // Payroll, payment files, member ledgers and event costs are admin-only.
   items.push({ href: '/me', label: t.memberAuth.openAsMember, icon: 'users' });
 
   return [{ items }];
@@ -112,10 +97,13 @@ export function eventNav(
      * screens because that is when it is totalled, and it is management-only
      * for the same reason the report is.
      */
-    { href: `${root}/expenses`, label: t.expense.title, icon: 'report' },
     { href: `${root}/reports`, label: t.nav.reports, icon: 'report' },
     { href: `${root}/activity`, label: t.nav.activity, icon: 'history' },
   ];
+
+  if (base === '/admin') {
+    closing.unshift({ href: `${root}/expenses`, label: t.expense.title, icon: 'report' });
+  }
 
   if (!canManage) {
     // Gate leaders get a deliberately narrow view (spec §3.3).

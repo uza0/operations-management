@@ -12,7 +12,7 @@ import { requireRole } from '@/server/auth/rbac';
  * on. The bytes that were sent are the bytes that come back.
  */
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await requireRole('ADMIN', 'TEAM_LEADER').catch(() => null);
+  const user = await requireRole('ADMIN').catch(() => null);
   if (!user) return new Response('Forbidden', { status: 403 });
 
   const { id } = await context.params;
