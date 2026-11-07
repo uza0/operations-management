@@ -213,7 +213,11 @@ export async function updateEventAction(
    * moved to a colleague. Left out of the form entirely it reads as "nobody",
    * so only an actual field clears it.
    */
-  let leaderChange: { changed: boolean; from?: string[] | null; to?: string[] | null } = { changed: false };
+  let leaderChange: {
+    changed: boolean;
+    from?: string[] | string | null;
+    to?: string[] | string | null;
+  } = { changed: false };
   if (selectedLeaderIds) {
     const currentSorted = [...currentLeaderIds].sort();
     const nextSorted = [...selectedLeaderIds].sort();
