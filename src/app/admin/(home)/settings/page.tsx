@@ -5,16 +5,15 @@ import { users } from '@/db/schema';
 import { requireRole } from '@/server/auth/rbac';
 import { getT } from '@/lib/i18n/server';
 import { PageHeader, Panel, KeyValue } from '@/components/ui/panel';
-import { Badge } from '@/components/ui/status';
 import { Notice } from '@/components/ui/states';
-import type { Role } from '@/lib/constants';
 
 import { TemplateForm } from '@/features/payment/TemplateForm';
 import { activeTemplate } from '@/server/services/payment-file';
 
 import { PasswordForm } from './PasswordForm';
+import { AccountManager } from './AccountManager';
 
-/** Users and access. Account creation is intentionally out of MVP scope. */
+/** Account access and operational settings. */
 export default async function SettingsPage() {
   const me = await requireRole('ADMIN');
   const { t, locale } = await getT();
@@ -65,41 +64,8 @@ export default async function SettingsPage() {
           <TemplateForm t={t} locale={locale} current={template} />
         </Panel>
 
-        <Panel title={t.enums.auditEntity.USER} className="lg:col-span-3" bodyClassName="p-0">
-          <div className="table-wrap">
-            <table className="op-table op-table-stack">
-              <thead>
-                <tr>
-                  <th>{t.common.name}</th>
-                  <th>{t.auth.username}</th>
-                  <th>{t.enums.auditEntity.USER}</th>
-                  <th>{t.common.status}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {accounts.map((account) => (
-                  <tr key={account.id}>
-                    <td data-label="" className="font-medium text-ink-100">
-                      {account.name}
-                    </td>
-                    <td data-label={t.auth.username} dir="ltr" className="nums text-ink-300">
-                      {account.username}
-                    </td>
-                    <td data-label={t.enums.auditEntity.USER}>
-                      <Badge tone="neutral" dot={false}>
-                        {t.enums.role[account.role as Role]}
-                      </Badge>
-                    </td>
-                    <td data-label={t.common.status}>
-                      <Badge tone={account.active ? 'ok' : 'neutral'}>
-                        {account.active ? t.team.active : t.team.inactive}
-                      </Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <Panel title={t.auth.accountManage} className="lg:col-span-3" bodyClassName="p-4">
+          <AccountManager t={t} accounts={accounts} currentUserId={me.id} />
         </Panel>
       </div>
 

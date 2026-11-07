@@ -1,7 +1,7 @@
 import { db } from '@/db';
 import { venues } from '@/db/schema';
 import { loadManagedEventPage } from '@/features/event/workspace';
-import { eventTeamLeaderId, leadershipCandidates } from '@/server/services/access';
+import { eventTeamLeaderIds, leadershipCandidates } from '@/server/services/access';
 import { PageHeader, Panel } from '@/components/ui/panel';
 import { Notice } from '@/components/ui/states';
 import { EventForm } from '@/app/admin/(home)/events/new/EventForm';
@@ -20,10 +20,10 @@ import { EventForm } from '@/app/admin/(home)/events/new/EventForm';
  */
 export async function EditEventPage({ eventId }: { eventId: string }) {
   const { event, t } = await loadManagedEventPage(eventId);
-  const [venueRows, leaders, leaderId] = await Promise.all([
+  const [venueRows, leaders, leaderIds] = await Promise.all([
     db.select({ id: venues.id, name: venues.name }).from(venues).orderBy(venues.name),
     leadershipCandidates(),
-    eventTeamLeaderId(eventId),
+    eventTeamLeaderIds(eventId),
   ]);
 
   return (
@@ -55,7 +55,7 @@ export async function EditEventPage({ eventId }: { eventId: string }) {
                 teamDepartureTime: event.teamDepartureTime,
                 description: event.description,
                 externalId: event.externalId,
-                leaderId,
+                leaderIds,
               }}
             />
           </div>

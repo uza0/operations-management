@@ -39,6 +39,11 @@ export async function leadershipCandidates() {
 
 /** The user leading this event, or null. */
 export async function eventTeamLeaderId(eventId: string): Promise<string | null> {
+  return (await eventTeamLeaderIds(eventId))[0] ?? null;
+}
+
+/** Every team-leader account granted access to this event. */
+export async function eventTeamLeaderIds(eventId: string): Promise<string[]> {
   const row = await db
     .select({ userId: eventAccess.userId })
     .from(eventAccess)
@@ -49,8 +54,8 @@ export async function eventTeamLeaderId(eventId: string): Promise<string | null>
         isNull(eventAccess.gateId),
       ),
     )
-    .get();
-  return row?.userId ?? null;
+    .all();
+  return row.map((entry) => entry.userId);
 }
 
 export type LeaderChange =
@@ -93,6 +98,31 @@ export async function setEventTeamLeader(
   }
 
   return { changed: true, from: current, to: userId };
+}
+
+/** Replaces the event's team-leader grants with the selected accounts. */
+export async function setEventTeamLeaders(eventId: string, userIds: string[]): Promise<void> {
+  const uniqueIds = [...new Set(userIds.filter(Boolean))];
+  await db
+    .delete(eventAccess)
+    .where(
+      and(
+        eq(eventAccess.eventId, eventId),
+        eq(eventAccess.role, 'TEAM_LEADER'),
+        isNull(eventAccess.gateId),
+      ),
+    );
+  if (uniqueIds.length) {
+    await db.insert(eventAccess).values(
+      uniqueIds.map((userId) => ({
+        id: newId(),
+        eventId,
+        userId,
+        role: 'TEAM_LEADER',
+        gateId: null,
+      })),
+    );
+  }
 }
 
 /** The user in charge of each gate of this event, keyed by gate id. */

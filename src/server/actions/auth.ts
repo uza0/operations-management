@@ -2,14 +2,16 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { eq } from 'drizzle-orm';
+import { and, eq } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
+import { randomBytes } from 'node:crypto';
 
 import { db } from '@/db';
-import { users } from '@/db/schema';
+import { eventAccess, users } from '@/db/schema';
 import { getT } from '@/lib/i18n/server';
 import { createSession, destroySession, readSession } from '@/server/auth/session';
-import { homeFor } from '@/server/auth/rbac';
+import { currentUser, homeFor } from '@/server/auth/rbac';
+import { newId } from '@/lib/ids';
 import { recordAudit } from '@/server/services/audit';
 import type { Role } from '@/lib/constants';
 
@@ -117,4 +119,82 @@ export async function changePasswordAction(
 
   revalidatePath('/admin/settings');
   return ok(t.auth.passwordChanged);
+}
+
+const ACCOUNT_ROLES: Role[] = ['ADMIN', 'TEAM_LEADER', 'GATE_LEADER'];
+
+/** Admin-created accounts receive a one-time random password, shown only here. */
+export async function createAccountAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const actor = await currentUser();
+  if (!actor || actor.role !== 'ADMIN') return fail(t.errors.forbidden);
+
+  const name = String(formData.get('name') ?? '').trim().slice(0, 100);
+  const username = String(formData.get('username') ?? '').trim().toLowerCase();
+  const role = String(formData.get('role') ?? '') as Role;
+  if (!name || !/^[a-z0-9._-]{3,32}$/.test(username) || !ACCOUNT_ROLES.includes(role)) {
+    return fail(t.auth.accountCreateFailed);
+  }
+  const existing = await db.query.users.findFirst({ where: eq(users.username, username) });
+  if (existing) return fail(t.auth.usernameTaken);
+
+  const password = randomBytes(12).toString('base64url');
+  const id = newId();
+  await db.insert(users).values({
+    id,
+    username,
+    email: null,
+    name,
+    passwordHash: bcrypt.hashSync(password, 10),
+    role,
+    active: true,
+    teamMemberId: null,
+  });
+  await recordAudit({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'CREATE',
+    entity: 'USER',
+    entityId: id,
+    entityLabel: name,
+    newValues: { username, role },
+    summary: `${t.enums.auditAction.CREATE}: ${name}`,
+  });
+  revalidatePath('/admin/settings');
+  return ok(`${t.auth.accountCreated} ${password}`);
+}
+
+/** Only an admin can change roles, and no one can demote the current session. */
+export async function changeAccountRoleAction(formData: FormData): Promise<void> {
+  const actor = await currentUser();
+  if (!actor || actor.role !== 'ADMIN') return;
+  const userId = String(formData.get('userId') ?? '');
+  const role = String(formData.get('role') ?? '') as Role;
+  if (!userId || !ACCOUNT_ROLES.includes(role) || userId === actor.id) return;
+
+  const target = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  if (!target || target.role === role) return;
+  await db.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, userId));
+  // A role change also removes grants that no longer match the account type.
+  if (role !== 'TEAM_LEADER') {
+    await db.delete(eventAccess).where(and(eq(eventAccess.userId, userId), eq(eventAccess.role, 'TEAM_LEADER')));
+  }
+  if (role !== 'GATE_LEADER') {
+    await db.delete(eventAccess).where(and(eq(eventAccess.userId, userId), eq(eventAccess.role, 'GATE_LEADER')));
+  }
+  await recordAudit({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'UPDATE',
+    entity: 'USER',
+    entityId: target.id,
+    entityLabel: target.name,
+    oldValues: { role: target.role },
+    newValues: { role },
+    summary: `${target.name}: ${target.role} → ${role}`,
+  });
+  revalidatePath('/admin/settings');
 }

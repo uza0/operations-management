@@ -2,10 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { assignments, eventMembers, events, gates, venues } from '@/db/schema';
+import { assignments, eventAccess, eventMembers, events, gates, users, venues } from '@/db/schema';
 import { format } from '@/lib/i18n';
 import { formatDate } from '@/lib/time';
 import { getT } from '@/lib/i18n/server';
@@ -23,7 +23,7 @@ import { recordAudit } from '@/server/services/audit';
 import { unmarkedAttendance } from '@/server/services/seat-setup';
 import { pushOnce } from '@/server/services/push';
 import { cloneEventPlan } from '@/server/services/clone';
-import { setEventTeamLeader, setGateLeader } from '@/server/services/access';
+import { eventTeamLeaderIds, setEventTeamLeader, setEventTeamLeaders, setGateLeader } from '@/server/services/access';
 import { hrefForStep } from '@/features/event/setup-steps';
 import { getStaffedLocations } from '@/server/services/staffing';
 
@@ -60,6 +60,21 @@ export async function createEventAction(
     externalId: str(form, 'externalId'),
   });
   if (!parsed.success) return fail(message(t, firstIssueKey(parsed.error)));
+
+  const leaderIds = [...new Set(form.getAll('leaderIds').map(String).filter(Boolean))];
+  if (leaderIds.length) {
+    const validLeaders = await db
+      .select({ id: users.id })
+      .from(users)
+      .where(
+        and(
+          inArray(users.id, leaderIds),
+          eq(users.active, true),
+          eq(users.role, 'TEAM_LEADER'),
+        ),
+      );
+    if (validLeaders.length !== leaderIds.length) return fail(t.errors.forbidden);
+  }
 
   const venue = await db.query.venues.findFirst({
     where: eq(venues.id, parsed.data.venueId),
@@ -101,8 +116,9 @@ export async function createEventAction(
     });
   }
 
-  // The creating admin may hand the event to a team leader straight away.
-  await setEventTeamLeader(id, str(form, 'leaderId') || null);
+  // Selected team leaders get an explicit event grant as soon as it is created.
+  if (leaderIds.length) await setEventTeamLeaders(id, leaderIds);
+  else await setEventTeamLeader(id, str(form, 'leaderId') || null);
 
   await recordAudit({
     eventId: id,
@@ -160,6 +176,21 @@ export async function updateEventAction(
   });
   if (!parsed.success) return fail(message(t, firstIssueKey(parsed.error)));
 
+  let selectedLeaderIds: string[] | null = null;
+  let currentLeaderIds: string[] = [];
+  if (form.has('leaderSelectionPresent')) {
+    selectedLeaderIds = [...new Set(form.getAll('leaderIds').map(String).filter(Boolean))];
+    currentLeaderIds = await eventTeamLeaderIds(eventId);
+    const validLeaders = selectedLeaderIds.length
+      ? await db.select({ id: users.id }).from(users).where(and(
+          inArray(users.id, selectedLeaderIds),
+          eq(users.active, true),
+          eq(users.role, 'TEAM_LEADER'),
+        ))
+      : [];
+    if (validLeaders.length !== selectedLeaderIds.length) return fail(t.errors.forbidden);
+  }
+
   await db
     .update(events)
     .set({
@@ -182,9 +213,19 @@ export async function updateEventAction(
    * moved to a colleague. Left out of the form entirely it reads as "nobody",
    * so only an actual field clears it.
    */
-  let leaderChange: Awaited<ReturnType<typeof setEventTeamLeader>> = { changed: false };
-  if (form.has('leaderId')) {
-    leaderChange = await setEventTeamLeader(eventId, str(form, 'leaderId') || null);
+  let leaderChange: { changed: boolean; from?: string[] | null; to?: string[] | null } = { changed: false };
+  if (selectedLeaderIds) {
+    const currentSorted = [...currentLeaderIds].sort();
+    const nextSorted = [...selectedLeaderIds].sort();
+    if (JSON.stringify(currentSorted) !== JSON.stringify(nextSorted)) {
+      await setEventTeamLeaders(eventId, selectedLeaderIds);
+      leaderChange = { changed: true, from: currentLeaderIds, to: selectedLeaderIds };
+    }
+  } else if (form.has('leaderId')) {
+    const legacyChange = await setEventTeamLeader(eventId, str(form, 'leaderId') || null);
+    leaderChange = legacyChange.changed
+      ? { changed: true, from: legacyChange.from, to: legacyChange.to }
+      : { changed: false };
   }
 
   /*
@@ -265,7 +306,7 @@ export async function updateEventAction(
       startTime: existing.startTime,
       teamArrivalTime: existing.teamArrivalTime,
       teamDepartureTime: existing.teamDepartureTime,
-      ...(leaderChange.changed ? { teamLeader: leaderChange.from ?? null } : {}),
+      ...(leaderChange.changed ? { teamLeaders: leaderChange.from ?? null } : {}),
     },
     newValues: {
       name: parsed.data.name,
@@ -273,7 +314,7 @@ export async function updateEventAction(
       startTime: parsed.data.startTime,
       teamArrivalTime: parsed.data.teamArrivalTime,
       teamDepartureTime: parsed.data.teamDepartureTime ?? null,
-      ...(leaderChange.changed ? { teamLeader: leaderChange.to ?? null } : {}),
+      ...(leaderChange.changed ? { teamLeaders: leaderChange.to ?? null } : {}),
     },
     summary: `${t.enums.auditAction.UPDATE}: ${parsed.data.name}`,
   });

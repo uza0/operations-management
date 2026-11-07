@@ -79,7 +79,7 @@ export default async function NewEventPage() {
               <EventForm
                 t={t}
                 venues={venueRows}
-                leaders={leaderRows}
+                leaders={leaderRows.filter((leader) => leader.role === 'TEAM_LEADER')}
                 templates={templateRows}
                 mode="create"
               />

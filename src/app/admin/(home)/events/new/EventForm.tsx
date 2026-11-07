@@ -22,6 +22,7 @@ export type EventFormValues = {
   externalId?: string | null;
   /** The account put in charge of this event, if one already is. */
   leaderId?: string | null;
+  leaderIds?: string[];
 };
 
 export function EventForm({
@@ -35,7 +36,7 @@ export function EventForm({
 }: {
   t: Dictionary;
   venues: { id: string; name: string }[];
-  leaders?: { id: string; name: string; label: string }[];
+  leaders?: { id: string; name: string; label: string; role: string }[];
   /** Past events this one can be built from, newest first. */
   templates?: { id: string; name: string; venueName: string | null; date: string }[];
   values?: EventFormValues;
@@ -236,28 +237,23 @@ export function EventForm({
         the promoter's screen answered "team leader: not set yet" all night.
       */}
       {leaders && leaders.length > 0 ? (
-        <div>
-          <label className="field-label" htmlFor="leaderId">
-            {t.enums.role.TEAM_LEADER}{' '}
+        <fieldset>
+          {mode === 'edit' ? <input type="hidden" name="leaderSelectionPresent" value="1" /> : null}
+          <legend className="field-label">
+            {t.event.teamLeaders}{' '}
             <span className="text-ink-500">({t.common.optional})</span>
-          </label>
-          <select
-            id="leaderId"
-            name="leaderId"
-            className="field"
-            defaultValue={values?.leaderId ?? ''}
-          >
-            <option value="">{t.common.none}</option>
-            {leaders.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.label}
-              </option>
+          </legend>
+          <div className="grid gap-2 rounded-xl border border-ink-800 p-3 sm:grid-cols-2">
+            {leaders.filter((leader) => leader.role === 'TEAM_LEADER').map((leader) => (
+              <label key={leader.id} className="flex min-h-11 items-center gap-2.5 rounded-lg px-2 text-[14px] text-ink-200 hover:bg-ink-900/60">
+                <input type="checkbox" name="leaderIds" value={leader.id} defaultChecked={values?.leaderIds?.includes(leader.id)} className="h-4 w-4 accent-brand-500" />
+                {leader.label}
+              </label>
             ))}
-          </select>
-          <p className="mt-1.5 text-[12.5px] leading-5 text-ink-500">{t.event.leaderHint}</p>
-        </div>
+          </div>
+          <p className="mt-1.5 text-[12.5px] leading-5 text-ink-500">{t.event.teamLeadersHint}</p>
+        </fieldset>
       ) : null}
-
       <div>
         <label className="field-label" htmlFor="externalId">
           {t.event.externalId}{' '}
