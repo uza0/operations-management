@@ -27,6 +27,57 @@ import {
 
 export type MemberPortalData = Awaited<ReturnType<typeof getMemberPortal>>;
 
+export async function getMemberAttendanceScore(teamMemberId: string) {
+  const attendanceHistory = await db
+    .select({
+      teamMemberId: eventMembers.teamMemberId,
+      eventStatus: events.status,
+      memberStatus: eventMembers.status,
+      status: attendance.status,
+      reportedArrivalAt: attendance.reportedArrivalAt,
+      reportedDepartureAt: attendance.reportedDepartureAt,
+    })
+    .from(eventMembers)
+    .innerJoin(events, eq(eventMembers.eventId, events.id))
+    .leftJoin(attendance, eq(attendance.eventMemberId, eventMembers.id));
+  const scoresByMember = new Map<string, { completed: number; total: number }>();
+  for (const row of attendanceHistory) {
+    const expectedToAttend =
+      row.memberStatus === 'CONFIRMED' || row.memberStatus === 'ACTIVE' ||
+      row.status === 'PRESENT' || row.status === 'LATE' || row.status === 'ABSENT';
+    const eligible =
+      (row.eventStatus === 'COMPLETED' || row.eventStatus === 'ARCHIVED') &&
+      expectedToAttend && row.status !== 'EXCUSED';
+    if (!eligible) continue;
+
+    const score = scoresByMember.get(row.teamMemberId) ?? { completed: 0, total: 0 };
+    score.total += 1;
+    if (
+      (row.status === 'PRESENT' || row.status === 'LATE') &&
+      row.reportedArrivalAt !== null && row.reportedDepartureAt !== null
+    ) score.completed += 1;
+    scoresByMember.set(row.teamMemberId, score);
+  }
+  const ownScore = scoresByMember.get(teamMemberId) ?? { completed: 0, total: 0 };
+  const eligibleForRank = [...scoresByMember.values()].filter((score) => score.total >= 3);
+  const percentage = ownScore.total
+    ? Math.round((ownScore.completed / ownScore.total) * 100)
+    : 0;
+  const rank = ownScore.total >= 3
+    ? 1 + eligibleForRank.filter(
+        (score) => Math.round((score.completed / score.total) * 100) > percentage,
+      ).length
+    : null;
+
+  return {
+    completed: ownScore.completed,
+    total: ownScore.total,
+    percentage,
+    rank,
+    rankedPromoters: eligibleForRank.length,
+  };
+}
+
 /**
  * Everything one member may see, resolved from their token alone.
  *
@@ -225,60 +276,7 @@ export async function getMemberPortal(token: string) {
   // A private score for this promoter only. It measures whether the member
   // personally reported both arrival and departure; supervisor corrections
   // and scheduled-time backfills do not count as self-registration.
-  const attendanceHistory = await db
-    .select({
-      teamMemberId: eventMembers.teamMemberId,
-      eventStatus: events.status,
-      memberStatus: eventMembers.status,
-      status: attendance.status,
-      reportedArrivalAt: attendance.reportedArrivalAt,
-      reportedDepartureAt: attendance.reportedDepartureAt,
-    })
-    .from(eventMembers)
-    .innerJoin(events, eq(eventMembers.eventId, events.id))
-    .leftJoin(attendance, eq(attendance.eventMemberId, eventMembers.id))
-  const scoresByMember = new Map<string, { completed: number; total: number }>();
-  for (const row of attendanceHistory) {
-    const expectedToAttend =
-      row.memberStatus === 'CONFIRMED' ||
-      row.memberStatus === 'ACTIVE' ||
-      row.status === 'PRESENT' ||
-      row.status === 'LATE' ||
-      row.status === 'ABSENT';
-    const eligible =
-      (row.eventStatus === 'COMPLETED' || row.eventStatus === 'ARCHIVED') &&
-      expectedToAttend &&
-      row.status !== 'EXCUSED';
-    if (!eligible) continue;
-
-    const score = scoresByMember.get(row.teamMemberId) ?? { completed: 0, total: 0 };
-    score.total += 1;
-    if (
-      (row.status === 'PRESENT' || row.status === 'LATE') &&
-      row.reportedArrivalAt !== null &&
-      row.reportedDepartureAt !== null
-    ) {
-      score.completed += 1;
-    }
-    scoresByMember.set(row.teamMemberId, score);
-  }
-  const ownScore = scoresByMember.get(membership.teamMemberId) ?? { completed: 0, total: 0 };
-  const eligibleForRank = [...scoresByMember.values()].filter((score) => score.total >= 3);
-  const ownPercentage = ownScore.total
-    ? Math.round((ownScore.completed / ownScore.total) * 100)
-    : 0;
-  const attendanceRank = ownScore.total >= 3
-    ? 1 + eligibleForRank.filter(
-        (score) => Math.round((score.completed / score.total) * 100) > ownPercentage,
-      ).length
-    : null;
-  const attendanceScore = {
-    completed: ownScore.completed,
-    total: ownScore.total,
-    percentage: ownPercentage,
-    rank: attendanceRank,
-    rankedPromoters: eligibleForRank.length,
-  };
+  const attendanceScore = await getMemberAttendanceScore(membership.teamMemberId);
 
   const now = new Date();
   const announcementRows = (

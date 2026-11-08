@@ -8,6 +8,7 @@ import { formatDate, formatTime } from '@/lib/time';
 import { currentMember, touchMemberSession } from '@/server/services/member-auth';
 import { currentUser, homeFor } from '@/server/auth/rbac';
 import { getMemberHome, type MemberHome } from '@/server/services/member-home';
+import { getMemberAttendanceScore } from '@/server/services/member';
 import { memberLedger } from '@/server/services/credit';
 import { memberSignOutAction } from '@/server/actions/member-auth';
 import {
@@ -28,6 +29,8 @@ import { InstallGuide } from './InstallGuide';
 import { NotificationToggle } from './NotificationToggle';
 import { formatAmount } from '@/lib/money';
 import { MoneyValue, MoneyVisibilityProvider, MoneyVisibilityToggle } from './MoneyVisibility';
+import { AttendanceScoreCard } from './AttendanceScoreCard';
+import { CrewHandbookCard } from './CrewHandbookCard';
 
 export const dynamic = 'force-dynamic';
 
@@ -205,11 +208,12 @@ export default async function MemberHomePage() {
     await sendDueReminders(reminderText(text));
   });
 
-  const [{ locale, t }, home, ledger, staff] = await Promise.all([
+  const [{ locale, t }, home, ledger, staff, attendanceScore] = await Promise.all([
     getT(),
     getMemberHome(session.teamMemberId),
     memberLedger(session.teamMemberId),
     currentUser(),
+    getMemberAttendanceScore(session.teamMemberId),
   ]);
 
   if (!home) redirect('/login');
@@ -255,6 +259,9 @@ export default async function MemberHomePage() {
           </p>
         ) : null}
       </section>
+
+      <AttendanceScoreCard score={attendanceScore} t={t} />
+      <CrewHandbookCard t={t} />
 
       {nextSeat || nextEvent ? (
         <section className="rounded-card border border-brand-600/45 bg-brand-50/50 p-4">
