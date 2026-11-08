@@ -8,13 +8,23 @@ import { EmptyState } from '@/components/ui/states';
 import { IconMap } from '@/components/ui/icons';
 import { MARKER_STYLE, MARKER_TYPES } from '@/lib/constants';
 import { MapEditor } from '@/components/map/MapEditor';
-import { MapUploader } from '@/components/venue/MapUploader';
 import { DictionaryProvider } from '@/components/ui/client';
+import { EventMapSourceManager } from './parts/EventMapSourceManager';
+import { MapSourcePreview } from '@/components/map/MapSourcePreview';
 
 export async function EventMapPage({ eventId }: { eventId: string }) {
   const { scope, event, t } = await loadEventPage(eventId);
 
-  const imageUrl = event.mapImageUrl ?? event.venue.mapImageUrl;
+  const imageUrl =
+    event.mapImageUrl ??
+    (event.mapDocumentUrl || event.mapLinkUrl ? null : event.venue.mapImageUrl);
+  const activeSource = event.mapLinkUrl
+    ? 'link'
+    : event.mapDocumentUrl
+      ? 'pdf'
+      : imageUrl
+        ? 'image'
+        : 'none';
 
   const [markerRows, gateRows, wpRows, memberRows] = await Promise.all([
     db.select().from(mapMarkers).where(eq(mapMarkers.eventId, eventId)),
@@ -42,32 +52,31 @@ export async function EventMapPage({ eventId }: { eventId: string }) {
       <PageHeader
         title={t.map.title}
         subtitle={`${t.map.subtitle} · ${event.venue.name}`}
-        action={
-          scope.canManage ? (
-            <MapUploader
-              eventId={eventId}
-              label={imageUrl ? t.venue.replaceMap : t.map.uploadForEvent}
-            />
-          ) : null
-        }
       />
 
-      {!imageUrl ? (
+      {scope.canManage ? (
+        <EventMapSourceManager
+          eventId={eventId}
+          initialSource={activeSource}
+          linkUrl={event.mapLinkUrl}
+        />
+      ) : null}
+
+      {!imageUrl && (event.mapDocumentUrl || event.mapLinkUrl) ? (
+        <MapSourcePreview
+          title={t.map.mapPreviewTitle}
+          fileUrl={event.mapDocumentUrl}
+          linkUrl={event.mapLinkUrl}
+          openLinkLabel={t.map.openMapLink}
+          downloadLabel={t.map.downloadMapPdf}
+          fallback={t.map.mapEmbedFallback}
+        />
+      ) : !imageUrl ? (
         <Panel bodyClassName="p-0">
           <EmptyState
             title={t.map.noMap}
             hint={t.map.noMapHint}
             icon={<IconMap width={20} height={20} />}
-            action={
-              scope.canManage ? (
-                <MapUploader
-                  eventId={eventId}
-                  label={t.map.uploadForEvent}
-                  hint={t.venue.uploadHint}
-                  className="btn-primary btn-sm"
-                />
-              ) : null
-            }
           />
         </Panel>
       ) : (

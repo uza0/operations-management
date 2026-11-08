@@ -28,6 +28,7 @@ import type { AssignmentRow } from '@/server/services/assignments';
 import type { StaffedLocation } from '@/server/services/staffing';
 
 import type { StageMarker } from '@/components/map/MapStage';
+import { MapSourcePreview } from '@/components/map/MapSourcePreview';
 
 const MapStage = dynamic(
   () => import('@/components/map/MapStage').then((m) => m.MapStage),
@@ -66,6 +67,8 @@ type Props = {
   members: AssignableMember[];
   markers: MapMarkerLite[];
   mapImageUrl: string | null;
+  mapDocumentUrl: string | null;
+  mapLinkUrl: string | null;
   defaultArrival: string;
   /** The event's stand-down time, when it has one. */
   defaultDeparture: string | null;
@@ -404,6 +407,8 @@ export function AssignmentBoard({
   members,
   markers,
   mapImageUrl,
+  mapDocumentUrl,
+  mapLinkUrl,
   defaultArrival,
   defaultDeparture,
   canManage,
@@ -435,6 +440,7 @@ export function AssignmentBoard({
   }, [assignments, query, locationFilter, taskFilter, statusFilter]);
 
   const unassigned = members.filter((m) => !m.assigned);
+  const hasMap = Boolean(mapImageUrl || mapDocumentUrl || mapLinkUrl);
 
   const countsByLocation = useMemo(() => {
     const map = new Map<string, AssignmentRow[]>();
@@ -494,7 +500,7 @@ export function AssignmentBoard({
             type="button"
             onClick={() => setView('map')}
             aria-pressed={view === 'map'}
-            disabled={!mapImageUrl}
+            disabled={!hasMap}
             className={`btn btn-sm flex-1 sm:flex-none ${
               view === 'map' ? 'bg-ink-750 text-ink-100' : 'text-ink-400'
             }`}
@@ -722,6 +728,15 @@ export function AssignmentBoard({
                   setFocusLocation(marker?.gateId ?? marker?.workingPointId ?? null);
                 }}
                 height={560}
+              />
+            ) : mapDocumentUrl || mapLinkUrl ? (
+              <MapSourcePreview
+                title={t.map.mapPreviewTitle}
+                fileUrl={mapDocumentUrl}
+                linkUrl={mapLinkUrl}
+                openLinkLabel={t.map.openMapLink}
+                downloadLabel={t.map.downloadMapPdf}
+                fallback={t.map.mapEmbedFallback}
               />
             ) : (
               <div className="panel">

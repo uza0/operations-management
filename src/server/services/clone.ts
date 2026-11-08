@@ -63,16 +63,16 @@ export async function cloneEventPlan(
     db.select().from(workingPoints).where(eq(workingPoints.eventId, sourceEventId)),
   ]);
 
-  /*
-   * A map uploaded for one event belongs to the plan, not to the day: markers
-   * are placed against it, so carrying them over without it would leave every
-   * position pointing at a different picture. An event with no map of its own
-   * falls back to the venue's, which the new event shares anyway.
-   */
-  if (sourceEvent?.mapImageUrl) {
+  /* A copied plan keeps its selected map source as well as its markers. */
+  if (sourceEvent?.mapImageUrl || sourceEvent?.mapDocumentUrl || sourceEvent?.mapLinkUrl) {
     await db
       .update(events)
-      .set({ mapImageUrl: sourceEvent.mapImageUrl, updatedAt: new Date() })
+      .set({
+        mapImageUrl: sourceEvent.mapImageUrl,
+        mapDocumentUrl: sourceEvent.mapDocumentUrl,
+        mapLinkUrl: sourceEvent.mapLinkUrl,
+        updatedAt: new Date(),
+      })
       .where(eq(events.id, targetEventId));
   }
 

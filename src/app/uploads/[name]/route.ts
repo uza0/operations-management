@@ -74,8 +74,13 @@ export async function GET(
 
   const row = await db.query.uploads.findFirst({ where: eq(uploads.name, name) });
   if (row) {
+    const headers: Record<string, string> = {
+      ...HEADERS,
+      'content-type': row.contentType,
+    };
+    if (row.contentType === 'application/pdf') headers['content-disposition'] = 'inline';
     return new NextResponse(toBytes(row.data), {
-      headers: { ...HEADERS, 'content-type': row.contentType },
+      headers,
     });
   }
 

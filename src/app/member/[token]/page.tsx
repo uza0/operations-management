@@ -6,8 +6,10 @@ import { formatDate, formatDateTime, formatTime } from '@/lib/time';
 import { format } from '@/lib/i18n';
 import { plural } from '@/lib/plural';
 import { Badge, attendanceTone, priorityTone } from '@/components/ui/status';
+import { MapSourcePreview } from '@/components/map/MapSourcePreview';
 
 import { FeedbackForm } from './FeedbackForm';
+import { CrewHandbookCard } from './CrewHandbookCard';
 import {
   IconAlert,
   IconCalendar,
@@ -485,6 +487,28 @@ export default async function MemberPortalPage({
     <MemberShell back="/me">
       <div className="stagger space-y-4">
         <AttendanceScoreCard score={data.attendanceScore} t={t} />
+        {data.mapSource?.kind === 'image' ? (
+          <section className="panel overflow-hidden p-3 sm:p-4">
+            <h2 className="mb-3 text-[14px] font-semibold text-ink-100">{t.map.mapPreviewTitle}</h2>
+            <a href={data.mapSource.url} target="_blank" rel="noopener noreferrer">
+              <img
+                src={data.mapSource.url}
+                alt={t.map.mapPreviewTitle}
+                className="max-h-[72vh] w-full rounded-card border border-ink-700 bg-white object-contain"
+              />
+            </a>
+          </section>
+        ) : data.mapSource ? (
+          <MapSourcePreview
+            title={t.map.mapPreviewTitle}
+            fileUrl={data.mapSource.kind === 'pdf' ? data.mapSource.url : null}
+            linkUrl={data.mapSource.kind === 'link' ? data.mapSource.url : null}
+            openLinkLabel={t.map.openMapLink}
+            downloadLabel={t.map.downloadMapPdf}
+            fallback={t.map.mapEmbedFallback}
+          />
+        ) : null}
+        <CrewHandbookCard t={t} />
         {/* ---------------------------------------------------------------- */}
         {/* CLOSED — he declined, or his place went to somebody else.         */}
         {/* ---------------------------------------------------------------- */}

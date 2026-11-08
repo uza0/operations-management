@@ -71,8 +71,12 @@ export async function getMemberPortal(token: string) {
       eventEnd: events.teamDepartureTime,
       eventPayDefault: events.payDefault,
       boardPublishedAt: events.boardPublishedAt,
+      eventMapImageUrl: events.mapImageUrl,
+      eventMapDocumentUrl: events.mapDocumentUrl,
+      eventMapLinkUrl: events.mapLinkUrl,
       venueName: venues.name,
       venueAddress: venues.address,
+      venueMapImageUrl: venues.mapImageUrl,
       /* Where the place is on a real map — the first thing a member needs,
          and the one thing a printed gate number cannot tell them. */
       venueLocationUrl: venues.locationUrl,
@@ -107,6 +111,13 @@ export async function getMemberPortal(token: string) {
    * the browser's network tab open.
    */
   const boardPublished = membership.boardPublishedAt !== null;
+  const mapSource = membership.eventMapLinkUrl
+    ? { kind: 'link' as const, url: membership.eventMapLinkUrl }
+    : membership.eventMapDocumentUrl
+      ? { kind: 'pdf' as const, url: membership.eventMapDocumentUrl }
+      : membership.eventMapImageUrl || membership.venueMapImageUrl
+        ? { kind: 'image' as const, url: membership.eventMapImageUrl ?? membership.venueMapImageUrl! }
+        : null;
 
   const loadAssignment = () =>
     db
@@ -391,6 +402,7 @@ export async function getMemberPortal(token: string) {
     membership,
     /** False while the supervisor is still arranging the board. */
     boardPublished,
+    mapSource: boardPublished ? mapSource : null,
     expired,
     cancelled: membership.status === 'CANCELLED',
     assignment,

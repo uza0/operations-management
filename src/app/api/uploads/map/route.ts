@@ -112,8 +112,9 @@ export async function POST(request: Request) {
   if (file.size > MAX_BYTES) {
     return NextResponse.json({ error: 'TOO_LARGE' }, { status: 413 });
   }
-  const extension = ALLOWED.get(file.type);
-  if (!extension) {
+  const isPdf = file.type === 'application/pdf';
+  const extension = isPdf ? '.pdf' : ALLOWED.get(file.type);
+  if (!extension || (isPdf && !(typeof eventId === 'string' && eventId))) {
     return NextResponse.json({ error: 'BAD_TYPE' }, { status: 415 });
   }
 
@@ -131,15 +132,14 @@ export async function POST(request: Request) {
   }
 
   const original = Buffer.from(await file.arrayBuffer());
-  if (!looksLikeImage(original, file.type)) {
+  const looksLikePdf = isPdf && original.subarray(0, 5).toString('ascii') === '%PDF-';
+  if ((isPdf && !looksLikePdf) || (!isPdf && !looksLikeImage(original, file.type))) {
     return NextResponse.json({ error: 'BAD_TYPE' }, { status: 415 });
   }
 
-  const { bytes, contentType, extension: ext } = await normalize(
-    original,
-    file.type,
-    extension,
-  );
+  const { bytes, contentType, extension: ext } = isPdf
+    ? { bytes: original, contentType: 'application/pdf', extension }
+    : await normalize(original, file.type, extension);
 
   const name = `${Date.now()}-${randomBytes(6).toString('hex')}${ext}`;
   // Stored in the database, not on disk: Next.js indexes public/ once at boot
@@ -177,7 +177,12 @@ export async function POST(request: Request) {
     if (!event) return NextResponse.json({ error: 'NOT_FOUND' }, { status: 404 });
     await db
       .update(events)
-      .set({ mapImageUrl: url, updatedAt: new Date() })
+      .set({
+        mapImageUrl: isPdf ? null : url,
+        mapDocumentUrl: isPdf ? url : null,
+        mapLinkUrl: null,
+        updatedAt: new Date(),
+      })
       .where(eq(events.id, eventId));
     await recordAudit({
       eventId,
@@ -187,8 +192,13 @@ export async function POST(request: Request) {
       entity: 'EVENT',
       entityId: eventId,
       entityLabel: event.name,
-      newValues: { mapImageUrl: url },
-      summary: `تم رفع خريطة خاصة بالفعالية: ${event.name}`,
+      oldValues: {
+        mapImageUrl: event.mapImageUrl,
+        mapDocumentUrl: event.mapDocumentUrl,
+        mapLinkUrl: event.mapLinkUrl,
+      },
+      newValues: isPdf ? { mapDocumentUrl: url } : { mapImageUrl: url },
+      summary: `تم رفع خريطة خاصة بالفعالية (${isPdf ? 'PDF' : 'صورة'}): ${event.name}`,
     });
   }
 

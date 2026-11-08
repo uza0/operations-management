@@ -227,6 +227,10 @@ export const events = sqliteTable(
     status: text('status').notNull().default('DRAFT'),
     /** Per-event map override; falls back to the venue map. */
     mapImageUrl: text('map_image_url'),
+    /** A PDF floor plan is an event-specific map source. */
+    mapDocumentUrl: text('map_document_url'),
+    /** HTTPS link to an interactive third-party plan such as Seats.io. */
+    mapLinkUrl: text('map_link_url'),
     reportNotes: text('report_notes'),
     /**
      * Work days this event is worth to someone who worked it — the baseline

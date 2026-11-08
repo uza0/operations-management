@@ -14,12 +14,14 @@ import { useDict } from '@/components/ui/client';
 export function MapUploader({
   venueId,
   eventId,
+  kind = 'image',
   label,
   hint,
   className = 'btn-secondary btn-sm',
 }: {
   venueId?: string;
   eventId?: string;
+  kind?: 'image' | 'pdf';
   label: string;
   hint?: string;
   className?: string;
@@ -65,7 +67,7 @@ export function MapUploader({
       <input
         ref={input}
         type="file"
-        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+        accept={kind === 'pdf' ? 'application/pdf,.pdf' : 'image/png,image/jpeg,image/webp,image/svg+xml'}
         className="sr-only"
         onChange={(e) => {
           const file = e.target.files?.[0];
