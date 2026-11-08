@@ -45,7 +45,7 @@ export function AttendanceScoreCard({ score, t }: { score: Score; t: T }) {
             <div className="h-full rounded-full bg-brand-500 transition-[width] duration-300" style={{ width: `${score.percentage}%` }} />
           </div>
           {level ? <p className="mt-2 text-[12.5px] text-ink-400">{level.hint}</p> : null}
-          <p className="mt-2 border-t border-ink-700 pt-2 text-[12.5px] font-medium text-brand-100">
+          <p className="mt-2 border-t border-ink-700 pt-2 text-[12.5px] font-medium leading-5 text-ink-300">
             {score.rank !== null
               ? format(score.rank === 1 ? t.member.attendanceRankTop : t.member.attendanceRankPosition, { rank: score.rank, total: score.rankedPromoters })
               : t.member.attendanceRankPending}

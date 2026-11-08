@@ -2,7 +2,7 @@ import type { Dictionary } from '@/lib/i18n';
 
 function List({ items }: { items: string[] }) {
   return (
-    <ul className="list-disc space-y-1.5 pe-5 text-[13px] leading-5 text-ink-300">
+    <ul className="list-disc space-y-1.5 ps-5 text-[13px] leading-5 text-ink-300">
       {items.map((item) => <li key={item}>{item}</li>)}
     </ul>
   );
