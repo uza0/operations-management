@@ -105,10 +105,15 @@ function AttendanceScoreCard({
           {level ? <p className="mt-2 text-[12.5px] text-ink-400">{level.hint}</p> : null}
           <p className="mt-2 border-t border-ink-700 pt-2 text-[12.5px] font-medium text-brand-100">
             {score.rank !== null
-              ? format(t.member.attendanceRankPosition, {
+              ? format(
+                  score.rank === 1
+                    ? t.member.attendanceRankTop
+                    : t.member.attendanceRankPosition,
+                  {
                   rank: score.rank,
                   total: score.rankedPromoters,
-                })
+                  },
+                )
               : t.member.attendanceRankPending}
           </p>
         </>

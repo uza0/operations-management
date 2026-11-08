@@ -1394,6 +1394,7 @@ export const ar = {
     attendanceScoreCount: 'سجّلت الوصول والانصراف بنفسك في {completed} من {total} فعاليات',
     attendanceScoreEmpty: 'يظهر تقييمك بعد إكمال فعاليات مؤكدة. الفعاليات القادمة ما تدخل بالحساب.',
     attendanceRankPosition: 'ترتيبك {rank} من {total} بروموتر حسب إكمال تسجيل الدوام',
+    attendanceRankTop: 'أنت بالمركز الأول من {total} بروموتر بإكمال تسجيل الدوام',
     attendanceRankPending: 'يظهر ترتيبك بعد 3 فعاليات منتهية على الأقل حتى تكون المقارنة عادلة.',
     attendanceScoreExcellent: 'ممتاز',
     attendanceScoreGood: 'جيد جداً',
