@@ -142,6 +142,7 @@ export const ar = {
     upcomingEvents: 'فعاليات قادمة',
     completedEvents: 'فعاليات منتهية',
     totalMembers: 'أعضاء الفريق',
+    teamAssignments: 'إجمالي تكليفات الفريق',
     openIssues: 'مشاكل مفتوحة',
     attendanceToday: 'حضور الفعاليات الجارية',
     recentEvents: 'أحدث الفعاليات',

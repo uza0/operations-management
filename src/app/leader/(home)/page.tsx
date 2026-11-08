@@ -51,7 +51,7 @@ export default async function LeaderDashboard() {
           icon={<IconCalendar width={16} height={16} />}
         />
         <StatTile
-          label={t.dashboard.totalMembers}
+          label={t.dashboard.teamAssignments}
           value={teamTotal}
           icon={<IconUsers width={16} height={16} />}
         />

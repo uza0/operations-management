@@ -139,6 +139,7 @@ export const en: Dictionary = {
     upcomingEvents: 'Upcoming events',
     completedEvents: 'Completed events',
     totalMembers: 'Team members',
+    teamAssignments: 'Total team assignments',
     openIssues: 'Open issues',
     attendanceToday: 'Attendance in live events',
     recentEvents: 'Recent events',
