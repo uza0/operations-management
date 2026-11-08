@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { and, eq, inArray } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
 
@@ -48,6 +48,7 @@ export async function loginAction(
     username: user.username,
     name: user.name,
     role: user.role as Role,
+    systemDeveloper: user.systemDeveloper,
   });
 
   await recordAudit({
@@ -130,11 +131,12 @@ export async function createAccountAction(
 ): Promise<ActionState> {
   const { t } = await getT();
   const actor = await currentUser();
-  if (!actor || actor.role !== 'ADMIN') return fail(t.errors.forbidden);
+  if (!actor?.systemDeveloper) return fail(t.errors.forbidden);
 
   const name = String(formData.get('name') ?? '').trim().slice(0, 100);
   const username = String(formData.get('username') ?? '').trim().toLowerCase();
   const role = String(formData.get('role') ?? '') as Role;
+  const systemDeveloper = formData.get('systemDeveloper') === 'on';
   if (!name || !/^[a-z0-9._-]{3,32}$/.test(username) || !ACCOUNT_ROLES.includes(role)) {
     return fail(t.auth.accountCreateFailed);
   }
@@ -149,7 +151,8 @@ export async function createAccountAction(
     email: null,
     name,
     passwordHash: bcrypt.hashSync(password, 10),
-    role,
+    role: systemDeveloper ? 'ADMIN' : role,
+    systemDeveloper,
     active: true,
     teamMemberId: null,
   });
@@ -160,23 +163,24 @@ export async function createAccountAction(
     entity: 'USER',
     entityId: id,
     entityLabel: name,
-    newValues: { username, role },
+    newValues: { username, role: systemDeveloper ? 'ADMIN' : role, systemDeveloper },
     summary: `${t.enums.auditAction.CREATE}: ${name}`,
   });
   revalidatePath('/admin/settings');
   return ok(`${t.auth.accountCreated} ${password}`);
 }
 
-/** Only an admin can change roles, and no one can demote the current session. */
+/** Only a system developer can change account roles. */
 export async function changeAccountRoleAction(formData: FormData): Promise<void> {
   const actor = await currentUser();
-  if (!actor || actor.role !== 'ADMIN') return;
+  if (!actor?.systemDeveloper) return;
   const userId = String(formData.get('userId') ?? '');
   const role = String(formData.get('role') ?? '') as Role;
   if (!userId || !ACCOUNT_ROLES.includes(role) || userId === actor.id) return;
 
   const target = await db.query.users.findFirst({ where: eq(users.id, userId) });
   if (!target || target.role === role) return;
+  if (target.systemDeveloper && role !== 'ADMIN') return;
   await db.update(users).set({ role, updatedAt: new Date() }).where(eq(users.id, userId));
   // ADMIN accounts can still be appointed as an event's team leader; the
   // event grant is separate from the account's system-wide role.
@@ -200,5 +204,67 @@ export async function changeAccountRoleAction(formData: FormData): Promise<void>
     newValues: { role },
     summary: `${target.name}: ${target.role} → ${role}`,
   });
+  revalidatePath('/admin/settings');
+}
+
+export async function setSystemDeveloperAction(formData: FormData): Promise<void> {
+  const actor = await currentUser();
+  if (!actor?.systemDeveloper) return;
+  const userId = String(formData.get('userId') ?? '');
+  if (!userId || userId === actor.id) return;
+  const target = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  if (!target) return;
+  const next = formData.get('systemDeveloper') === 'on';
+  if (target.systemDeveloper === next) return;
+  if (!next) {
+    const remaining = await db.get<{ count: number }>(
+      sql`select count(*) as count from users where system_developer = 1 and active = 1 and id <> ${userId}`,
+    );
+    if ((remaining?.count ?? 0) === 0) return;
+  }
+  await db.update(users).set({
+    systemDeveloper: next,
+    ...(next ? { role: 'ADMIN' } : {}),
+    updatedAt: new Date(),
+  }).where(eq(users.id, userId));
+  await recordAudit({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'UPDATE',
+    entity: 'USER',
+    entityId: target.id,
+    entityLabel: target.name,
+    oldValues: { systemDeveloper: target.systemDeveloper, role: target.role },
+    newValues: { systemDeveloper: next, role: next ? 'ADMIN' : target.role },
+    summary: `${target.name}: ${next ? 'SYSTEM_DEVELOPER_GRANTED' : 'SYSTEM_DEVELOPER_REVOKED'}`,
+  });
+  revalidatePath('/admin/settings');
+}
+
+export async function deleteAccountAction(formData: FormData): Promise<void> {
+  const { t } = await getT();
+  const actor = await currentUser();
+  if (!actor?.systemDeveloper) return;
+  const userId = String(formData.get('userId') ?? '');
+  if (!userId || userId === actor.id) return;
+  const target = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  if (!target) return;
+  if (target.systemDeveloper) {
+    const remaining = await db.get<{ count: number }>(
+      sql`select count(*) as count from users where system_developer = 1 and active = 1 and id <> ${userId}`,
+    );
+    if ((remaining?.count ?? 0) === 0) return;
+  }
+  await recordAudit({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'DELETE',
+    entity: 'USER',
+    entityId: target.id,
+    entityLabel: target.name,
+    oldValues: { username: target.username, role: target.role, systemDeveloper: target.systemDeveloper },
+    summary: `${target.name} — ${t.auth.accountDeleted}`,
+  });
+  await db.delete(users).where(eq(users.id, userId));
   revalidatePath('/admin/settings');
 }

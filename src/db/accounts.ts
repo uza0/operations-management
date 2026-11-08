@@ -120,6 +120,7 @@ export function rowFor(account: StandingAccount) {
     name: account.name,
     passwordHash: bcrypt.hashSync(password, 10),
     role: account.role,
+    systemDeveloper: account.username === 'ameer' && account.name === 'Ameer Dawod',
     active: true,
     teamMemberId: null,
   };

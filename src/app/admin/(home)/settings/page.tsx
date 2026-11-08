@@ -13,6 +13,7 @@ import { activeTemplate } from '@/server/services/payment-file';
 
 import { PasswordForm } from './PasswordForm';
 import { AccountManager } from './AccountManager';
+import { LogoutPanel } from '@/components/shell/LogoutPanel';
 
 /** Account access and operational settings. */
 export default async function SettingsPage() {
@@ -27,16 +28,19 @@ export default async function SettingsPage() {
       }
     : null;
 
-  const accounts = await db
-    .select({
-      id: users.id,
-      username: users.username,
-      name: users.name,
-      role: users.role,
-      active: users.active,
-    })
-    .from(users)
-    .orderBy(users.role, users.name);
+  const accounts = me.systemDeveloper
+    ? await db
+        .select({
+          id: users.id,
+          username: users.username,
+          name: users.name,
+          role: users.role,
+          active: users.active,
+          systemDeveloper: users.systemDeveloper,
+        })
+        .from(users)
+        .orderBy(users.role, users.name)
+    : [];
 
   return (
     <>
@@ -52,7 +56,7 @@ export default async function SettingsPage() {
               </span>
             </KeyValue>
             <KeyValue label={t.enums.auditEntity.USER}>
-              <Badge tone="brand">{t.enums.role[me.role]}</Badge>
+              <Badge tone="brand">{me.systemDeveloper ? t.auth.systemDeveloper : t.enums.role[me.role]}</Badge>
             </KeyValue>
           </dl>
         </Panel>
@@ -65,9 +69,13 @@ export default async function SettingsPage() {
           <TemplateForm t={t} locale={locale} current={template} />
         </Panel>
 
-        <Panel title={t.auth.accountManage} className="lg:col-span-3" bodyClassName="p-4">
-          <AccountManager t={t} accounts={accounts} currentUserId={me.id} />
-        </Panel>
+        <div className="lg:col-span-3"><LogoutPanel t={t} /></div>
+
+        {me.systemDeveloper ? (
+          <Panel title={t.auth.accountManage} className="lg:col-span-3" bodyClassName="p-4">
+            <AccountManager t={t} accounts={accounts} currentUserId={me.id} />
+          </Panel>
+        ) : null}
       </div>
 
       <div className="mt-4">

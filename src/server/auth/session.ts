@@ -13,6 +13,7 @@ export type SessionUser = {
   username: string;
   name: string;
   role: Role;
+  systemDeveloper?: boolean;
 };
 
 function secret(): Uint8Array {
@@ -31,6 +32,7 @@ export async function createSession(user: SessionUser): Promise<void> {
     username: user.username,
     name: user.name,
     role: user.role,
+    systemDeveloper: user.systemDeveloper,
   })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
@@ -65,6 +67,7 @@ export async function readSession(): Promise<SessionUser | null> {
       username: String(payload.username ?? ''),
       name: String(payload.name ?? ''),
       role: payload.role as Role,
+      systemDeveloper: payload.systemDeveloper === true,
     };
   } catch {
     return null;

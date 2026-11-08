@@ -50,6 +50,8 @@ export const users = sqliteTable(
     passwordHash: text('password_hash').notNull(),
     /** ADMIN | TEAM_LEADER | GATE_LEADER */
     role: text('role').notNull(),
+    /** Grants access to system-wide account and role administration. */
+    systemDeveloper: integer('system_developer', { mode: 'boolean' }).notNull().default(false),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     /** A Gate Leader account is backed by a real field person. */
     teamMemberId: text('team_member_id').references(() => teamMembers.id, {

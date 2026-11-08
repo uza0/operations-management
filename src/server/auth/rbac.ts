@@ -28,7 +28,7 @@ export async function currentUser(): Promise<SessionUser | null> {
   // The cookie is signed, but the account may have been disabled since.
   const row = await db.query.users.findFirst({
     where: eq(users.id, session.id),
-    columns: { id: true, active: true, role: true, name: true, username: true },
+    columns: { id: true, active: true, role: true, name: true, username: true, systemDeveloper: true },
   });
   if (!row || !row.active) return null;
   return {
@@ -36,6 +36,7 @@ export async function currentUser(): Promise<SessionUser | null> {
     username: row.username,
     name: row.name,
     role: row.role as Role,
+    systemDeveloper: row.systemDeveloper,
   };
 }
 

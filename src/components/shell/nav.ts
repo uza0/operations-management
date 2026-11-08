@@ -44,6 +44,7 @@ export function globalNav(t: Dictionary, role: Role): NavSection[] {
 
   // Payroll, payment files, member ledgers and event costs are admin-only.
   items.push({ href: '/me', label: t.memberAuth.openAsMember, icon: 'users' });
+  items.push({ href: '/leader/settings', label: t.nav.settings, icon: 'settings' });
 
   return [{ items }];
 }

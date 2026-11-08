@@ -1,10 +1,8 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 
-import { logoutAction } from '@/server/actions/auth';
 import { getT } from '@/lib/i18n/server';
 import type { SessionUser } from '@/server/auth/session';
-import { IconLogout } from '@/components/ui/icons';
 import { BrandMark } from '@/components/ui/BrandMark';
 import { LocaleSwitcher } from '@/components/ui/client';
 import { ThemeToggle } from '@/components/pwa/ThemeToggle';
@@ -79,7 +77,7 @@ export async function AppShell({
         <div className="border-t border-ink-800 px-4 py-3">
           <p className="text-[12px] text-ink-500">{t.common.signedInAs}</p>
           <p className="truncate text-[13.5px] font-semibold text-ink-200">{user.name}</p>
-          <p className="text-[12px] text-ink-500">{t.enums.role[user.role]}</p>
+          <p className="text-[12px] text-ink-500">{user.systemDeveloper ? t.auth.systemDeveloper : t.enums.role[user.role]}</p>
         </div>
       </aside>
 
@@ -107,12 +105,6 @@ export async function AppShell({
           <div className="flex shrink-0 items-center gap-1">
             <ThemeToggle t={t} />
           <LocaleSwitcher locale={locale} labels={{ ar: 'العربية', en: 'English' }} />
-            <form action={logoutAction}>
-              <button type="submit" className="btn-ghost btn-sm" title={t.common.logout}>
-                <IconLogout width={16} height={16} />
-                <span className="hidden sm:inline">{t.common.logout}</span>
-              </button>
-            </form>
           </div>
         </header>
 
