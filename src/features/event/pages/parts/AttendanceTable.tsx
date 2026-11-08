@@ -312,8 +312,10 @@ export function AttendanceTable({
     for (const id of picked) body.append('eventMemberIds', id);
     const result = await recordAttendanceManyAction(idle, body);
     setBulkPending(false);
-    if (result.status === 'error' || result.status === 'conflict') {
-      setBulkError(result.message);
+    if (result.status !== 'success') {
+      if (result.status === 'error' || result.status === 'conflict') {
+        setBulkError(result.message);
+      }
       return;
     }
     setPicked(new Set());
@@ -331,8 +333,10 @@ export function AttendanceTable({
     for (const id of picked) body.append('eventMemberIds', id);
     const result = await completeUnrecordedAttendanceAction(idle, body);
     setBulkPending(false);
-    if (result.status === 'error' || result.status === 'conflict') {
-      setBulkError(result.message);
+    if (result.status !== 'success') {
+      if (result.status === 'error' || result.status === 'conflict') {
+        setBulkError(result.message);
+      }
       return;
     }
     setBulkMessage(result.message ?? null);
