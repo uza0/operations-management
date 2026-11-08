@@ -172,6 +172,8 @@ function PostCard({
   locationName: string | null;
   assignment: NonNullable<Portal['assignment']>;
 }) {
+  const taskInstructions = t.member.taskInstructions[assignment.task as Task] ?? [];
+
   return (
     <div className="overflow-hidden rounded-card border border-brand-600/35 bg-brand-50">
       <div className="p-5">
@@ -189,6 +191,14 @@ function PostCard({
         </p>
         {assignment.notes ? (
           <p className="mt-2 text-[13.5px] leading-6 text-ink-300">{assignment.notes}</p>
+        ) : null}
+        {taskInstructions.length > 0 ? (
+          <div className="mt-4 rounded-xl border border-brand-700/50 bg-ink-900/70 p-3.5">
+            <p className="text-[13px] font-bold text-ink-100">{t.member.taskInstructionsTitle}</p>
+            <ul className="mt-2 list-disc space-y-1.5 ps-5 text-[13px] leading-5 text-ink-200">
+              {taskInstructions.map((instruction) => <li key={instruction}>{instruction}</li>)}
+            </ul>
+          </div>
         ) : null}
       </div>
 
