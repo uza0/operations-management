@@ -1,11 +1,12 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
   announcements,
+  assignments,
   attendance,
   eventMembers,
   events,
@@ -258,6 +259,123 @@ export async function setAttendanceTimesAction(
 
   revalidateEvent(eventId, 'attendance', 'reports');
   return ok();
+}
+
+/**
+ * A supervisor-confirmed bulk correction for promoters who forgot to record
+ * their shift. It deliberately uses the planned shift times, and only accepts
+ * members whose attendance is still PENDING; it never infers attendance from
+ * an empty record or overwrites a prior decision.
+ */
+export async function completeUnrecordedAttendanceAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  const user = await assertEventManager(eventId);
+  if (!user) return fail(t.errors.forbidden);
+
+  const status = String(form.get('status') ?? '');
+  if (status !== 'PRESENT' && status !== 'LATE') return fail(t.errors.generic);
+  const ids = [
+    ...new Set(
+      form
+        .getAll('eventMemberIds')
+        .map((value) => String(value).trim())
+        .filter(Boolean),
+    ),
+  ].slice(0, 300);
+  if (ids.length === 0) return fail(t.errors.notFound);
+
+  const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+  if (!event) return fail(t.errors.notFound);
+  let updated = 0;
+  let skipped = 0;
+
+  for (const id of ids) {
+    const member = await db
+      .select({ id: eventMembers.id, name: teamMembers.fullName, memberStatus: eventMembers.status })
+      .from(eventMembers)
+      .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+      .where(and(eq(eventMembers.id, id), eq(eventMembers.eventId, eventId)))
+      .get();
+    if (!member || member.memberStatus === 'CANCELLED') {
+      skipped += 1;
+      continue;
+    }
+
+    const current = await db.query.attendance.findFirst({ where: eq(attendance.eventMemberId, id) });
+    if (current && current.status !== 'PENDING') {
+      skipped += 1;
+      continue;
+    }
+
+    const assignment = await db.query.assignments.findFirst({
+      where: and(eq(assignments.eventMemberId, id), ne(assignments.status, 'CANCELLED')),
+    });
+    const checkInTime = assignment?.shiftStart ?? event.teamArrivalTime;
+    const checkOutTime = assignment?.shiftEnd ?? event.teamDepartureTime;
+    if (!checkOutTime) {
+      skipped += 1;
+      continue;
+    }
+
+    if (current) {
+      await db
+        .update(attendance)
+        .set({
+          status,
+          checkInTime: current.checkInTime ?? checkInTime,
+          checkOutTime: current.checkOutTime ?? checkOutTime,
+          recordedById: user.id,
+          notes: [current.notes, 'أُكملت الأوقات حسب الوردية بعد تأكيد المشرف']
+            .filter(Boolean)
+            .join(' · '),
+          updatedAt: new Date(),
+        })
+        .where(eq(attendance.id, current.id));
+    } else {
+      await db.insert(attendance).values({
+        id: newId(),
+        eventId,
+        eventMemberId: id,
+        status,
+        checkInTime,
+        checkOutTime,
+        recordedById: user.id,
+        notes: 'أُكملت الأوقات حسب الوردية بعد تأكيد المشرف',
+      });
+    }
+
+    await recordAudit({
+      eventId,
+      actorId: user.id,
+      actorName: user.name,
+      action: 'ATTENDANCE',
+      entity: 'ATTENDANCE',
+      entityId: id,
+      entityLabel: member.name,
+      oldValues: current
+        ? {
+            status: current.status,
+            checkInTime: current.checkInTime,
+            checkOutTime: current.checkOutTime,
+          }
+        : null,
+      newValues: {
+        status,
+        checkInTime: current?.checkInTime ?? checkInTime,
+        checkOutTime: current?.checkOutTime ?? checkOutTime,
+        source: 'scheduled_shift_after_supervisor_confirmation',
+      },
+      summary: `${member.name}: ${status} — ${checkInTime} → ${checkOutTime} (حسب الوردية)`,
+    });
+    updated += 1;
+  }
+
+  revalidateEvent(eventId, 'attendance', 'reports');
+  return updated ? ok(format(t.attendance.autoFillDone, { updated, skipped })) : fail(t.attendance.autoFillNone);
 }
 
 /**

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 
 import {
   checkOutAction,
+  completeUnrecordedAttendanceAction,
   recordAttendanceAction,
   recordAttendanceManyAction,
   setAttendanceTimesAction,
@@ -265,6 +266,8 @@ export function AttendanceTable({
   const [picked, setPicked] = useState<Set<string>>(() => new Set());
   const [bulkPending, setBulkPending] = useState(false);
   const [bulkError, setBulkError] = useState<string | null>(null);
+  const [bulkMessage, setBulkMessage] = useState<string | null>(null);
+  const [autoFillStatus, setAutoFillStatus] = useState<'PRESENT' | 'LATE'>('PRESENT');
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -313,6 +316,26 @@ export function AttendanceTable({
       setBulkError(result.message);
       return;
     }
+    setPicked(new Set());
+    router.refresh();
+  }
+
+  async function completeUnrecorded() {
+    if (picked.size === 0 || !window.confirm(t.attendance.autoFillConfirm)) return;
+    setBulkError(null);
+    setBulkMessage(null);
+    setBulkPending(true);
+    const body = new FormData();
+    body.set('eventId', eventId);
+    body.set('status', autoFillStatus);
+    for (const id of picked) body.append('eventMemberIds', id);
+    const result = await completeUnrecordedAttendanceAction(idle, body);
+    setBulkPending(false);
+    if (result.status === 'error' || result.status === 'conflict') {
+      setBulkError(result.message);
+      return;
+    }
+    setBulkMessage(result.message ?? null);
     setPicked(new Set());
     router.refresh();
   }
@@ -378,6 +401,27 @@ export function AttendanceTable({
                 {t.enums.attendanceStatus[status]}
               </button>
             ))}
+            {canManage ? (
+              <span className="flex flex-wrap items-center gap-1.5 border-s border-brand-600/30 ps-2">
+                <select
+                  className="field min-h-8 w-auto py-1 text-[12px]"
+                  value={autoFillStatus}
+                  onChange={(e) => setAutoFillStatus(e.target.value as 'PRESENT' | 'LATE')}
+                  aria-label={t.attendance.autoFillStatus}
+                >
+                  <option value="PRESENT">{t.attendance.present}</option>
+                  <option value="LATE">{t.attendance.late}</option>
+                </select>
+                <button
+                  type="button"
+                  className="btn-primary btn-sm"
+                  disabled={bulkPending}
+                  onClick={completeUnrecorded}
+                >
+                  {t.attendance.autoFillAction}
+                </button>
+              </span>
+            ) : null}
             <button
               type="button"
               className="btn-ghost btn-sm"
@@ -386,7 +430,16 @@ export function AttendanceTable({
               {t.board.clearSelection}
             </button>
           </span>
+          {canManage ? (
+            <p className="w-full text-[12px] leading-5 text-ink-500">{t.attendance.autoFillHint}</p>
+          ) : null}
         </div>
+      ) : null}
+
+      {bulkMessage ? (
+        <p className="mb-3 rounded-card border border-ok/30 bg-ok/10 px-3 py-2 text-[13px] text-ok-text" role="status">
+          {bulkMessage}
+        </p>
       ) : null}
 
       {bulkError ? (
