@@ -162,6 +162,13 @@ export async function deleteGateAction(
     return fail(format(t.gate.deleteBlocked, { n: assigned }));
   }
 
+  // Cancelled assignments are retained while their location exists, but a
+  // restrictive FK keeps even a vacant gate from being deleted. Once all
+  // active assignments are ruled out, discard only these inactive rows (and
+  // their cascading move history) before removing the gate.
+  await db
+    .delete(assignments)
+    .where(and(eq(assignments.gateId, gateId), eq(assignments.status, 'CANCELLED')));
   await db.delete(mapMarkers).where(eq(mapMarkers.gateId, gateId));
   await db.delete(gates).where(eq(gates.id, gateId));
 
@@ -303,6 +310,9 @@ export async function deleteWorkingPointAction(
   );
   if (assigned > 0) return fail(format(t.gate.deleteWpBlocked, { n: assigned }));
 
+  await db
+    .delete(assignments)
+    .where(and(eq(assignments.workingPointId, id), eq(assignments.status, 'CANCELLED')));
   await db.delete(mapMarkers).where(eq(mapMarkers.workingPointId, id));
   await db.delete(workingPoints).where(eq(workingPoints.id, id));
 
