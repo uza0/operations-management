@@ -1244,7 +1244,7 @@ export const ar = {
     openMapLink: 'فتح الخريطة بموقعها',
     downloadMapPdf: 'تنزيل ملف المخطط',
     mapPreviewTitle: 'معاينة خريطة الفعالية',
-    mapEmbedFallback: 'إذا ما ظهرت المعاينة، افتح الخريطة في موقعها.',
+    mapEmbedFallback: 'موقع Seats.io يمنع عرض خريطة المعاينة داخل النظام. افتحها من الزر حتى تشوف الخريطة كاملة.',
     saveMarkers: 'حفظ العلامات',
     markersSaved: 'تم حفظ الخريطة',
     unsaved: 'تغييرات غير محفوظة',

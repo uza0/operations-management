@@ -14,6 +14,18 @@ export function MapSourcePreview({
   fallback: string;
 }) {
   if (linkUrl) {
+    const isSeatsIoPreview = (() => {
+      try {
+        const url = new URL(linkUrl);
+        return (
+          (url.hostname === 'app.seats.io' || url.hostname.endsWith('.seats.io')) &&
+          url.pathname.startsWith('/preview/')
+        );
+      } catch {
+        return false;
+      }
+    })();
+
     return (
       <section className="panel overflow-hidden p-3 sm:p-4">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
@@ -27,15 +39,33 @@ export function MapSourcePreview({
             {openLinkLabel}
           </a>
         </div>
-        <iframe
-          src={linkUrl}
-          title={title}
-          loading="lazy"
-          referrerPolicy="no-referrer"
-          sandbox="allow-scripts allow-forms allow-popups"
-          className="h-[min(72vh,760px)] min-h-[420px] w-full rounded-card border border-ink-700 bg-white"
-        />
-        <p className="mt-2 text-[12px] text-ink-500">{fallback}</p>
+        {isSeatsIoPreview ? (
+          <div className="grid min-h-[320px] place-items-center rounded-card border border-ink-700 bg-ink-900 p-6 text-center">
+            <div className="max-w-lg space-y-4">
+              <p className="text-[14px] leading-7 text-ink-300">{fallback}</p>
+              <a
+                href={linkUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-primary btn-sm inline-flex"
+              >
+                {openLinkLabel}
+              </a>
+            </div>
+          </div>
+        ) : (
+          <>
+            <iframe
+              src={linkUrl}
+              title={title}
+              loading="lazy"
+              referrerPolicy="no-referrer"
+              sandbox="allow-scripts allow-forms allow-popups"
+              className="h-[min(72vh,760px)] min-h-[420px] w-full rounded-card border border-ink-700 bg-white"
+            />
+            <p className="mt-2 text-[12px] text-ink-500">{fallback}</p>
+          </>
+        )}
       </section>
     );
   }
