@@ -81,14 +81,19 @@ export async function resolveEventScope(
   if (user.role === 'ADMIN') {
     return { user, canManage: true, gateId: null };
   }
-  const grant = await db.query.eventAccess.findFirst({
-    where: and(eq(eventAccess.eventId, eventId), eq(eventAccess.userId, user.id)),
-  });
-  if (!grant) return null;
+  const grants = await db
+    .select({ role: eventAccess.role, gateId: eventAccess.gateId })
+    .from(eventAccess)
+    .where(and(eq(eventAccess.eventId, eventId), eq(eventAccess.userId, user.id)))
+    .all();
+  if (grants.length === 0) return null;
+  const canManage = grants.some(
+    (grant) => grant.role === 'TEAM_LEADER' || grant.role === 'TEAM_LEADER_ASSISTANT',
+  );
   return {
     user,
-    canManage: grant.role === 'TEAM_LEADER',
-    gateId: grant.gateId ?? null,
+    canManage,
+    gateId: canManage ? null : grants.find((grant) => grant.role === 'GATE_LEADER')?.gateId ?? null,
   };
 }
 

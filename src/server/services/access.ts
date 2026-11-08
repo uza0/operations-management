@@ -1,4 +1,4 @@
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, eq, inArray, isNull } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { eventAccess, users } from '@/db/schema';
@@ -39,11 +39,6 @@ export async function leadershipCandidates() {
 
 /** The user leading this event, or null. */
 export async function eventTeamLeaderId(eventId: string): Promise<string | null> {
-  return (await eventTeamLeaderIds(eventId))[0] ?? null;
-}
-
-/** Every team-leader account granted access to this event. */
-export async function eventTeamLeaderIds(eventId: string): Promise<string[]> {
   const row = await db
     .select({ userId: eventAccess.userId })
     .from(eventAccess)
@@ -54,8 +49,28 @@ export async function eventTeamLeaderIds(eventId: string): Promise<string[]> {
         isNull(eventAccess.gateId),
       ),
     )
+    .get();
+  return row?.userId ?? null;
+}
+
+/** The primary event leader first, followed by assistant leaders. */
+export async function eventTeamLeaderIds(eventId: string): Promise<string[]> {
+  const row = await db
+    .select({ userId: eventAccess.userId, role: eventAccess.role, createdAt: eventAccess.createdAt, id: eventAccess.id })
+    .from(eventAccess)
+    .where(
+      and(
+        eq(eventAccess.eventId, eventId),
+        inArray(eventAccess.role, ['TEAM_LEADER', 'TEAM_LEADER_ASSISTANT']),
+        isNull(eventAccess.gateId),
+      ),
+    )
+    .orderBy(asc(eventAccess.createdAt), asc(eventAccess.id))
     .all();
-  return row.map((entry) => entry.userId);
+  return [
+    ...row.filter((entry) => entry.role === 'TEAM_LEADER'),
+    ...row.filter((entry) => entry.role === 'TEAM_LEADER_ASSISTANT'),
+  ].map((entry) => entry.userId);
 }
 
 export type LeaderChange =
@@ -75,50 +90,44 @@ export async function setEventTeamLeader(
   userId: string | null,
 ): Promise<LeaderChange> {
   const current = await eventTeamLeaderId(eventId);
-  if (current === userId) return { changed: false };
-
-  await db
-    .delete(eventAccess)
-    .where(
-      and(
-        eq(eventAccess.eventId, eventId),
-        eq(eventAccess.role, 'TEAM_LEADER'),
-        isNull(eventAccess.gateId),
-      ),
-    );
-
-  if (userId) {
-    await db.insert(eventAccess).values({
-      id: newId(),
-      eventId,
-      userId,
-      role: 'TEAM_LEADER',
-      gateId: null,
-    });
+  const currentIds = await eventTeamLeaderIds(eventId);
+  const assistants = currentIds.filter((id) => id !== current && id !== userId);
+  if (current === userId && assistants.length === currentIds.length - (current ? 1 : 0)) {
+    return { changed: false };
   }
+
+  await setEventTeamLeaders(eventId, assistants, userId);
 
   return { changed: true, from: current, to: userId };
 }
 
-/** Replaces the event's team-leader grants with the selected accounts. */
-export async function setEventTeamLeaders(eventId: string, userIds: string[]): Promise<void> {
-  const uniqueIds = [...new Set(userIds.filter(Boolean))];
+/** Replaces the event leader and assistant leader grants. */
+export async function setEventTeamLeaders(
+  eventId: string,
+  assistantIds: string[],
+  primaryId: string | null,
+): Promise<void> {
+  const uniqueAssistantIds = [...new Set(assistantIds.filter((id) => id && id !== primaryId))];
   await db
     .delete(eventAccess)
     .where(
       and(
         eq(eventAccess.eventId, eventId),
-        eq(eventAccess.role, 'TEAM_LEADER'),
+        inArray(eventAccess.role, ['TEAM_LEADER', 'TEAM_LEADER_ASSISTANT']),
         isNull(eventAccess.gateId),
       ),
     );
-  if (uniqueIds.length) {
+  const grants = [
+    ...(primaryId ? [{ userId: primaryId, role: 'TEAM_LEADER' }] : []),
+    ...uniqueAssistantIds.map((userId) => ({ userId, role: 'TEAM_LEADER_ASSISTANT' })),
+  ];
+  if (grants.length) {
     await db.insert(eventAccess).values(
-      uniqueIds.map((userId) => ({
+      grants.map((grant) => ({
         id: newId(),
         eventId,
-        userId,
-        role: 'TEAM_LEADER',
+        userId: grant.userId,
+        role: grant.role,
         gateId: null,
       })),
     );

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { assignments, eventAccess, eventMembers, events, gates, users, venues } from '@/db/schema';
@@ -23,7 +23,7 @@ import { recordAudit } from '@/server/services/audit';
 import { unmarkedAttendance } from '@/server/services/seat-setup';
 import { pushOnce } from '@/server/services/push';
 import { cloneEventPlan } from '@/server/services/clone';
-import { eventTeamLeaderIds, setEventTeamLeader, setEventTeamLeaders, setGateLeader } from '@/server/services/access';
+import { eventTeamLeaderId, eventTeamLeaderIds, setEventTeamLeader, setEventTeamLeaders, setGateLeader } from '@/server/services/access';
 import { hrefForStep } from '@/features/event/setup-steps';
 import { getStaffedLocations } from '@/server/services/staffing';
 
@@ -61,7 +61,14 @@ export async function createEventAction(
   });
   if (!parsed.success) return fail(message(t, firstIssueKey(parsed.error)));
 
-  const leaderIds = [...new Set(form.getAll('leaderIds').map(String).filter(Boolean))];
+  const primaryLeaderId = str(form, 'primaryLeaderId') || null;
+  const assistantLeaderIds = [...new Set(
+    form.getAll('assistantLeaderIds').map(String).filter((id) => Boolean(id) && id !== primaryLeaderId),
+  )];
+  const leaderIds = [...new Set([
+    ...assistantLeaderIds,
+    ...(primaryLeaderId ? [primaryLeaderId] : []),
+  ])];
   if (leaderIds.length) {
     const validLeaders = await db
       .select({ id: users.id })
@@ -117,8 +124,14 @@ export async function createEventAction(
   }
 
   // Selected team leaders get an explicit event grant as soon as it is created.
-  if (leaderIds.length) await setEventTeamLeaders(id, leaderIds);
-  else await setEventTeamLeader(id, str(form, 'leaderId') || null);
+  if (form.has('primaryLeaderId') || form.has('assistantLeaderIds')) {
+    await setEventTeamLeaders(id, assistantLeaderIds, primaryLeaderId);
+  } else if (leaderIds.length) {
+    // Older open forms submitted a flat list; promote the first selection.
+    await setEventTeamLeaders(id, leaderIds.slice(1), leaderIds[0] ?? null);
+  } else {
+    await setEventTeamLeader(id, str(form, 'leaderId') || null);
+  }
 
   await recordAudit({
     eventId: id,
@@ -176,11 +189,33 @@ export async function updateEventAction(
   });
   if (!parsed.success) return fail(message(t, firstIssueKey(parsed.error)));
 
-  let selectedLeaderIds: string[] | null = null;
+  let selectedAssistantIds: string[] | null = null;
+  let selectedPrimaryLeaderId: string | null = null;
   let currentLeaderIds: string[] = [];
+  let currentPrimaryLeaderId: string | null = null;
+  let currentLeaderRoles: { userId: string; role: string }[] = [];
   if (form.has('leaderSelectionPresent')) {
-    selectedLeaderIds = [...new Set(form.getAll('leaderIds').map(String).filter(Boolean))];
+    selectedPrimaryLeaderId = str(form, 'primaryLeaderId') || null;
+    selectedAssistantIds = [...new Set(
+      form.getAll('assistantLeaderIds')
+        .map(String)
+        .filter((id) => Boolean(id) && id !== selectedPrimaryLeaderId),
+    )];
+    const selectedLeaderIds = [...new Set([
+      ...selectedAssistantIds,
+      ...(selectedPrimaryLeaderId ? [selectedPrimaryLeaderId] : []),
+    ])];
     currentLeaderIds = await eventTeamLeaderIds(eventId);
+    currentPrimaryLeaderId = await eventTeamLeaderId(eventId);
+    currentLeaderRoles = await db
+      .select({ userId: eventAccess.userId, role: eventAccess.role })
+      .from(eventAccess)
+      .where(and(
+        eq(eventAccess.eventId, eventId),
+        inArray(eventAccess.role, ['TEAM_LEADER', 'TEAM_LEADER_ASSISTANT']),
+        isNull(eventAccess.gateId),
+      ))
+      .all();
     const validLeaders = selectedLeaderIds.length
       ? await db.select({ id: users.id }).from(users).where(and(
           inArray(users.id, selectedLeaderIds),
@@ -215,15 +250,37 @@ export async function updateEventAction(
    */
   let leaderChange: {
     changed: boolean;
-    from?: string[] | string | null;
-    to?: string[] | string | null;
+    from?: { primary: string | null; assistants: string[] } | string | null;
+    to?: { primary: string | null; assistants: string[] } | string | null;
   } = { changed: false };
-  if (selectedLeaderIds) {
+  if (selectedAssistantIds) {
+    const selectedLeaderIds = [...new Set([
+      ...selectedAssistantIds,
+      ...(selectedPrimaryLeaderId ? [selectedPrimaryLeaderId] : []),
+    ])];
     const currentSorted = [...currentLeaderIds].sort();
     const nextSorted = [...selectedLeaderIds].sort();
-    if (JSON.stringify(currentSorted) !== JSON.stringify(nextSorted)) {
-      await setEventTeamLeaders(eventId, selectedLeaderIds);
-      leaderChange = { changed: true, from: currentLeaderIds, to: selectedLeaderIds };
+    const currentRolesSorted = currentLeaderRoles
+      .map((row) => `${row.userId}:${row.role}`)
+      .sort();
+    const nextRolesSorted = [
+      ...(selectedPrimaryLeaderId ? [`${selectedPrimaryLeaderId}:TEAM_LEADER`] : []),
+      ...selectedAssistantIds.map((id) => `${id}:TEAM_LEADER_ASSISTANT`),
+    ].sort();
+    if (
+      JSON.stringify(currentSorted) !== JSON.stringify(nextSorted) ||
+      currentPrimaryLeaderId !== selectedPrimaryLeaderId ||
+      JSON.stringify(currentRolesSorted) !== JSON.stringify(nextRolesSorted)
+    ) {
+      await setEventTeamLeaders(eventId, selectedAssistantIds, selectedPrimaryLeaderId);
+      leaderChange = {
+        changed: true,
+        from: {
+          primary: currentPrimaryLeaderId,
+          assistants: currentLeaderIds.filter((id) => id !== currentPrimaryLeaderId),
+        },
+        to: { primary: selectedPrimaryLeaderId, assistants: selectedAssistantIds },
+      };
     }
   } else if (form.has('leaderId')) {
     const legacyChange = await setEventTeamLeader(eventId, str(form, 'leaderId') || null);

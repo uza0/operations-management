@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
 
@@ -181,7 +181,10 @@ export async function changeAccountRoleAction(formData: FormData): Promise<void>
   // ADMIN accounts can still be appointed as an event's team leader; the
   // event grant is separate from the account's system-wide role.
   if (role !== 'TEAM_LEADER' && role !== 'ADMIN') {
-    await db.delete(eventAccess).where(and(eq(eventAccess.userId, userId), eq(eventAccess.role, 'TEAM_LEADER')));
+    await db.delete(eventAccess).where(and(
+      eq(eventAccess.userId, userId),
+      inArray(eventAccess.role, ['TEAM_LEADER', 'TEAM_LEADER_ASSISTANT']),
+    ));
   }
   if (role !== 'GATE_LEADER') {
     await db.delete(eventAccess).where(and(eq(eventAccess.userId, userId), eq(eventAccess.role, 'GATE_LEADER')));

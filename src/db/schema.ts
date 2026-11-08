@@ -78,7 +78,7 @@ export const eventAccess = sqliteTable(
     userId: text('user_id')
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    /** TEAM_LEADER | GATE_LEADER */
+    /** TEAM_LEADER | TEAM_LEADER_ASSISTANT | GATE_LEADER */
     role: text('role').notNull(),
     gateId: text('gate_id'),
     createdAt: timestamps.createdAt,

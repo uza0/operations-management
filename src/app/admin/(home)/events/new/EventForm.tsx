@@ -22,6 +22,7 @@ export type EventFormValues = {
   externalId?: string | null;
   /** The account put in charge of this event, if one already is. */
   leaderId?: string | null;
+  primaryLeaderId?: string | null;
   leaderIds?: string[];
 };
 
@@ -48,6 +49,11 @@ export function EventForm({
     idle,
   );
   const [templateId, setTemplateId] = useState('');
+  const eligibleLeaders = (leaders ?? []).filter(
+    (leader) => leader.role === 'TEAM_LEADER' || leader.role === 'ADMIN',
+  );
+  const [primaryLeaderId, setPrimaryLeaderId] = useState(values?.primaryLeaderId ?? '');
+  const [assistantLeaderIds, setAssistantLeaderIds] = useState(values?.leaderIds ?? []);
 
   if (state.status === 'success' && onDone) onDone();
 
@@ -236,26 +242,84 @@ export function EventForm({
         way for good: there was no second place to say who was running it, and
         the promoter's screen answered "team leader: not set yet" all night.
       */}
-      {leaders && leaders.length > 0 ? (
-        <fieldset>
+      {eligibleLeaders.length > 0 ? (
+        <div>
           {mode === 'edit' ? <input type="hidden" name="leaderSelectionPresent" value="1" /> : null}
-          <legend className="field-label">
-            {t.event.teamLeaders}{' '}
-            <span className="text-ink-500">({t.common.optional})</span>
-          </legend>
-          <div className="grid gap-2 rounded-xl border border-ink-800 p-3 sm:grid-cols-2">
-            {leaders.filter((leader) => leader.role === 'TEAM_LEADER' || leader.role === 'ADMIN').map((leader) => (
-              <label key={leader.id} className="flex min-h-11 items-center gap-2.5 rounded-lg px-2 text-[14px] text-ink-200 hover:bg-ink-900/60">
-                <input type="checkbox" name="leaderIds" value={leader.id} defaultChecked={values?.leaderIds?.includes(leader.id)} className="h-4 w-4 accent-brand-500" />
-                <span className="min-w-0 truncate">{leader.label}</span>
-                <span className="ms-auto shrink-0 rounded-full bg-ink-800 px-2 py-0.5 text-[12px] text-ink-400">
-                  {t.enums.role[leader.role as Role]}
-                </span>
+          <fieldset>
+            <legend className="field-label">
+              {t.event.primaryTeamLeader}{' '}
+              <span className="text-ink-500">({t.common.optional})</span>
+            </legend>
+            <div className="grid gap-2 rounded-xl border border-ink-800 p-3 sm:grid-cols-2">
+              <label className="flex min-h-11 items-center gap-2.5 rounded-lg px-2 text-[14px] text-ink-300 hover:bg-ink-900/60">
+                <input
+                  type="radio"
+                  name="primaryLeaderId"
+                  value=""
+                  checked={primaryLeaderId === ''}
+                  onChange={() => setPrimaryLeaderId('')}
+                  className="h-4 w-4 accent-brand-500"
+                />
+                <span>{t.event.noPrimaryLeader}</span>
               </label>
-            ))}
-          </div>
-          <p className="mt-1.5 text-[12.5px] leading-5 text-ink-500">{t.event.teamLeadersHint}</p>
-        </fieldset>
+              {eligibleLeaders.map((leader) => (
+                <label key={leader.id} className="flex min-h-11 items-center gap-2.5 rounded-lg px-2 text-[14px] text-ink-200 hover:bg-ink-900/60">
+                  <input
+                    type="radio"
+                    name="primaryLeaderId"
+                    value={leader.id}
+                    checked={primaryLeaderId === leader.id}
+                    onChange={() => {
+                      setPrimaryLeaderId(leader.id);
+                      setAssistantLeaderIds((ids) => ids.filter((id) => id !== leader.id));
+                    }}
+                    className="h-4 w-4 accent-brand-500"
+                  />
+                  <span className="min-w-0 truncate">{leader.label}</span>
+                  <span className="ms-auto shrink-0 rounded-full bg-brand-900/30 px-2 py-0.5 text-[12px] text-brand-300">
+                    {t.event.primaryLeaderBadge}
+                  </span>
+                </label>
+              ))}
+            </div>
+            <p className="mt-1.5 text-[12.5px] leading-5 text-ink-500">{t.event.primaryTeamLeaderHint}</p>
+          </fieldset>
+
+          <fieldset className="mt-4">
+            <legend className="field-label">
+              {t.event.assistantTeamLeaders}{' '}
+              <span className="text-ink-500">({t.common.optional})</span>
+            </legend>
+            <div className="grid gap-2 rounded-xl border border-ink-800 p-3 sm:grid-cols-2">
+              {eligibleLeaders.map((leader) => {
+                const selected = assistantLeaderIds.includes(leader.id);
+                const isPrimary = primaryLeaderId === leader.id;
+                return (
+                  <label key={leader.id} className={`flex min-h-11 items-center gap-2.5 rounded-lg px-2 text-[14px] ${isPrimary ? 'cursor-not-allowed text-ink-500' : 'text-ink-200 hover:bg-ink-900/60'}`}>
+                    <input
+                      type="checkbox"
+                      name="assistantLeaderIds"
+                      value={leader.id}
+                      checked={selected}
+                      disabled={isPrimary}
+                      onChange={(event) => setAssistantLeaderIds((ids) =>
+                        event.target.checked
+                          ? [...ids, leader.id]
+                          : ids.filter((id) => id !== leader.id),
+                      )}
+                      className="h-4 w-4 accent-brand-500"
+                    />
+                    <span className="min-w-0 truncate">{leader.label}</span>
+                    <span className="ms-auto shrink-0 rounded-full bg-ink-800 px-2 py-0.5 text-[12px] text-ink-400">
+                      {t.enums.role[leader.role as Role]}
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+            <p className="mt-1.5 text-[12.5px] leading-5 text-ink-500">{t.event.assistantTeamLeadersHint}</p>
+          </fieldset>
+        </div>
       ) : null}
       <div>
         <label className="field-label" htmlFor="externalId">
