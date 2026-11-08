@@ -3,10 +3,13 @@ import { redirect } from 'next/navigation';
 
 import { getT } from '@/lib/i18n/server';
 import { formatDate, formatTime } from '@/lib/time';
+import { ARRIVAL_WINDOW_HOURS, venueMoment } from '@/lib/journey';
 import { seatSetupInvitationByToken } from '@/server/services/seat-setup';
+import { MemberOfflineReady } from '@/components/pwa/MemberOfflineReady';
 
 import { MemberShell, InvalidToken } from '../../member/[token]/MemberShell';
 import { SeatSetupCard } from '../../member/[token]/SeatSetupCard';
+import { PendingAttendanceSync } from '../../member/[token]/OfflineAttendanceNotice';
 
 export const dynamic = 'force-dynamic';
 export const metadata: Metadata = { title: 'Chair setup invitation', robots: { index: false, follow: false } };
@@ -30,6 +33,8 @@ export default async function SeatSetupInvitationPage({
 
   return (
     <MemberShell back="/me">
+      <MemberOfflineReady t={t} />
+      <PendingAttendanceSync t={t} token={token} />
       <section className="rounded-card border border-ink-700 bg-ink-850 p-4">
         <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-brand-300">
           {t.seatSetup.inviteTitle}
@@ -58,6 +63,10 @@ export default async function SeatSetupInvitationPage({
               seatMemberId={shift.id}
               setupStatus="READY"
               stage={shift.stage}
+              arrivalWindowStartsAt={
+                venueMoment(shift.date, shift.startTime).getTime() -
+                ARRIVAL_WINDOW_HOURS * 3_600_000
+              }
               when={formatDate(shift.date, locale)}
               hours={
                 formatTime(shift.startTime, locale) +

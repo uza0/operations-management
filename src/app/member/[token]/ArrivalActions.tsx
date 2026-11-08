@@ -1,15 +1,10 @@
 'use client';
 
-import { useActionState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
-import {
-  reportArrivalAction,
-  reportDepartureAction,
-} from '@/server/actions/journey';
-import { idle } from '@/server/actions/types';
+import { useOfflineAttendance } from './useOfflineAttendance';
+import { OfflineAttendanceNotice } from './OfflineAttendanceNotice';
 import { FormError } from '@/components/ui/states';
-import { ConfirmSubmit, SubmitButton } from '@/components/ui/client';
 import type { Dictionary } from '@/lib/i18n';
 
 /**
@@ -18,45 +13,115 @@ import type { Dictionary } from '@/lib/i18n';
  * Both are checked again on the server. The button that is not on the screen
  * is a courtesy; the refusal behind it is the rule.
  */
-export function ArrivalButton({ t, token }: { t: Dictionary; token: string }) {
-  const router = useRouter();
-  const [state, action] = useActionState(reportArrivalAction, idle);
+export function ArrivalButton({
+  t,
+  token,
+  availableAt,
+}: {
+  t: Dictionary;
+  token: string;
+  /** Lets a cached confirmed page reveal arrival when its window opens offline. */
+  availableAt?: number;
+}) {
+  const offline = useOfflineAttendance(token, t);
+  const pending = offline.pendingFor('EVENT_ARRIVAL');
+  const [available, setAvailable] = useState(availableAt === undefined);
 
   useEffect(() => {
-    if (state.status === 'success') router.refresh();
-  }, [state, router]);
+    if (availableAt === undefined) {
+      setAvailable(true);
+      return;
+    }
+    const update = () => setAvailable(Date.now() >= availableAt);
+    update();
+    const delay = availableAt - Date.now();
+    if (delay <= 0) return;
+    const timer = window.setTimeout(update, delay);
+    return () => window.clearTimeout(timer);
+  }, [availableAt]);
+
+  if (!available) return null;
 
   return (
-    <form action={action} className="rise">
-      <input type="hidden" name="token" value={token} />
-      <SubmitButton className="btn-primary w-full py-3 text-[16px]">
-        {t.journey.arrived}
-      </SubmitButton>
-      <p className="mt-1.5 text-center text-[12.5px] text-ink-500">{t.journey.arrivedHint}</p>
-      <FormError message={state.status === 'error' ? state.message : null} />
-    </form>
+    <div className="rise space-y-2">
+      {pending ? (
+        <OfflineAttendanceNotice
+          t={t}
+          action={pending}
+          busy={offline.busy}
+          onRetry={() => void offline.retry()}
+        />
+      ) : (
+        <button
+          type="button"
+          className="btn-primary w-full py-3 text-[16px]"
+          disabled={offline.busy}
+          onClick={() => void offline.record('EVENT_ARRIVAL')}
+        >
+          {offline.busy ? t.common.saving : t.journey.arrived}
+        </button>
+      )}
+      <p className="text-center text-[12.5px] text-ink-500">{t.journey.arrivedHint}</p>
+      <FormError message={offline.error} />
+    </div>
   );
 }
 
-export function DepartureButton({ t, token }: { t: Dictionary; token: string }) {
-  const router = useRouter();
-  const [state, action] = useActionState(reportDepartureAction, idle);
+export function DepartureButton({
+  t,
+  token,
+  offlineOnly = false,
+}: {
+  t: Dictionary;
+  token: string;
+  offlineOnly?: boolean;
+}) {
+  const offline = useOfflineAttendance(token, t);
+  const [online, setOnline] = useState(true);
+  const pending = offline.pendingFor('EVENT_DEPARTURE');
 
   useEffect(() => {
-    if (state.status === 'success') router.refresh();
-  }, [state, router]);
+    setOnline(navigator.onLine);
+    const onOnline = () => setOnline(true);
+    const onOffline = () => setOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
+
+  if (offlineOnly && online) return null;
+  const submit = () => {
+    if (window.confirm(t.journey.departHint)) void offline.record('EVENT_DEPARTURE');
+  };
 
   return (
-    <form action={action}>
-      <input type="hidden" name="token" value={token} />
-      {/*
-        Asked once before it is recorded: pressed by mistake in a pocket, it
-        ends the evening on the supervisor's screen as well as on his own.
-      */}
-      <ConfirmSubmit className="btn-outline w-full" message={t.journey.departHint}>
-        {t.journey.depart}
-      </ConfirmSubmit>
-      <FormError message={state.status === 'error' ? state.message : null} />
-    </form>
+    <div className="space-y-2">
+      {pending ? (
+        <OfflineAttendanceNotice
+          t={t}
+          action={pending}
+          busy={offline.busy}
+          onRetry={() => void offline.retry()}
+        />
+      ) : (
+        <button
+          type="button"
+          className="btn-outline w-full"
+          disabled={offline.busy}
+          onClick={submit}
+        >
+          {offline.busy ? t.common.saving : t.journey.depart}
+        </button>
+      )}
+      {offlineOnly ? (
+        <p className="text-center text-[12px] leading-5 text-ink-500">
+          {t.pwa.offlineDepartureHint}
+        </p>
+      ) : null}
+      <FormError message={offline.error} />
+    </div>
   );
 }

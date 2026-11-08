@@ -6,8 +6,6 @@ import { useRouter } from 'next/navigation';
 import {
   confirmSeatSetupAction,
   declineSeatSetupAction,
-  reportSeatArrivalAction,
-  reportSeatDepartureAction,
 } from '@/server/actions/journey';
 import { idle } from '@/server/actions/types';
 import { FormError } from '@/components/ui/states';
@@ -15,6 +13,8 @@ import { ConfirmSubmit, SubmitButton } from '@/components/ui/client';
 import { DECLINE_REASONS } from '@/lib/constants';
 import { formatAmount } from '@/lib/money';
 import { format, type Dictionary } from '@/lib/i18n';
+import { useOfflineAttendance } from './useOfflineAttendance';
+import { OfflineAttendanceNotice } from './OfflineAttendanceNotice';
 
 /**
  * One chair-setting day, asked and answered on its own.
@@ -34,6 +34,7 @@ export function SeatSetupCard({
   seatMemberId,
   setupStatus,
   stage,
+  arrivalWindowStartsAt,
   when,
   hours,
   notes,
@@ -46,6 +47,7 @@ export function SeatSetupCard({
   seatMemberId: string;
   setupStatus: 'PLANNING' | 'READY';
   stage: 'INVITED' | 'DECLINED' | 'CONFIRMED' | 'ARRIVING' | 'AWAITING_APPROVAL' | 'ON_DUTY' | 'DONE';
+  arrivalWindowStartsAt: number;
   when: string;
   hours: string;
   notes: string | null;
@@ -57,20 +59,50 @@ export function SeatSetupCard({
   const router = useRouter();
   const [confirmState, confirm] = useActionState(confirmSeatSetupAction, idle);
   const [declineState, decline] = useActionState(declineSeatSetupAction, idle);
-  const [arriveState, arrive] = useActionState(reportSeatArrivalAction, idle);
-  const [departState, depart] = useActionState(reportSeatDepartureAction, idle);
   const [declining, setDeclining] = useState(false);
+  const [arrivalWindowOpen, setArrivalWindowOpen] = useState(stage === 'ARRIVING');
+  const [online, setOnline] = useState(true);
+  const offline = useOfflineAttendance(token, t);
+  const pendingArrival = offline.pendingFor('SEAT_ARRIVAL', seatMemberId);
+  const pendingDeparture = offline.pendingFor('SEAT_DEPARTURE', seatMemberId);
 
   useEffect(() => {
     if (
       confirmState.status === 'success' ||
-      declineState.status === 'success' ||
-      arriveState.status === 'success' ||
-      departState.status === 'success'
+      declineState.status === 'success'
     ) {
       router.refresh();
     }
-  }, [confirmState, declineState, arriveState, departState, router]);
+  }, [confirmState, declineState, router]);
+
+  useEffect(() => {
+    if (stage === 'ARRIVING') {
+      setArrivalWindowOpen(true);
+      return;
+    }
+    if (stage !== 'CONFIRMED') {
+      setArrivalWindowOpen(false);
+      return;
+    }
+    const update = () => setArrivalWindowOpen(Date.now() >= arrivalWindowStartsAt);
+    update();
+    const delay = arrivalWindowStartsAt - Date.now();
+    if (delay <= 0) return;
+    const timer = window.setTimeout(update, delay);
+    return () => window.clearTimeout(timer);
+  }, [arrivalWindowStartsAt, stage]);
+
+  useEffect(() => {
+    setOnline(navigator.onLine);
+    const onOnline = () => setOnline(true);
+    const onOffline = () => setOnline(false);
+    window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
+    return () => {
+      window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
+    };
+  }, []);
 
   const hidden = (
     <>
@@ -164,39 +196,99 @@ export function SeatSetupCard({
         </div>
       ) : null}
 
-      {stage === 'CONFIRMED' ? (
+      {stage === 'CONFIRMED' && !arrivalWindowOpen ? (
         <p className="mt-2.5 text-[12.5px] leading-5 text-ink-400">
           {t.seatSetup.arrivalHint}
         </p>
       ) : null}
 
-      {stage === 'ARRIVING' ? (
-        <form action={arrive} className="mt-3">
-          {hidden}
-          <SubmitButton className="btn-primary w-full py-3 text-[15px]">
-            {t.journey.arrived}
-          </SubmitButton>
+      {stage === 'ARRIVING' || (stage === 'CONFIRMED' && arrivalWindowOpen) ? (
+        <div className="mt-3 space-y-2">
+          {pendingArrival ? (
+            <OfflineAttendanceNotice
+              t={t}
+              action={pendingArrival}
+              busy={offline.busy}
+              onRetry={() => void offline.retry()}
+            />
+          ) : (
+            <button
+              type="button"
+              className="btn-primary w-full py-3 text-[15px]"
+              disabled={offline.busy}
+              onClick={() => void offline.record('SEAT_ARRIVAL', seatMemberId)}
+            >
+              {offline.busy ? t.common.saving : t.journey.arrived}
+            </button>
+          )}
           <p className="mt-1.5 text-center text-[12px] text-ink-500">
             {t.seatSetup.paidWhenApproved}
           </p>
-          <FormError message={arriveState.status === 'error' ? arriveState.message : null} />
-        </form>
+          <FormError message={offline.error} />
+        </div>
       ) : null}
 
       {stage === 'AWAITING_APPROVAL' ? (
-        <p className="mt-2.5 rounded-control border border-warn/40 bg-warn/10 px-3 py-2.5 text-[13px] font-semibold text-ink-100">
-          {format(t.journey.arrivalWaiting, { time: arrivedAt ?? '' })}
-        </p>
+        <>
+          <p className="mt-2.5 rounded-control border border-warn/40 bg-warn/10 px-3 py-2.5 text-[13px] font-semibold text-ink-100">
+            {format(t.journey.arrivalWaiting, { time: arrivedAt ?? '' })}
+          </p>
+          {!online ? (
+            <div className="mt-3 space-y-2">
+              {pendingDeparture ? (
+                <OfflineAttendanceNotice
+                  t={t}
+                  action={pendingDeparture}
+                  busy={offline.busy}
+                  onRetry={() => void offline.retry()}
+                />
+              ) : (
+                <button
+                  type="button"
+                  className="btn-outline w-full"
+                  disabled={offline.busy}
+                  onClick={() => {
+                    if (window.confirm(t.journey.departHint)) {
+                      void offline.record('SEAT_DEPARTURE', seatMemberId);
+                    }
+                  }}
+                >
+                  {offline.busy ? t.common.saving : t.journey.depart}
+                </button>
+              )}
+              <p className="text-center text-[12px] leading-5 text-ink-500">
+                {t.pwa.offlineDepartureHint}
+              </p>
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       {stage === 'ON_DUTY' ? (
-        <form action={depart} className="mt-3">
-          {hidden}
-          <ConfirmSubmit className="btn-outline w-full" message={t.journey.departHint}>
-            {t.journey.depart}
-          </ConfirmSubmit>
-          <FormError message={departState.status === 'error' ? departState.message : null} />
-        </form>
+        <div className="mt-3 space-y-2">
+          {pendingDeparture ? (
+            <OfflineAttendanceNotice
+              t={t}
+              action={pendingDeparture}
+              busy={offline.busy}
+              onRetry={() => void offline.retry()}
+            />
+          ) : (
+            <button
+              type="button"
+              className="btn-outline w-full"
+              disabled={offline.busy}
+              onClick={() => {
+                if (window.confirm(t.journey.departHint)) {
+                  void offline.record('SEAT_DEPARTURE', seatMemberId);
+                }
+              }}
+            >
+              {offline.busy ? t.common.saving : t.journey.depart}
+            </button>
+          )}
+          <FormError message={offline.error} />
+        </div>
       ) : null}
     </li>
   );

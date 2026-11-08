@@ -53,6 +53,33 @@ function baghdadClock(at: Date): string {
   }).format(at);
 }
 
+/**
+ * Offline attendance is queued with the device time so that syncing later does
+ * not replace the time the member actually pressed the button. Bound it to a
+ * recent event window and a small clock skew; all eligibility and ownership
+ * checks still run on the server.
+ */
+function reportedAt(form: FormData): Date | null {
+  const raw = String(form.get('clientCapturedAt') ?? '').trim();
+  if (!raw) return new Date();
+  const date = new Date(raw);
+  const delta = Date.now() - date.getTime();
+  if (!Number.isFinite(date.getTime()) || delta < -5 * 60_000 || delta > 7 * 86_400_000) {
+    return null;
+  }
+  return date;
+}
+
+function isWithinShift(date: string, start: string, end: string | null, at: Date): boolean {
+  const due = venueMoment(date, start);
+  const opens = due.getTime() - ARRIVAL_WINDOW_HOURS * 3_600_000;
+  let closes = venueMoment(date, end ?? '23:59');
+  if (closes.getTime() <= due.getTime()) {
+    closes = new Date(closes.getTime() + 24 * 3_600_000);
+  }
+  return at.getTime() >= opens && at.getTime() <= closes.getTime();
+}
+
 function revalidate(token: string, eventId: string) {
   revalidatePath(`/member/${token}`);
   for (const base of ['/admin', '/leader']) {
@@ -74,7 +101,7 @@ type Loaded =
       stage: ReturnType<typeof stageFor>;
     };
 
-async function load(token: string): Promise<Loaded> {
+async function load(token: string, stageAt = new Date()): Promise<Loaded> {
   const { t } = await getT();
   const member = await resolveMemberByToken(token);
   if (!member) return { ok: false, error: t.member.invalidToken };
@@ -92,7 +119,11 @@ async function load(token: string): Promise<Loaded> {
     memberStatus: row.status,
     confirmedAt: row.confirmedAt,
     declinedAt: row.declinedAt,
-    eventStatus: row.eventStatus,
+    eventStatus:
+      (row.eventStatus === 'COMPLETED' || row.eventStatus === 'ARCHIVED') &&
+      isWithinShift(row.eventDate, row.teamArrivalTime, row.teamDepartureTime, stageAt)
+        ? 'LIVE'
+        : row.eventStatus,
     attendanceStatus: att?.status ?? null,
     reportedArrivalAt: att?.reportedArrivalAt ?? null,
     approvedAt: att?.approvedAt ?? null,
@@ -100,7 +131,7 @@ async function load(token: string): Promise<Loaded> {
     eventDate: row.eventDate,
     teamArrivalTime: row.teamArrivalTime,
     arrivalWindowHours: ARRIVAL_WINDOW_HOURS,
-    now: new Date(),
+    now: stageAt,
   });
 
   return { ok: true, t, member, row, att, stage };
@@ -119,6 +150,7 @@ function loadRow(eventMemberId: string) {
       eventStatus: events.status,
       eventDate: events.date,
       teamArrivalTime: events.teamArrivalTime,
+      teamDepartureTime: events.teamDepartureTime,
     })
     .from(eventMembers)
     .innerJoin(events, eq(eventMembers.eventId, events.id))
@@ -236,7 +268,12 @@ export async function reportArrivalAction(
   form: FormData,
 ): Promise<ActionState> {
   const token = String(form.get('token') ?? '');
-  const loaded = await load(token);
+  const now = reportedAt(form);
+  if (!now) {
+    const { t } = await getT();
+    return fail(t.errors.invalidDate);
+  }
+  const loaded = await load(token, now);
   if (!loaded.ok) return fail(loaded.error);
   const { t, row, att, stage } = loaded;
 
@@ -245,13 +282,12 @@ export async function reportArrivalAction(
   /* The window is enforced here, not by hiding the button. */
   if (stage !== 'ARRIVING') return fail(t.journey.tooEarly);
 
-  const now = new Date();
   const clock = baghdadClock(now);
 
   if (att) {
     await db
       .update(attendance)
-      .set({ reportedArrivalAt: now, checkInTime: att.checkInTime ?? clock, updatedAt: now })
+      .set({ reportedArrivalAt: now, checkInTime: att.checkInTime ?? clock, updatedAt: new Date() })
       .where(eq(attendance.id, att.id));
   } else {
     await db.insert(attendance).values({
@@ -261,6 +297,7 @@ export async function reportArrivalAction(
       status: 'PENDING',
       reportedArrivalAt: now,
       checkInTime: clock,
+      updatedAt: new Date(),
     });
   }
 
@@ -286,15 +323,19 @@ export async function reportDepartureAction(
   form: FormData,
 ): Promise<ActionState> {
   const token = String(form.get('token') ?? '');
-  const loaded = await load(token);
+  const now = reportedAt(form);
+  if (!now) {
+    const { t } = await getT();
+    return fail(t.errors.invalidDate);
+  }
+  const loaded = await load(token, now);
   if (!loaded.ok) return fail(loaded.error);
   const { t, row, att, stage } = loaded;
 
+  if (att?.reportedDepartureAt) return ok(t.journey.departureAlready);
   if (stage !== 'ON_DUTY') return fail(t.journey.notOnDuty);
   if (!att) return fail(t.errors.notFound);
-  if (att.reportedDepartureAt) return ok(t.journey.departureAlready);
 
-  const now = new Date();
   const clock = baghdadClock(now);
 
   await db
@@ -302,7 +343,7 @@ export async function reportDepartureAction(
     .set({
       reportedDepartureAt: now,
       checkOutTime: att.checkOutTime ?? clock,
-      updatedAt: now,
+      updatedAt: new Date(),
     })
     .where(eq(attendance.id, att.id));
 
@@ -419,6 +460,7 @@ async function loadSeatRow(eventMemberId: string, seatMemberId: string) {
       checkOutTime: seatSetupMembers.checkOutTime,
       date: seatSetupDetails.date,
       startTime: seatSetupDetails.startTime,
+      endTime: seatSetupDetails.endTime,
     })
     .from(seatSetupMembers)
     .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
@@ -441,7 +483,11 @@ type SeatLoaded =
       stage: SeatStage;
     };
 
-async function loadSeat(token: string, seatMemberId: string): Promise<SeatLoaded> {
+async function loadSeat(
+  token: string,
+  seatMemberId: string,
+  stageAt = new Date(),
+): Promise<SeatLoaded> {
   const { t } = await getT();
   const member = await resolveMemberByToken(token);
   if (!member) return { ok: false, error: t.member.invalidToken };
@@ -467,7 +513,7 @@ async function loadSeat(token: string, seatMemberId: string): Promise<SeatLoaded
       date: seat.date,
       startTime: seat.startTime,
       arrivalWindowHours: ARRIVAL_WINDOW_HOURS,
-      now: new Date(),
+      now: stageAt,
     }),
   };
 }
@@ -564,7 +610,12 @@ export async function reportSeatArrivalAction(
   form: FormData,
 ): Promise<ActionState> {
   const token = String(form.get('token') ?? '');
-  const loaded = await loadSeat(token, String(form.get('seatMemberId') ?? ''));
+  const now = reportedAt(form);
+  if (!now) {
+    const { t } = await getT();
+    return fail(t.errors.invalidDate);
+  }
+  const loaded = await loadSeat(token, String(form.get('seatMemberId') ?? ''), now);
   if (!loaded.ok) return fail(loaded.error);
   const { t, seat, stage } = loaded;
 
@@ -572,14 +623,13 @@ export async function reportSeatArrivalAction(
   if (seat.reportedArrivalAt) return ok(t.journey.arrivalAlready);
   if (stage !== 'ARRIVING') return fail(t.journey.tooEarly);
 
-  const now = new Date();
   const clock = baghdadClock(now);
   await db
     .update(seatSetupMembers)
     .set({
       reportedArrivalAt: now,
       checkInTime: seat.checkInTime ?? clock,
-      updatedAt: now,
+      updatedAt: new Date(),
     })
     .where(eq(seatSetupMembers.id, seat.id));
 
@@ -605,21 +655,25 @@ export async function reportSeatDepartureAction(
   form: FormData,
 ): Promise<ActionState> {
   const token = String(form.get('token') ?? '');
-  const loaded = await loadSeat(token, String(form.get('seatMemberId') ?? ''));
+  const now = reportedAt(form);
+  if (!now) {
+    const { t } = await getT();
+    return fail(t.errors.invalidDate);
+  }
+  const loaded = await loadSeat(token, String(form.get('seatMemberId') ?? ''), now);
   if (!loaded.ok) return fail(loaded.error);
   const { t, seat, stage } = loaded;
 
-  if (stage !== 'ON_DUTY') return fail(t.journey.notOnDuty);
   if (seat.reportedDepartureAt) return ok(t.journey.departureAlready);
+  if (stage !== 'ON_DUTY') return fail(t.journey.notOnDuty);
 
-  const now = new Date();
   const clock = baghdadClock(now);
   await db
     .update(seatSetupMembers)
     .set({
       reportedDepartureAt: now,
       checkOutTime: seat.checkOutTime ?? clock,
-      updatedAt: now,
+      updatedAt: new Date(),
     })
     .where(eq(seatSetupMembers.id, seat.id));
 

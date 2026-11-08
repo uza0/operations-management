@@ -4,12 +4,15 @@ import { getT } from '@/lib/i18n/server';
 import { getMemberPortal, type MemberPortalData } from '@/server/services/member';
 import { formatDate, formatDateTime, formatTime } from '@/lib/time';
 import { format } from '@/lib/i18n';
+import { ARRIVAL_WINDOW_HOURS, venueMoment } from '@/lib/journey';
 import { plural } from '@/lib/plural';
 import { Badge, attendanceTone, priorityTone } from '@/components/ui/status';
 import { MapSourcePreview } from '@/components/map/MapSourcePreview';
+import { MemberOfflineReady } from '@/components/pwa/MemberOfflineReady';
 
 import { FeedbackForm } from './FeedbackForm';
 import { CrewHandbookCard } from './CrewHandbookCard';
+import { PendingAttendanceSync } from './OfflineAttendanceNotice';
 import {
   IconAlert,
   IconCalendar,
@@ -417,6 +420,9 @@ export default async function MemberPortalPage({
   }
 
   const { membership, assignment } = data;
+  const arrivalAvailableAt =
+    venueMoment(membership.eventDate, membership.eventArrival).getTime() -
+    ARRIVAL_WINDOW_HOURS * 3_600_000;
   const locationName = assignment?.gateName ?? assignment?.workingPointName ?? null;
   const urgent = data.announcements.filter((a) => a.priority === 'URGENT');
   const rest = data.announcements.filter((a) => a.priority !== 'URGENT');
@@ -486,6 +492,8 @@ export default async function MemberPortalPage({
   return (
     <MemberShell back="/me">
       <div className="stagger space-y-4">
+        <MemberOfflineReady t={t} />
+        <PendingAttendanceSync t={t} token={token} />
         <AttendanceScoreCard score={data.attendanceScore} t={t} />
         {data.mapSource?.kind === 'image' ? (
           <section className="panel overflow-hidden p-3 sm:p-4">
@@ -550,16 +558,25 @@ export default async function MemberPortalPage({
               />
             ) : null}
 
-            {data.stage === 'ARRIVING' ? <ArrivalButton t={t} token={token} /> : null}
+            {data.stage === 'ARRIVING' || data.stage === 'CONFIRMED' ? (
+              <ArrivalButton
+                t={t}
+                token={token}
+                availableAt={data.stage === 'CONFIRMED' ? arrivalAvailableAt : undefined}
+              />
+            ) : null}
 
             {data.stage === 'AWAITING_APPROVAL' ? (
-              <section className="rise rounded-card border border-warn/40 bg-warn/10 p-4 text-center">
-                <p className="text-[14.5px] font-semibold text-ink-100">
-                  {format(t.journey.arrivalWaiting, {
-                    time: formatTime(data.attendance?.checkInTime ?? '', locale),
-                  })}
-                </p>
-              </section>
+              <>
+                <section className="rise rounded-card border border-warn/40 bg-warn/10 p-4 text-center">
+                  <p className="text-[14.5px] font-semibold text-ink-100">
+                    {format(t.journey.arrivalWaiting, {
+                      time: formatTime(data.attendance?.checkInTime ?? '', locale),
+                    })}
+                  </p>
+                </section>
+                <DepartureButton t={t} token={token} offlineOnly />
+              </>
             ) : null}
 
             {identity}
@@ -656,6 +673,10 @@ export default async function MemberPortalPage({
                       seatMemberId={shift.id}
                       setupStatus={shift.status}
                       stage={shift.stage}
+                      arrivalWindowStartsAt={
+                        venueMoment(shift.date, shift.startTime).getTime() -
+                        ARRIVAL_WINDOW_HOURS * 3_600_000
+                      }
                       when={formatDate(shift.date, locale)}
                       hours={
                         formatTime(shift.startTime, locale) +

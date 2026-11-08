@@ -20,7 +20,7 @@
  * would otherwise keep showing them for as long as the app stays installed —
  * which is why a new mark needs a new version here, not only new files.
  */
-const VERSION = 'ops-v4';
+const VERSION = 'ops-v5';
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const OFFLINE_URL = '/offline.html';
@@ -65,6 +65,8 @@ function isStaticAsset(url) {
     url.pathname.startsWith('/_next/static/') ||
     url.pathname.startsWith('/icons/') ||
     url.pathname.startsWith('/maps/') ||
+    url.pathname.startsWith('/fonts/') ||
+    url.pathname.startsWith('/docs/') ||
     url.pathname.startsWith('/uploads/') ||
     url.pathname === '/manifest.webmanifest'
   );
@@ -164,6 +166,86 @@ self.addEventListener('message', (event) => {
   }
   if (event.data && event.data.type === 'BUILD') {
     event.waitUntil(dropStaleCaches(event.data.id));
+    return;
+  }
+  if (event.data && event.data.type === 'CACHE_MEMBER_PAGE') {
+    const rawUrl = event.data.url;
+    event.waitUntil(
+      (async () => {
+        let url;
+        try {
+          url = new URL(rawUrl);
+        } catch {
+          return;
+        }
+        const isMemberPage =
+          url.origin === self.location.origin &&
+          /^\/(?:member|setup)\/[^/]+\/?$/.test(url.pathname);
+        if (!isMemberPage) return;
+
+        let ok = false;
+        try {
+          const response = await fetch(
+            new Request(url.href, {
+              credentials: 'include',
+              cache: 'no-store',
+              headers: { accept: 'text/html' },
+            }),
+          );
+          if (response.ok && response.headers.get('content-type')?.includes('text/html')) {
+            const cache = await caches.open(PAGE_CACHE);
+            await cache.put(url.href, response.clone());
+            ok = true;
+          }
+        } catch {
+          ok = Boolean(await caches.match(url.href));
+        }
+        if (!ok) ok = Boolean(await caches.match(url.href));
+
+        const assets = Array.isArray(event.data.assets) ? event.data.assets : [];
+        const cacheable = assets
+          .map((raw) => {
+            try {
+              const assetUrl = new URL(raw, self.location.origin);
+              const path = assetUrl.pathname;
+              const allowed =
+                assetUrl.origin === self.location.origin &&
+                (path.startsWith('/_next/static/') ||
+                  path.startsWith('/fonts/') ||
+                  path.startsWith('/docs/') ||
+                  path.startsWith('/uploads/') ||
+                  path.startsWith('/icons/') ||
+                  path.startsWith('/maps/'));
+              return allowed ? assetUrl : null;
+            } catch {
+              return null;
+            }
+          })
+          .filter(Boolean);
+        if (cacheable.length > 0) {
+          const cache = await caches.open(STATIC_CACHE);
+          const outcomes = await Promise.all(
+            cacheable.map(async (assetUrl) => {
+              try {
+                const response = await fetch(
+                  new Request(assetUrl.href, { credentials: 'include', cache: 'no-store' }),
+                );
+                if (!response.ok) return false;
+                await cache.put(assetUrl.href, response.clone());
+                return true;
+              } catch {
+                return false;
+              }
+            }),
+          );
+          ok = ok && outcomes.every(Boolean);
+        }
+
+        if (event.source && 'postMessage' in event.source) {
+          event.source.postMessage({ type: 'MEMBER_PAGE_CACHE_RESULT', url: rawUrl, ok });
+        }
+      })(),
+    );
   }
 });
 
