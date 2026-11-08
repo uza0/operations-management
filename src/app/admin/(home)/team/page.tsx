@@ -1,7 +1,7 @@
-import { sql } from 'drizzle-orm';
+import { and, eq, inArray, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { eventMembers, memberSessions, teamMembers } from '@/db/schema';
+import { attendance, eventMembers, events, memberSessions, teamMembers } from '@/db/schema';
 import { requireRole } from '@/server/auth/rbac';
 import { getT } from '@/lib/i18n/server';
 import { PageHeader } from '@/components/ui/panel';
@@ -39,6 +39,35 @@ export default async function TeamPage() {
     .from(teamMembers)
     .orderBy(teamMembers.fullName);
 
+  const [completedEventRows, attendanceRows] = await Promise.all([
+    db
+      .select({ count: sql<number>`count(*)` })
+      .from(events)
+      .where(inArray(events.status, ['COMPLETED', 'ARCHIVED'])),
+    db
+      .select({
+        id: teamMembers.id,
+        fullName: teamMembers.fullName,
+        attendedEvents: sql<number>`count(distinct ${events.id})`,
+      })
+      .from(attendance)
+      .innerJoin(eventMembers, eq(attendance.eventMemberId, eventMembers.id))
+      .innerJoin(events, eq(attendance.eventId, events.id))
+      .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+      .where(
+        and(
+          inArray(events.status, ['COMPLETED', 'ARCHIVED']),
+          inArray(attendance.status, ['PRESENT', 'LATE']),
+        ),
+      )
+      .groupBy(teamMembers.id, teamMembers.fullName)
+      .orderBy(sql`count(distinct ${events.id}) desc`, teamMembers.fullName),
+  ]);
+  const completedEventCount = Number(completedEventRows[0]?.count ?? 0);
+  const attendanceLeaders = attendanceRows.filter(
+    (member) => completedEventCount > 0 && member.attendedEvents >= Math.ceil(completedEventCount / 2),
+  );
+
   /* Dialling happens on the server, where the country code lives. */
   const members = rows.map((row) => ({
     ...row,
@@ -48,7 +77,13 @@ export default async function TeamPage() {
   return (
     <>
       <PageHeader title={t.team.title} subtitle={t.team.subtitle} />
-      <TeamManager t={t} members={members} appUrl={appUrl} />
+      <TeamManager
+        t={t}
+        members={members}
+        appUrl={appUrl}
+        attendanceLeaders={attendanceLeaders}
+        completedEventCount={completedEventCount}
+      />
     </>
   );
 }

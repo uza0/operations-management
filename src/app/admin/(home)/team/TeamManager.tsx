@@ -44,6 +44,12 @@ export type TeamRow = {
   eventCount: number;
 };
 
+type AttendanceLeader = {
+  id: string;
+  fullName: string;
+  attendedEvents: number;
+};
+
 function MemberForm({
   t,
   member,
@@ -237,11 +243,15 @@ export function TeamManager({
   t,
   members,
   appUrl,
+  attendanceLeaders,
+  completedEventCount,
 }: {
   t: Dictionary;
   members: TeamRow[];
   /** Where the app actually lives, for the invitation the roster writes. */
   appUrl: string;
+  attendanceLeaders: AttendanceLeader[];
+  completedEventCount: number;
 }) {
   const [query, setQuery] = useState('');
   const [creating, setCreating] = useState(false);
@@ -268,6 +278,59 @@ export function TeamManager({
 
   return (
     <>
+      <section className="panel mb-4" aria-labelledby="attendance-leaders-title">
+        <header className="panel-head">
+          <div className="min-w-0">
+            <h2 id="attendance-leaders-title" className="text-[15px] font-semibold text-ink-100">
+              {t.team.attendanceLeaders}
+            </h2>
+            <p className="mt-0.5 text-[12.5px] text-ink-400">{t.team.attendanceLeadersHint}</p>
+          </div>
+          {completedEventCount > 0 ? (
+            <Badge tone="ok">{format(t.team.attendanceLeadersCount, { n: attendanceLeaders.length })}</Badge>
+          ) : null}
+        </header>
+        {completedEventCount === 0 ? (
+          <p className="px-4 py-5 text-[13.5px] text-ink-400">{t.team.attendanceNoCompletedEvents}</p>
+        ) : attendanceLeaders.length === 0 ? (
+          <p className="px-4 py-5 text-[13.5px] text-ink-400">{t.team.attendanceLeadersEmpty}</p>
+        ) : (
+          <ol className="grid max-h-[380px] grid-cols-1 gap-2 overflow-y-auto p-3 sm:grid-cols-2 xl:grid-cols-3">
+            {attendanceLeaders.map((member, index) => {
+              const rate = Math.round((member.attendedEvents / completedEventCount) * 100);
+              return (
+                <li key={member.id} className="rounded-card border border-ink-700 bg-ink-850/60 p-3">
+                  <div className="flex items-center gap-2.5">
+                    <span className="nums flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-brand-50 text-[12px] font-bold text-brand-900">
+                      {index + 1}
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-[14px] font-semibold text-ink-100">
+                      {member.fullName}
+                    </span>
+                    <span className="nums shrink-0 text-[12.5px] font-semibold text-ok-text">
+                      {member.attendedEvents} / {completedEventCount}
+                    </span>
+                  </div>
+                  <div
+                    className="mt-2 h-1.5 overflow-hidden rounded-full bg-ink-800"
+                    role="progressbar"
+                    aria-label={`${member.fullName}: ${member.attendedEvents} / ${completedEventCount}`}
+                    aria-valuemin={0}
+                    aria-valuemax={completedEventCount}
+                    aria-valuenow={member.attendedEvents}
+                  >
+                    <span
+                      className="block h-full rounded-full bg-ok"
+                      style={{ width: `${rate}%` }}
+                    />
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        )}
+      </section>
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="relative min-w-[240px] flex-1 sm:max-w-sm">
           <IconSearch
