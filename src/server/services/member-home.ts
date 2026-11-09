@@ -28,6 +28,8 @@ export async function getMemberHome(teamMemberId: string) {
       id: teamMembers.id,
       name: teamMembers.fullName,
       cardNumber: teamMembers.cardNumber,
+      photoUrl: teamMembers.photoUrl,
+      pendingPhotoUrl: teamMembers.pendingPhotoUrl,
       salaried: teamMembers.salaried,
     })
     .from(teamMembers)

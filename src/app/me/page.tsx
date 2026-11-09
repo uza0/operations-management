@@ -3,176 +3,25 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
 import { getT } from '@/lib/i18n/server';
-import { format } from '@/lib/i18n';
 import { formatDate, formatTime } from '@/lib/time';
 import { currentMember, touchMemberSession } from '@/server/services/member-auth';
 import { currentUser, homeFor } from '@/server/auth/rbac';
-import { getMemberHome, type MemberHome } from '@/server/services/member-home';
+import { getMemberHome } from '@/server/services/member-home';
 import { getMemberAttendanceScore } from '@/server/services/member';
-import { memberLedger } from '@/server/services/credit';
-import { memberSignOutAction } from '@/server/actions/member-auth';
 import {
   pushPublicKey,
   reminderText,
   sendDueReminders,
   sweepInBackground,
 } from '@/server/services/push';
-import { Badge, eventStatusTone } from '@/components/ui/status';
-import { ConfirmSubmit } from '@/components/ui/client';
-import { IconCalendar, IconClock, IconPin } from '@/components/ui/icons';
-import type { EventStatus, EventType } from '@/lib/constants';
 
 import { MemberShell } from '../member/[token]/MemberShell';
-import { BalanceCard } from './BalanceCard';
-import { OwedLines } from './OwedLines';
-import { InstallGuide } from './InstallGuide';
 import { NotificationToggle } from './NotificationToggle';
-import { formatAmount } from '@/lib/money';
-import { MoneyValue, MoneyVisibilityProvider, MoneyVisibilityToggle } from './MoneyVisibility';
 import { AttendanceScoreCard } from './AttendanceScoreCard';
-import { CrewHandbookCard } from './CrewHandbookCard';
 
 export const dynamic = 'force-dynamic';
 
 export const metadata: Metadata = { title: 'TicketZone Ops' };
-
-type T = Awaited<ReturnType<typeof getT>>['t'];
-type Locale = Awaited<ReturnType<typeof getT>>['locale'];
-type Row = MemberHome['live'][number];
-type SetupInvite = MemberHome['seatInvitations'][number];
-
-function SetupInvitations({
-  t,
-  locale,
-  rows,
-}: {
-  t: T;
-  locale: Locale;
-  rows: SetupInvite[];
-}) {
-  if (rows.length === 0) return null;
-
-  return (
-    <section>
-      <h2 className="mb-2 px-1 text-[15px] font-bold text-ink-100">
-        {t.seatSetup.invitationSection}
-      </h2>
-      <div className="space-y-2.5">
-        {rows.map((row) => (
-          <Link
-            key={row.shiftId}
-            href={`/setup/${row.token}`}
-            className="block rounded-card border border-brand-700/60 bg-ink-850 p-4 transition-colors hover:border-brand-600"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0">
-                <p className="text-[12px] font-semibold text-brand-300">
-                  {t.seatSetup.inviteTitle}
-                </p>
-                <h3
-                  className="mt-1 text-[15px] font-bold leading-6 text-ink-100"
-                  style={{ unicodeBidi: 'plaintext' }}
-                >
-                  {row.eventName}
-                </h3>
-              </div>
-              <Badge tone={row.declinedAt ? 'crit' : row.confirmedAt ? 'ok' : 'warn'}>
-                {row.declinedAt
-                  ? t.seatSetup.declinedCard
-                  : row.confirmedAt
-                    ? t.seatSetup.confirmedList
-                    : t.seatSetup.waitingReply}
-              </Badge>
-            </div>
-            <dl className="mt-3 grid grid-cols-2 gap-2 text-[12.5px]">
-              <div className="flex items-center gap-1.5 text-ink-300">
-                <IconCalendar width={14} height={14} className="shrink-0 text-ink-500" />
-                <span className="nums truncate">{formatDate(row.date, locale)}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-ink-300">
-                <IconClock width={14} height={14} className="shrink-0 text-ink-500" />
-                <span className="nums truncate">
-                  {formatTime(row.startTime, locale)}
-                  {row.endTime ? ` – ${formatTime(row.endTime, locale)}` : ''}
-                </span>
-              </div>
-              <div className="col-span-2 nums font-semibold text-ink-200">
-                <MoneyValue value={`${formatAmount(row.payAmount)} ${t.credit.currency}`} />
-              </div>
-            </dl>
-          </Link>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function EventCard({ t, locale, row }: { t: T; locale: Locale; row: Row }) {
-  return (
-    <Link
-      href={`/member/${row.token}`}
-      className="block rounded-card border border-ink-700 bg-ink-850 p-4 transition-colors hover:border-ink-600"
-    >
-      <div className="mb-2 flex items-start justify-between gap-2">
-        <h3
-          className="min-w-0 flex-1 text-[15px] font-bold leading-6 text-ink-100"
-          style={{ unicodeBidi: 'plaintext' }}
-        >
-          {row.name}
-        </h3>
-        <Badge
-          tone={eventStatusTone[row.eventStatus as EventStatus]}
-          pulse={row.eventStatus === 'LIVE'}
-        >
-          {t.enums.eventStatus[row.eventStatus as EventStatus]}
-        </Badge>
-      </div>
-
-      <p className="text-[12.5px] text-ink-400">
-        {t.enums.eventType[row.type as EventType]}
-      </p>
-
-      <dl className="mt-3 grid grid-cols-2 gap-2 text-[12.5px]">
-        <div className="flex items-center gap-1.5 text-ink-300">
-          <IconCalendar width={14} height={14} className="shrink-0 text-ink-500" />
-          <span className="nums truncate">{formatDate(row.date, locale)}</span>
-        </div>
-        <div className="flex items-center gap-1.5 text-ink-300">
-          <IconClock width={14} height={14} className="shrink-0 text-ink-500" />
-          <span className="nums truncate">{formatTime(row.teamArrivalTime, locale)}</span>
-        </div>
-        <div className="col-span-2 flex items-center gap-1.5 text-ink-300">
-          <IconPin width={14} height={14} className="shrink-0 text-ink-500" />
-          <span className="truncate">{row.venue}</span>
-        </div>
-      </dl>
-    </Link>
-  );
-}
-
-function Group({
-  t,
-  locale,
-  title,
-  rows,
-}: {
-  t: T;
-  locale: Locale;
-  title: string;
-  rows: Row[];
-}) {
-  if (rows.length === 0) return null;
-  return (
-    <section>
-      <h2 className="mb-2 px-1 text-[15px] font-bold text-ink-100">{title}</h2>
-      <div className="space-y-2.5">
-        {rows.map((row) => (
-          <EventCard key={row.token} t={t} locale={locale} row={row} />
-        ))}
-      </div>
-    </section>
-  );
-}
 
 /**
  * The promoter's own page: who he is, and his events.
@@ -208,10 +57,9 @@ export default async function MemberHomePage() {
     await sendDueReminders(reminderText(text));
   });
 
-  const [{ locale, t }, home, ledger, staff, attendanceScore] = await Promise.all([
+  const [{ locale, t }, home, staff, attendanceScore] = await Promise.all([
     getT(),
     getMemberHome(session.teamMemberId),
-    memberLedger(session.teamMemberId),
     currentUser(),
     getMemberAttendanceScore(session.teamMemberId),
   ]);
@@ -242,17 +90,16 @@ export default async function MemberHomePage() {
 
   return (
     <MemberShell>
-      <MoneyVisibilityProvider>
       <section className="rounded-card border border-ink-700 bg-ink-850 p-4">
-        <p className="text-[12.5px] font-semibold uppercase tracking-wide text-ink-500">
-          {t.member.you}
-        </p>
-        <p
-          className="mt-1 text-[19px] font-bold leading-7 text-ink-100"
-          style={{ unicodeBidi: 'plaintext' }}
-        >
-          {home.person.name}
-        </p>
+        <div className="flex items-center gap-3">
+          <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full border border-ink-600 bg-ink-800 text-lg font-bold text-brand-300">
+            {home.person.photoUrl ? <img src={home.person.photoUrl} alt="" width={56} height={56} loading="lazy" className="h-14 w-14 object-cover" /> : home.person.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('')}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[12.5px] font-semibold uppercase tracking-wide text-ink-500">{t.member.you}</p>
+            <p className="mt-0.5 truncate text-[19px] font-bold leading-7 text-ink-100" style={{ unicodeBidi: 'plaintext' }}>{home.person.name}</p>
+          </div>
+        </div>
         {home.person.cardNumber ? (
           <p className="nums mt-1 text-[12.5px] text-ink-400" dir="ltr">
             {t.team.cardNumber}: {home.person.cardNumber}
@@ -261,7 +108,7 @@ export default async function MemberHomePage() {
       </section>
 
       <AttendanceScoreCard score={attendanceScore} t={t} />
-      <CrewHandbookCard t={t} />
+      <Link href="/me/events" className="btn-ghost btn-sm w-full text-center">{t.memberAuth.myEvents}</Link>
 
       {nextSeat || nextEvent ? (
         <section className="rounded-card border border-brand-600/45 bg-brand-50/50 p-4">
@@ -296,47 +143,7 @@ export default async function MemberHomePage() {
         </section>
       ) : null}
 
-      {!ledger || home.person.salaried ? (
-        <div className="flex justify-end">
-          <MoneyVisibilityToggle showLabel={t.memberAuth.showMoney} hideLabel={t.memberAuth.hideMoney} />
-        </div>
-      ) : null}
-
-      {/*
-        What he is owed, straight under his name. It is the question he opens
-        this page to answer at least as often as "where am I standing", and
-        until now the only way to ask it was to ring somebody.
-      */}
-      {ledger ? (
-        <BalanceCard
-          t={t}
-          locale={locale}
-          ledger={ledger}
-          salaried={Boolean(home.person.salaried)}
-        />
-      ) : null}
-
-      {/*
-        And straight under it, what that figure is made of. The question that
-        followed the number was always the same one — why ninety and not
-        thirty — and it was being answered by telephone.
-      */}
-      {ledger && !home.person.salaried ? (
-        <OwedLines t={t} locale={locale} ledger={ledger} />
-      ) : null}
-
-      {empty ? (
-        <section className="rounded-card border border-ink-700 bg-ink-850 p-6 text-center">
-          <p className="text-[13.5px] leading-6 text-ink-400">{t.memberAuth.none}</p>
-        </section>
-      ) : (
-        <>
-          <SetupInvitations t={t} locale={locale} rows={home.seatInvitations} />
-          <Group t={t} locale={locale} title={t.memberAuth.live} rows={home.live} />
-          <Group t={t} locale={locale} title={t.memberAuth.upcoming} rows={home.upcoming} />
-          <Group t={t} locale={locale} title={t.memberAuth.past} rows={home.past} />
-        </>
-      )}
+      {empty ? <section className="rounded-card border border-ink-700 bg-ink-850 p-5 text-center"><p className="text-[13.5px] leading-6 text-ink-400">{t.memberAuth.none}</p></section> : null}
 
       {/*
         Said on his own page rather than as a banner that follows him around:
@@ -344,8 +151,6 @@ export default async function MemberHomePage() {
         the moment it makes sense.
       */}
       {/* After the install guide: on an iPhone the one depends on the other. */}
-      <InstallGuide t={t} />
-
       <NotificationToggle t={t} publicKey={pushPublicKey()} />
 
       {/* The way back, for whoever is both. Shown only to a staff session. */}
@@ -355,23 +160,6 @@ export default async function MemberHomePage() {
         </Link>
       ) : null}
 
-      {/*
-        Asked before it happens.
-        
-        This sits at the bottom of the one page he opens every working day, a
-        thumb's width from the install guide, and pressing it by mistake threw
-        him straight out — back to a door he has to find his code for again.
-        Nothing on this page is worth losing to a mis-tap.
-      */}
-      <form action={memberSignOutAction} className="pt-1">
-        <ConfirmSubmit
-          className="btn-ghost btn-sm w-full"
-          message={t.memberAuth.signOutConfirm}
-        >
-          {t.memberAuth.signOut}
-        </ConfirmSubmit>
-      </form>
-      </MoneyVisibilityProvider>
     </MemberShell>
   );
 }

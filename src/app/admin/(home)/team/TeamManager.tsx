@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/icons';
 import type { Dictionary } from '@/lib/i18n';
 import { compareNames } from '@/lib/sort';
+import { TeamPhotoCell } from './TeamPhotoCell';
 
 export type TeamRow = {
   id: string;
@@ -35,6 +36,8 @@ export type TeamRow = {
   whatsapp?: string | null;
   employeeCode: string;
   cardNumber: string | null;
+  photoUrl: string | null;
+  pendingPhotoUrl: string | null;
   hasCode?: number;
   sessions?: number;
   active: boolean;
@@ -396,6 +399,7 @@ export function TeamManager({
             <table className="op-table op-table-stack">
               <thead>
                 <tr>
+                  <th>{t.memberAuth.photoTitle}</th>
                   <th>{t.team.fullName}</th>
                   <th>{t.team.employeeCode}</th>
                   <th>{t.team.phone}</th>
@@ -408,6 +412,7 @@ export function TeamManager({
               <tbody>
                 {filtered.map((member) => (
                   <tr key={member.id}>
+                    <td data-label={t.memberAuth.photoTitle}><TeamPhotoCell member={member} labels={{ upload: member.photoUrl ? t.memberAuth.photoReplace : t.memberAuth.photoUpload, approve: t.memberAuth.photoApprove, pending: t.memberAuth.photoReview, error: t.memberAuth.photoUploadError }} /></td>
                     <td data-label="">
                       <button
                         type="button"

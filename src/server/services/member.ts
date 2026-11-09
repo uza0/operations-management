@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, asc, desc, eq, ne, or, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, ne, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { ARRIVAL_WINDOW_HOURS, stageFor } from '@/lib/journey';
@@ -76,6 +76,32 @@ export async function getMemberAttendanceScore(teamMemberId: string) {
     rank,
     rankedPromoters: eligibleForRank.length,
   };
+}
+
+/** The signed-in member's own completed attendance log; never accepts another member id from a URL. */
+export async function getMemberAttendanceHistory(teamMemberId: string) {
+  return db
+    .select({
+      eventName: events.name,
+      eventDate: events.date,
+      venue: venues.name,
+      status: attendance.status,
+      checkInTime: attendance.checkInTime,
+      checkOutTime: attendance.checkOutTime,
+      reportedArrivalAt: attendance.reportedArrivalAt,
+      reportedDepartureAt: attendance.reportedDepartureAt,
+      recordedById: attendance.recordedById,
+    })
+    .from(eventMembers)
+    .innerJoin(events, eq(eventMembers.eventId, events.id))
+    .innerJoin(venues, eq(events.venueId, venues.id))
+    .leftJoin(attendance, eq(attendance.eventMemberId, eventMembers.id))
+    .where(and(
+      eq(eventMembers.teamMemberId, teamMemberId),
+      inArray(events.status, ['COMPLETED', 'ARCHIVED']),
+      ne(eventMembers.status, 'CANCELLED'),
+    ))
+    .orderBy(desc(events.date));
 }
 
 /**

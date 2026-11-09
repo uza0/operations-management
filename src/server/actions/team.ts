@@ -10,7 +10,7 @@ import {
   revokeAccessCode,
   revokeMemberSessions,
 } from '@/server/services/member-auth';
-import { eventMembers, memberRates, teamMembers } from '@/db/schema';
+import { eventMembers, memberRates, teamMembers, uploads } from '@/db/schema';
 import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
@@ -619,4 +619,22 @@ export async function signOutMemberEverywhereAction(
 
   revalidatePath('/admin/team');
   return ok();
+}
+
+/** Promote a member-submitted thumbnail after a supervisor has reviewed it. */
+export async function approveTeamPhotoAction(form: FormData): Promise<void> {
+  const user = await assertRole('ADMIN');
+  const id = str(form, 'memberId');
+  if (!id) return;
+  const person = await db.query.teamMembers.findFirst({ where: eq(teamMembers.id, id) });
+  if (!person?.pendingPhotoUrl) return;
+  await db.update(teamMembers).set({ photoUrl: person.pendingPhotoUrl, pendingPhotoUrl: null, updatedAt: new Date() }).where(eq(teamMembers.id, id));
+  if (person.photoUrl?.startsWith('/uploads/profile-')) {
+    const oldName = person.photoUrl.split('/').pop();
+    if (oldName) await db.delete(uploads).where(eq(uploads.name, oldName));
+  }
+  await recordAudit({ actorId: user.id, actorName: user.name, action: 'UPDATE', entity: 'TEAM_MEMBER', entityId: person.id, entityLabel: person.fullName, oldValues: { pendingPhotoUrl: person.pendingPhotoUrl }, newValues: { photoUrl: person.pendingPhotoUrl }, summary: `تمت الموافقة على الصورة الشخصية: ${person.fullName}` });
+  revalidatePath('/admin/team');
+  revalidatePath('/me');
+  revalidatePath('/me/account');
 }

@@ -27,6 +27,8 @@ export default async function TeamPage() {
       phone: teamMembers.phone,
       employeeCode: teamMembers.employeeCode,
       cardNumber: teamMembers.cardNumber,
+      photoUrl: teamMembers.photoUrl,
+      pendingPhotoUrl: teamMembers.pendingPhotoUrl,
       active: teamMembers.active,
       salaried: teamMembers.salaried,
       defaultPay: teamMembers.defaultPay,

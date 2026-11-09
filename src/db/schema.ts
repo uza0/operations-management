@@ -112,6 +112,10 @@ export const teamMembers = sqliteTable(
      * a man to tomorrow's event.
      */
     cardNumber: text('card_number'),
+    /** Small approved profile image shown in promoter pages and the team roster. */
+    photoUrl: text('photo_url'),
+    /** Member-submitted image waiting for a supervisor to approve it. */
+    pendingPhotoUrl: text('pending_photo_url'),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     /**
      * On the company's payroll, not on this one.

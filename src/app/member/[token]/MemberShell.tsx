@@ -11,6 +11,7 @@ import { InstallPrompt } from '@/components/pwa/InstallPrompt';
 import { OfflineBanner } from '@/components/pwa/OfflineBanner';
 import { IconArrowRight } from '@/components/ui/icons';
 import { currentMember } from '@/server/services/member-auth';
+import { MemberBottomNav } from '@/app/me/MemberBottomNav';
 
 /**
  * A deliberately separate shell from the admin app: single column, large
@@ -46,7 +47,7 @@ export async function MemberShell({
 }) {
   const locale = await getLocale();
   const { t } = await getT();
-  const member = back ? await currentMember() : null;
+  const member = await currentMember();
 
   return (
     <div className="min-h-screen bg-ink-950">
@@ -55,7 +56,7 @@ export async function MemberShell({
       <header className="sticky top-0 z-30 border-b border-ink-700 bg-ink-950/95 backdrop-blur pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex w-full max-w-[560px] items-center justify-between gap-3 px-4 py-2.5">
           <div className="flex min-w-0 items-center gap-2.5">
-            {member ? (
+            {member && back ? (
               <Link
                 href={back!}
                 aria-label={t.common.back}
@@ -81,10 +82,12 @@ export async function MemberShell({
 
       <main
         id="main"
-        className="mx-auto w-full max-w-[560px] space-y-4 px-4 py-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]"
+        className={`mx-auto w-full max-w-[560px] space-y-4 px-4 py-4 ${member ? 'pb-28' : 'pb-[max(1.5rem,env(safe-area-inset-bottom))]'}`}
       >
         {children}
       </main>
+
+      {member && !back ? <MemberBottomNav t={t} /> : null}
 
       <InstallPrompt t={t} />
     </div>
