@@ -36,7 +36,7 @@ git commit -m "Update from the workspace" >nul 2>&1
 
 echo   A browser window may open asking you to sign in. Approve it.
 echo.
-git push -u origin main --force
+git push -u origin main
 if errorlevel 1 goto fail
 
 echo.
