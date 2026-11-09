@@ -94,6 +94,20 @@ export const IconClock = (p: IconProps) => (
   </Base>
 );
 
+export const IconBell = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+    <path d="M10 21h4M9 17h6" />
+  </Base>
+);
+
+export const IconBellOff = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M18 8a6 6 0 0 0-10.8-3.6M6 8c0 7-3 7-3 9h14" />
+    <path d="M10 21h4M9 17h6M3 3l18 18" />
+  </Base>
+);
+
 export const IconMegaphone = (p: IconProps) => (
   <Base {...p}>
     <path d="M4 10v4a1 1 0 0 0 1 1h2l8 4V5L7 9H5a1 1 0 0 0-1 1Z" />

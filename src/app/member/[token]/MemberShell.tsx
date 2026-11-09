@@ -12,6 +12,8 @@ import { OfflineBanner } from '@/components/pwa/OfflineBanner';
 import { IconArrowRight } from '@/components/ui/icons';
 import { currentMember } from '@/server/services/member-auth';
 import { MemberBottomNav } from '@/app/me/MemberBottomNav';
+import { NotificationToggle } from '@/app/me/NotificationToggle';
+import { pushPublicKey } from '@/server/services/push';
 
 /**
  * A deliberately separate shell from the admin app: single column, large
@@ -74,6 +76,7 @@ export async function MemberShell({
             </span>
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {member ? <NotificationToggle t={t} publicKey={pushPublicKey()} /> : null}
             <ThemeToggle t={t} />
             <LocaleSwitcher locale={locale} labels={{ ar: 'العربية', en: 'English' }} />
           </div>

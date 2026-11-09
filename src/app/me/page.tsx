@@ -9,14 +9,12 @@ import { currentUser, homeFor } from '@/server/auth/rbac';
 import { getMemberHome } from '@/server/services/member-home';
 import { getMemberAttendanceScore } from '@/server/services/member';
 import {
-  pushPublicKey,
   reminderText,
   sendDueReminders,
   sweepInBackground,
 } from '@/server/services/push';
 
 import { MemberShell } from '../member/[token]/MemberShell';
-import { NotificationToggle } from './NotificationToggle';
 import { AttendanceScoreCard } from './AttendanceScoreCard';
 
 export const dynamic = 'force-dynamic';
@@ -151,8 +149,6 @@ export default async function MemberHomePage() {
         the moment it makes sense.
       */}
       {/* After the install guide: on an iPhone the one depends on the other. */}
-      <NotificationToggle t={t} publicKey={pushPublicKey()} />
-
       {/* The way back, for whoever is both. Shown only to a staff session. */}
       {staff ? (
         <Link href={homeFor(staff.role)} className="btn-ghost btn-sm w-full text-center">
