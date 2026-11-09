@@ -50,6 +50,15 @@ export async function getMemberHome(teamMemberId: string) {
       teamArrivalTime: events.teamArrivalTime,
       eventStatus: events.status,
       venue: venues.name,
+      /*
+       * Whether this night's wage has already gone out in a handover.
+       *
+       * He is told which evenings he has been paid for and which are still
+       * coming, on the list itself. The balance above already gives him two
+       * totals; what it cannot tell him is which of the names below each one
+       * is made of — and that is the question he actually asks the leader.
+       */
+      payoutId: eventMembers.payoutId,
     })
     .from(eventMembers)
     .innerJoin(events, eq(eventMembers.eventId, events.id))
@@ -113,9 +122,12 @@ export async function getMemberHome(teamMemberId: string) {
   const upcoming = [];
   const past = [];
 
-  for (const row of rows) {
-    if (row.status === 'CANCELLED') continue;
-    if (row.eventStatus === 'DRAFT') continue;
+  for (const raw of rows) {
+    if (raw.status === 'CANCELLED') continue;
+    if (raw.eventStatus === 'DRAFT') continue;
+    /* The id itself is the office's business; he only needs the fact. */
+    const { payoutId, ...rest } = raw;
+    const row = { ...rest, paid: payoutId !== null };
     if (row.eventStatus === 'LIVE') live.push(row);
     else if (row.eventStatus === 'COMPLETED' || row.eventStatus === 'ARCHIVED') past.push(row);
     else upcoming.push(row);

@@ -71,7 +71,15 @@ export async function PaymentFilePage({
         disabled={!preview.template || nothing || preview.blockers.length > 0}
       />
 
-      <Panel title={t.payment.range} className="mt-4">
+      {/*
+        The period, spelled out on the panel that reports it. Without the
+        dates here there was nothing on the screen to contradict two date
+        boxes that had been typed into and not applied.
+      */}
+      <Panel
+        title={`${t.payment.range}: ${range.from} → ${range.to}`}
+        className="mt-4"
+      >
         {nothing ? (
           <EmptyState title={t.payment.nothing} hint={t.payment.nothingHint} />
         ) : (
