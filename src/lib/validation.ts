@@ -62,6 +62,8 @@ export const eventSchema = z.object({
    * to carry it faithfully rather than to have opinions about its format.
    */
   externalId: z.string().trim().max(60).optional().nullable(),
+  /* Sponsors and co-organisers, as the company writes them. */
+  partners: z.string().trim().max(160).optional().nullable(),
   status: z.enum(EVENT_STATUSES).optional(),
 });
 

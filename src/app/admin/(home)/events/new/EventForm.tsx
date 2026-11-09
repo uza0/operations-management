@@ -20,6 +20,7 @@ export type EventFormValues = {
   teamDepartureTime?: string | null;
   description?: string | null;
   externalId?: string | null;
+  partners?: string | null;
   /** The account put in charge of this event, if one already is. */
   leaderId?: string | null;
   primaryLeaderId?: string | null;
@@ -336,6 +337,30 @@ export function EventForm({
           style={{ unicodeBidi: 'plaintext' }}
         />
         <p className="mt-1 text-[12px] leading-5 text-ink-500">{t.event.externalIdHint}</p>
+      </div>
+
+      {/*
+        Who is putting the night on with us.
+
+        Free text, and more than one name allowed, because that is how the
+        company writes it on its own forms — and it is read back out beside
+        every chair shift in the payment file, where it has to match what
+        they expect to see.
+      */}
+      <div>
+        <label className="field-label" htmlFor="partners">
+          {t.event.partners} <span className="text-ink-500">({t.common.optional})</span>
+        </label>
+        <input
+          id="partners"
+          name="partners"
+          className="field"
+          maxLength={160}
+          placeholder={t.event.partnersPlaceholder}
+          defaultValue={values?.partners ?? ''}
+          style={{ unicodeBidi: 'plaintext' }}
+        />
+        <p className="mt-1 text-[12px] leading-5 text-ink-500">{t.event.partnersHint}</p>
       </div>
 
       <div>

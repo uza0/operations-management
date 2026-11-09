@@ -229,6 +229,17 @@ export const events = sqliteTable(
      * in theirs can be put beside each other.
      */
     externalId: text('external_id'),
+    /*
+     * The companies putting the night on with us — a sponsor, an organiser,
+     * sometimes two or three of them.
+     *
+     * Free text on purpose: it is a name the company writes on its own forms,
+     * not something this system has opinions about, and it is read back into
+     * the payment file beside every chair shift. A list the office would have
+     * to maintain would be one more thing to maintain, and the names change
+     * with every booking.
+     */
+    partners: text('partners'),
     /** DRAFT | PLANNING | READY | LIVE | COMPLETED | ARCHIVED */
     status: text('status').notNull().default('DRAFT'),
     /** Per-event map override; falls back to the venue map. */

@@ -1,6 +1,6 @@
 /**
  * GENERATED FILE — do not edit.
- * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql, 0014_jittery_venus.sql, 0015_curved_grim_reaper.sql, 0016_hard_the_phantom.sql, 0017_glamorous_clea.sql, 0018_loose_spacker_dave.sql, 0019_hard_slapstick.sql, 0020_oval_quentin_quire.sql, 0021_complete_viper.sql, 0022_neat_turbo.sql, 0023_giant_lockheed.sql, 0024_public_blockbuster.sql, 0025_outstanding_young_avengers.sql, 0026_broken_thor_girl.sql, 0027_late_human_torch.sql.
+ * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql, 0014_jittery_venus.sql, 0015_curved_grim_reaper.sql, 0016_hard_the_phantom.sql, 0017_glamorous_clea.sql, 0018_loose_spacker_dave.sql, 0019_hard_slapstick.sql, 0020_oval_quentin_quire.sql, 0021_complete_viper.sql, 0022_neat_turbo.sql, 0023_giant_lockheed.sql, 0024_public_blockbuster.sql, 0025_outstanding_young_avengers.sql, 0026_broken_thor_girl.sql, 0027_late_human_torch.sql, 0028_fluffy_virginia_dare.sql.
  * Regenerate after changing src/db/schema.ts:
  *   npx drizzle-kit generate && node scripts/embed-schema.mjs
  */
@@ -158,4 +158,5 @@ export const SCHEMA_STATEMENTS: string[] = [
   "UPDATE `users` SET `system_developer` = 1 WHERE lower(`username`) = 'ameer' AND lower(`name`) = 'ameer dawod'",
   "ALTER TABLE `team_members` ADD `photo_url` text",
   "ALTER TABLE `team_members` ADD `pending_photo_url` text",
+  "ALTER TABLE `events` ADD `partners` text",
 ];

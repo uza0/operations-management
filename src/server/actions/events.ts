@@ -58,6 +58,7 @@ export async function createEventAction(
     teamDepartureTime: str(form, 'teamDepartureTime'),
     description: str(form, 'description'),
     externalId: str(form, 'externalId'),
+    partners: str(form, 'partners'),
   });
   if (!parsed.success) return fail(message(t, firstIssueKey(parsed.error)));
 
@@ -100,6 +101,7 @@ export async function createEventAction(
     teamDepartureTime: parsed.data.teamDepartureTime ?? null,
     description: parsed.data.description ?? null,
     externalId: parsed.data.externalId || null,
+    partners: parsed.data.partners || null,
     status: 'DRAFT',
     createdById: user.id,
   });
@@ -186,6 +188,7 @@ export async function updateEventAction(
     teamDepartureTime: str(form, 'teamDepartureTime'),
     description: str(form, 'description'),
     externalId: str(form, 'externalId'),
+    partners: str(form, 'partners'),
   });
   if (!parsed.success) return fail(message(t, firstIssueKey(parsed.error)));
 
@@ -238,6 +241,7 @@ export async function updateEventAction(
       teamDepartureTime: parsed.data.teamDepartureTime ?? null,
       description: parsed.data.description ?? null,
       externalId: parsed.data.externalId || null,
+      partners: parsed.data.partners || null,
       updatedAt: new Date(),
     })
     .where(eq(events.id, eventId));

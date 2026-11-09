@@ -167,6 +167,9 @@ export const en: Dictionary = {
   },
   event: {
     externalId: "The company's event number",
+    partners: 'Partner / sponsor companies',
+    partnersPlaceholder: 'e.g. OA — or several, separated by commas',
+    partnersHint: 'Whoever is putting the night on with us. It appears in the note beside every chair shift in the payment file.',
     externalIdHint: "The reference the company issues for this event — add it when you create the event or long after, archived included.",
     externalIdPlaceholder: 'e.g. TZ-EV-10482',
     externalIdNone: 'Not set yet',

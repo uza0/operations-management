@@ -56,6 +56,7 @@ export async function EditEventPage({ eventId }: { eventId: string }) {
                 teamDepartureTime: event.teamDepartureTime,
                 description: event.description,
                 externalId: event.externalId,
+                partners: event.partners,
                 primaryLeaderId,
                 leaderIds: leaderIds.filter((id) => id !== primaryLeaderId),
               }}

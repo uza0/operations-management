@@ -7,10 +7,12 @@ import {
   eventExpenses,
   eventMembers,
   events,
+  seatSetupDetails,
+  seatSetupMembers,
   paymentTemplates,
   teamMembers,
 } from '@/db/schema';
-import { CLOSED_STATUSES, effectiveRate, seatPayByMember } from './credit';
+import { CLOSED_STATUSES, effectiveRate } from './credit';
 import { excelDate, fillTemplate, unzipAll, type CellValue } from './xlsx-template';
 
 /**
@@ -203,11 +205,41 @@ export type FeeLine = {
   eventId: string;
   eventName: string;
   externalId: string | null;
+  /**
+   * The day the work was done — which for a chair shift is not the event's.
+   *
+   * Setting out a hall happens the afternoon before, and sometimes across a
+   * month boundary: a match on the first of November is prepared on the
+   * thirty-first of October. The company reads this column as the date the
+   * man worked, so a chair line carries the chair day.
+   */
   date: string;
   memberName: string;
   card: string | null;
   amount: number;
+  /** What goes in their notes column; empty for an ordinary night. */
+  note: string;
 };
+
+/**
+ * The sentence the company writes beside a chair shift.
+ *
+ * Their wording, their spelling, their separator — this system is carrying a
+ * note into their form, not inventing a format. The date is the chair day in
+ * the shape their sheet uses, and a night with no partner company named
+ * simply leaves that segment out rather than printing an empty one.
+ */
+export function seatNote(
+  eventName: string,
+  partners: string | null,
+  date: string,
+): string {
+  const [, month, day] = date.split('-');
+  const parts = ['Chiar editing', eventName];
+  if (partners?.trim()) parts.push(partners.trim());
+  parts.push(`${Number(month)}/${Number(day)}`);
+  return parts.join(' | ');
+}
 
 export type CostLine = {
   id: string;
@@ -239,13 +271,14 @@ export type Bundle = {
  * unstamped lines: anything already in a file is already on its way.
  */
 export async function collect(range: Range): Promise<Bundle> {
-  const [memberRows, costRows, seatPay] = await Promise.all([
+  const [memberRows, costRows, shiftRows] = await Promise.all([
     db
       .select({
         eventMemberId: eventMembers.id,
         eventId: events.id,
         eventName: events.name,
         externalId: events.externalId,
+        partners: events.partners,
         date: events.date,
         status: eventMembers.status,
         payMode: eventMembers.payMode,
@@ -291,8 +324,42 @@ export async function collect(range: Range): Promise<Bundle> {
           lte(events.date, range.to),
         ),
       ),
-    seatPayByMember(),
+    /*
+     * The chair afternoons themselves, with their own dates and rates.
+     *
+     * Read here rather than taken from the credit ledger's totals: that one
+     * answers "how much", and what the file needs is "which days". Only
+     * shifts somebody confirmed — an unapproved afternoon is not work this
+     * system can say happened.
+     */
+    db
+      .select({
+        eventMemberId: seatSetupMembers.eventMemberId,
+        date: seatSetupDetails.date,
+        pay: seatSetupDetails.payAmount,
+      })
+      .from(seatSetupMembers)
+      .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
+      .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
+      .innerJoin(events, eq(eventMembers.eventId, events.id))
+      .where(
+        and(
+          eq(seatSetupMembers.attended, true),
+          isNull(eventMembers.payoutId),
+          inArray(events.status, CLOSED_STATUSES),
+          gte(events.date, range.from),
+          lte(events.date, range.to),
+        ),
+      ),
   ]);
+
+  const shiftsBy = new Map<string, { date: string; pay: number }[]>();
+  for (const shift of shiftRows) {
+    const list = shiftsBy.get(shift.eventMemberId) ?? [];
+    list.push({ date: shift.date, pay: shift.pay });
+    shiftsBy.set(shift.eventMemberId, list);
+  }
+  for (const list of shiftsBy.values()) list.sort((a, b) => a.date.localeCompare(b.date));
 
   const fees: FeeLine[] = [];
   for (const row of memberRows) {
@@ -309,6 +376,7 @@ export async function collect(range: Range): Promise<Bundle> {
       eventDefault: row.eventDefault,
     });
     const common = {
+      note: '',
       eventMemberId: row.eventMemberId,
       eventId: row.eventId,
       eventName: row.eventName,
@@ -319,10 +387,32 @@ export async function collect(range: Range): Promise<Bundle> {
     };
     if (nightly !== null && nightly > 0) fees.push({ ...common, amount: nightly });
 
-    /* The day before, if he set out the chairs and somebody confirmed it.
-     * Its own day at its own rate, so its own line. */
-    const chairs = seatPay.earned.get(row.eventMemberId) ?? 0;
-    if (chairs > 0 && !row.salaried) fees.push({ ...common, amount: chairs });
+    /*
+     * And the afternoons before it, each as its own line.
+     *
+     * They were one merged figure on the event's own date, which is wrong
+     * twice over: two chair days at two different rates are two days' work,
+     * and the day they were worked is not the day of the match. A hall
+     * prepared on the thirty-first for a match on the first belongs to
+     * October, and the company's sheet is read by that date.
+     *
+     * The chairs follow the event in and out of a file, though. They are
+     * paid when the event is paid and not before — the man's night and his
+     * afternoon are one engagement, under one event number, and splitting
+     * them across two handovers is how somebody gets half his money and
+     * nobody can say why.
+     */
+    if (!row.salaried) {
+      for (const shift of shiftsBy.get(row.eventMemberId) ?? []) {
+        if (shift.pay <= 0) continue;
+        fees.push({
+          ...common,
+          date: shift.date,
+          amount: shift.pay,
+          note: seatNote(row.eventName, row.partners, shift.date),
+        });
+      }
+    }
   }
 
   const costs: CostLine[] = costRows.map((row): CostLine => ({
@@ -444,7 +534,7 @@ export function buildWorkbook(template: Buffer, bundle: Bundle, register: Regist
       null, // their VLOOKUP fills the account from the name
       fee.amount,
       'Event',
-      '',
+      fee.note,
     ]);
   }
   /* A cost handed to a person rides on their own row, as their form asks. */
