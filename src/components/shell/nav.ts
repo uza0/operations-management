@@ -26,6 +26,7 @@ export function globalNav(t: Dictionary, role: Role): NavSection[] {
           { href: '/admin/team', label: t.nav.team, icon: 'users' },
           { href: '/admin/credits', label: t.nav.credits, icon: 'report' },
           { href: '/admin/payments', label: t.payment.nav, icon: 'report' },
+          { href: '/admin/insights', label: t.insights.nav, icon: 'dashboard' },
           { href: '/admin/settings', label: t.nav.settings, icon: 'settings' },
           /*
            * Some of the people who run events also work them. Their promoter
