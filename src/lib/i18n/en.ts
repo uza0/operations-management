@@ -599,7 +599,7 @@ export const en: Dictionary = {
     photoTitle: 'Profile photo',
     photoUpload: 'Choose photo',
     photoPending: 'Your photo is waiting for supervisor review. It stays private until approved.',
-    photoApproved: 'Approved and shown as a small team thumbnail.',
+    photoApproved: 'Your photo is approved and visible to the rest of the crew.',
     photoNone: 'No photo added — your initials will be shown.',
     photoTooLarge: 'Photo must be smaller than 3 MB.',
     photoUploadError: 'Could not upload. Try a JPG, PNG, or WebP photo.',

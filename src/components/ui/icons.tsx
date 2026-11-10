@@ -59,6 +59,20 @@ export const IconUsers = (p: IconProps) => (
   </Base>
 );
 
+/**
+ * One person, for a screen that is about the person looking at it.
+ *
+ * Distinct from IconUsers on purpose: the plural one means the crew, and a
+ * cog — which stood here before — means settings in every app anybody has
+ * used. "My account" is neither.
+ */
+export const IconUser = (p: IconProps) => (
+  <Base {...p}>
+    <circle cx="12" cy="8" r="3.6" />
+    <path d="M5 20a7 7 0 0 1 14 0" />
+  </Base>
+);
+
 export const IconGate = (p: IconProps) => (
   <Base {...p}>
     <path d="M3 21V8l9-5 9 5v13" />

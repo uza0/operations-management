@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { IconCalendar, IconCheckCircle, IconDashboard, IconSettings } from '@/components/ui/icons';
+import { IconCalendar, IconCheckCircle, IconDashboard, IconUser } from '@/components/ui/icons';
 import type { getT } from '@/lib/i18n/server';
 
 type T = Awaited<ReturnType<typeof getT>>['t'];
@@ -11,7 +11,7 @@ const tabs = [
   { href: '/me', key: 'navHome', Icon: IconDashboard },
   { href: '/me/events', key: 'navEvents', Icon: IconCalendar },
   { href: '/me/attendance', key: 'navAttendance', Icon: IconCheckCircle },
-  { href: '/me/account', key: 'navAccount', Icon: IconSettings },
+  { href: '/me/account', key: 'navAccount', Icon: IconUser },
 ] as const;
 
 export function MemberBottomNav({ t }: { t: T }) {
