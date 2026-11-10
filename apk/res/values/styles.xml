@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      The window behind the page, painted the same ink as the site itself.
+      Without it the first frame is a white sheet that flashes before the
+      dark page arrives, which on a phone reads as a fault.
+    -->
+    <style name="AppTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">#0A0908</item>
+        <item name="android:statusBarColor">#0A0908</item>
+        <item name="android:navigationBarColor">#0A0908</item>
+        <item name="android:colorPrimary">#0A0908</item>
+        <item name="android:colorAccent">#E4584A</item>
+    </style>
+</resources>

@@ -27,3 +27,12 @@ signing-key-info.txt
 
 # Claude transfer archives — never belong in the repo
 *.tgz
+
+# The Android wrapper's build output and its signing key. The key must be
+# kept (an update signed with a different one installs as a different app)
+# but it never belongs in the repository.
+/apk/build/
+/apk/keystore.jks
+*.apk
+/build-log.txt
+*.idsig
