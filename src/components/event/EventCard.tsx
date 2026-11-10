@@ -6,6 +6,7 @@ import type { EventStatus, EventType } from '@/lib/constants';
 import { formatDate, formatTime } from '@/lib/time';
 import { Badge, eventStatusTone } from '@/components/ui/status';
 import { IconGate, IconPin, IconUsers, IconClock } from '@/components/ui/icons';
+import { typeSkin } from '@/lib/event-type';
 
 export type EventCardData = {
   id: string;
@@ -41,18 +42,25 @@ export function EventCard({
   action?: ReactNode;
 }) {
   const status = event.status as EventStatus;
+  /*
+   * The kind of evening, worn as the card's own colour. The status chip keeps
+   * its own palette on top of it, which is the whole arrangement: the card
+   * says what this is, the chip says how it is going.
+   */
+  const skin = typeSkin(event.type);
 
   const card = (
     <Link
       href={href}
-      className={`panel lift group block p-4 hover:border-brand-600/45 hover:bg-ink-850 ${
+      style={skin.surface}
+      className={`panel lift group block p-4 hover:brightness-110 ${
         action ? 'pb-12' : ''
       }`}
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="truncate text-[15.5px] font-semibold text-ink-100">{event.name}</p>
-          <p className="mt-0.5 text-[12.5px] text-ink-400">
+          <p className="mt-0.5 text-[12.5px] font-semibold" style={skin.label}>
             {t.enums.eventType[event.type as EventType]}
           </p>
         </div>

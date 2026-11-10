@@ -72,7 +72,8 @@ export function Bars({
   barClassName = 'bg-brand-400',
   trackClassName = 'bg-ink-800',
 }: {
-  rows: { label: string; n: number }[];
+  /** `color` overrides the bar's class — used where the row's colour means something. */
+  rows: { label: string; n: number; color?: string }[];
   barClassName?: string;
   trackClassName?: string;
 }) {
@@ -84,8 +85,11 @@ export function Bars({
           <span className="w-[42%] shrink-0 truncate text-[12.5px]">{row.label}</span>
           <span className={`h-2 flex-1 overflow-hidden rounded-full ${trackClassName}`}>
             <span
-              className={`block h-full rounded-full ${barClassName}`}
-              style={{ width: `${Math.max(3, (row.n / top) * 100)}%` }}
+              className={`block h-full rounded-full ${row.color ? '' : barClassName}`}
+              style={{
+                width: `${Math.max(3, (row.n / top) * 100)}%`,
+                backgroundColor: row.color,
+              }}
             />
           </span>
           <span className="nums w-10 shrink-0 text-end text-[12.5px] font-semibold">

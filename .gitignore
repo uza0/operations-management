@@ -36,3 +36,4 @@ signing-key-info.txt
 *.apk
 /build-log.txt
 *.idsig
+/_to_delete/

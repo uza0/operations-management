@@ -174,6 +174,29 @@
   --info-soft: 233 238 243;
   --info-text: 30 74 106;
 
+  /*
+   * What kind of evening this is — a second colour language, kept apart from
+   * the first.
+   *
+   * Status already owns red, amber and green on this screen: a red badge
+   * means something is wrong. So the kinds borrow none of those hues except
+   * the green a football match earns by being a football match, and they are
+   * worn differently — a washed tint across the whole card, where status is
+   * a small saturated chip. One is the room's colour, the other is the lamp
+   * in it, and the eye learns the difference in a day.
+   */
+  --type-football: 32 134 86;
+  --type-concert: 178 58 140;
+  --type-festival: 124 78 200;
+  --type-exhibition: 20 134 128;
+  --type-conference: 42 108 176;
+  --type-workshop: 109 128 40;
+  --type-promotional: 192 108 36;
+  --type-other: 122 114 105;
+  /* How much of it reaches the card. Weaker on paper-white, where a wash
+     carries further than it does against near-black. */
+  --type-tint: 7%;
+
   /* Ticket Zone's own elevation ladder, read off their cards. */
   --shadow-panel: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
   --shadow-raised: 0 2px 4px 0 rgba(15, 14, 13, 0.04), 0 4px 8px 0 rgba(15, 14, 13, 0.08);
@@ -222,6 +245,17 @@
   --info-soft: 24 29 34;
   --info-text: 158 198 226;
 
+  /* The same kinds, lifted to stay legible against a near-black page. */
+  --type-football: 61 183 123;
+  --type-concert: 224 110 184;
+  --type-festival: 167 123 232;
+  --type-exhibition: 63 183 176;
+  --type-conference: 107 163 226;
+  --type-workshop: 166 190 76;
+  --type-promotional: 229 150 70;
+  --type-other: 150 143 134;
+  --type-tint: 12%;
+
   --shadow-panel: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
     0 12px 32px -18px rgba(0, 0, 0, 0.9);
   --shadow-raised: 0 2px 4px 0 rgba(0, 0, 0, 0.4), 0 4px 8px 0 rgba(0, 0, 0, 0.35);
@@ -268,6 +302,17 @@
     --crit-text: 252 165 165;
     --info-soft: 24 29 34;
     --info-text: 158 198 226;
+
+    /* The kinds, lifted for a near-black page — see the dark block above. */
+    --type-football: 61 183 123;
+    --type-concert: 224 110 184;
+    --type-festival: 167 123 232;
+    --type-exhibition: 63 183 176;
+    --type-conference: 107 163 226;
+    --type-workshop: 166 190 76;
+    --type-promotional: 229 150 70;
+    --type-other: 150 143 134;
+    --type-tint: 12%;
 
     --shadow-panel: 0 1px 0 0 rgba(255, 255, 255, 0.04) inset,
       0 12px 32px -18px rgba(0, 0, 0, 0.9);

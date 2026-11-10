@@ -61,6 +61,16 @@ const config: Config = {
           soft: 'rgb(var(--info-soft) / <alpha-value>)',
           text: 'rgb(var(--info-text) / <alpha-value>)',
         },
+        type: {
+          football: 'rgb(var(--type-football) / <alpha-value>)',
+          concert: 'rgb(var(--type-concert) / <alpha-value>)',
+          festival: 'rgb(var(--type-festival) / <alpha-value>)',
+          exhibition: 'rgb(var(--type-exhibition) / <alpha-value>)',
+          conference: 'rgb(var(--type-conference) / <alpha-value>)',
+          workshop: 'rgb(var(--type-workshop) / <alpha-value>)',
+          promotional: 'rgb(var(--type-promotional) / <alpha-value>)',
+          other: 'rgb(var(--type-other) / <alpha-value>)',
+        },
       },
       /*
        * Ticket Zone's geometry, named by what it holds rather than by size:

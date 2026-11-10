@@ -6,6 +6,7 @@ import { listEventsForUser } from '@/server/services/events';
 import { PageHeader, Panel } from '@/components/ui/panel';
 import { EmptyState } from '@/components/ui/states';
 import { EventCard } from '@/components/event/EventCard';
+import { TypeLegend } from '@/components/event/TypeLegend';
 import { DeleteEventButton } from '@/components/event/DeleteEventButton';
 import { IconCalendar, IconPlus } from '@/components/ui/icons';
 import { EVENT_STATUSES, type EventStatus } from '@/lib/constants';
@@ -99,6 +100,8 @@ export default async function AdminEventsPage({
           ))}
         </div>
       )}
+
+      {filtered.length ? <TypeLegend t={t} /> : null}
     </>
   );
 }

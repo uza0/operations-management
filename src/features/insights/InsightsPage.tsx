@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/ui/states';
 import { IconPrint } from '@/components/ui/icons';
 import { formatDateTime } from '@/lib/time';
 import { collectInsights, type Range } from '@/server/services/insights';
+import { typeColor } from '@/lib/event-type';
 import { RangePicker } from './RangePicker';
 import { Bars, Figure, MonthTable, money, num, pct, rangeLabel, spanLabel } from './parts';
 
@@ -85,6 +86,8 @@ export async function InsightsPage({ range }: { range: Range }) {
                       t.enums.eventType[row.key as keyof typeof t.enums.eventType] ??
                       row.key,
                     n: row.n,
+                    /* The same colour the cards wear, so one legend serves both. */
+                    color: typeColor(row.key),
                   }))}
                 />
               </div>
