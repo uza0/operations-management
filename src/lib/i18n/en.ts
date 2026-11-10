@@ -1651,6 +1651,32 @@ Any questions, message me.`,
     offlineDepartureHint: 'If your shift ends without internet, record your departure; it stays on this device until the connection returns or the supervisor approves.',
     retrySync: 'Retry sync',
   },
+  accountCheck: {
+    nav: 'Account check',
+    title: 'Team account check',
+    subtitle: 'Every active member against the company register — before the file is wanted, not while it is refused.',
+    checked: 'Members checked',
+    clean: 'Account fine',
+    blocking: 'Cannot be paid',
+    blockingHint: 'No card, or a card the register does not have',
+    allGood: 'Every account is fine',
+    allGoodHint: 'Every active member has a card number the company register knows.',
+    notRegistered: 'Card not in the company register',
+    notRegisteredWhy:
+      'The worst and the quietest. Their workbook turns a name into an account from the Promoters sheet; a name it does not know returns #N/A, the row pays nobody, and their own dashboard total skips him without a word. Nobody notices until he asks where his money is. Fix the number on his page, or have the company register it.',
+    noCard: 'No card number',
+    noCardWhy: 'There is no account to pay into at all. Any event he works will hold the file.',
+    duplicateName: 'The same name twice',
+    duplicateNameWhy:
+      'Usually one person added twice — once by the import and once by hand. His events split between the two records, and whichever one carries no card collects nothing. Open both and see which is right.',
+    cardShared: 'One card on several members',
+    cardSharedWhy:
+      'Sometimes true — a man with no card of his own uses a friend’s and they split it. Sometimes a number typed into the wrong person’s row, which pays one man twice and the other never. Read the names and decide.',
+    nameDiffers: 'The company spells his name differently',
+    nameDiffersWhy:
+      'Not a fault — the file goes out under their spelling so their lookup finds the account, and the transfer lands. But if the name looks unfamiliar, the card number may have been typed onto somebody else’s page.',
+  },
+
   insights: {
     nav: 'By the numbers',
     title: 'The system, by the numbers',

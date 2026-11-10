@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import { getT } from '@/lib/i18n/server';
 import { formatAmount } from '@/lib/money';
 import { format } from '@/lib/i18n';
@@ -52,7 +54,22 @@ export async function PaymentFilePage({
 
   return (
     <>
-      <PageHeader title={t.payment.title} subtitle={t.payment.subtitle} />
+      <PageHeader
+        title={t.payment.title}
+        subtitle={t.payment.subtitle}
+        action={
+          /*
+           * The roster check, reachable from here because here is where the
+           * question comes up — and it is the one screen that finds the
+           * person whose card was never registered before the week he works.
+           */
+          base === '/admin' ? (
+            <Link href="/admin/payments/accounts" className="btn-ghost btn-sm">
+              {t.accountCheck.nav}
+            </Link>
+          ) : undefined
+        }
+      />
 
       {!preview.template ? (
         <Notice tone="warn">{t.payment.templateNone}</Notice>

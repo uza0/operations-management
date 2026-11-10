@@ -148,7 +148,7 @@ export function sharedAccounts(register: Register) {
     .map(([account, names]) => ({ account, names }));
 }
 
-const fold = (name: string) =>
+export const fold = (name: string) =>
   name
     .toLowerCase()
     .replace(/[^a-z\u0600-\u06ff ]+/g, '')
