@@ -131,13 +131,54 @@ export function companyRegister(template: Buffer): Register {
   const rows = sheetText(template, PROMOTERS_SHEET);
   const out: Register = new Map();
   for (const row of rows.slice(1)) {
-    const name = (row[0] ?? '').trim();
+    /*
+     * Their spelling, kept exactly as their sheet holds it — spaces and all.
+     *
+     * The account column in their Events sheet is
+     * `VLOOKUP(C2, Promoters!A:B, 2, 0)`: an exact match, against this cell.
+     * So a name tidied on the way in is a name that no longer matches on the
+     * way out. One register row read "Ameer Dawood " with a trailing space;
+     * we wrote the tidy "Ameer Dawood", their lookup returned #N/A, the row
+     * paid nobody, and their dashboard skipped the man without a word.
+     *
+     * Only the account is trimmed, because it is a key we compare against
+     * our own card numbers rather than text we hand back to them.
+     */
+    const name = row[0] ?? '';
     const account = (row[1] ?? '').trim();
-    if (!account || !name) continue;
+    if (!account || !name.trim()) continue;
     const names = out.get(account) ?? [];
-    if (!names.includes(name)) names.push(name);
+    /*
+     * Deduped by the folded form, not the raw one: the same person listed
+     * twice, once with a stray space, is one person — and counting them as
+     * two would report a shared account to a screen that means something
+     * quite different by it.
+     */
+    if (!names.some((existing) => fold(existing) === fold(name))) names.push(name);
     out.set(account, names);
   }
+  return out;
+}
+
+/**
+ * Register rows whose name carries whitespace their own lookup will choke on.
+ *
+ * Harmless to us now — we write their spelling back verbatim — but it is
+ * worth showing, because the same stray space breaks anything else that
+ * matches on that name, including a row somebody types into their sheet by
+ * hand.
+ */
+export function registerSpacing(template: Buffer) {
+  const rows = sheetText(template, PROMOTERS_SHEET);
+  const out: { name: string; account: string; row: number }[] = [];
+  rows.slice(1).forEach((row, index) => {
+    const name = row[0] ?? '';
+    const account = (row[1] ?? '').trim();
+    if (!account || !name.trim()) return;
+    if (name !== name.trim() || /\s{2,}/.test(name)) {
+      out.push({ name, account, row: index + 2 });
+    }
+  });
   return out;
 }
 

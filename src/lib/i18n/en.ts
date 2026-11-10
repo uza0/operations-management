@@ -1672,6 +1672,9 @@ Any questions, message me.`,
     cardShared: 'One card on several members',
     cardSharedWhy:
       'Sometimes true — a man with no card of his own uses a friend’s and they split it. Sometimes a number typed into the wrong person’s row, which pays one man twice and the other never. Read the names and decide.',
+    registerSpacing: 'Register names with a stray space',
+    registerSpacingWhy:
+      'This is what made one account come back as #N/A. Their account column is an exact VLOOKUP on the name, so one trailing space is enough to miss. The system now writes their spelling back verbatim — space and all — so the file is right without touching their workbook. These are the rows, in case they want to clean them.',
     nameDiffers: 'The company spells his name differently',
     nameDiffersWhy:
       'Not a fault — the file goes out under their spelling so their lookup finds the account, and the transfer lands. But if the name looks unfamiliar, the card number may have been typed onto somebody else’s page.',

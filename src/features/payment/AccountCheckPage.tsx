@@ -133,6 +133,28 @@ export async function AccountCheckPage() {
           />
 
           <Section
+            title={c.registerSpacing}
+            why={c.registerSpacingWhy}
+            rows={group('REGISTER_SPACING')}
+            show={(issue) =>
+              issue.kind === 'REGISTER_SPACING' ? (
+                <li key={issue.row} className="flex flex-wrap items-center gap-x-3 px-4 py-2.5">
+                  {/*
+                    Quoted, because the whole point is a space at the end that
+                    is invisible everywhere else — including here, unless it
+                    has something to sit against.
+                  */}
+                  <span className="text-[13.5px] text-ink-100" style={{ unicodeBidi: 'plaintext' }}>
+                    «{issue.name}»
+                  </span>
+                  <span className="nums text-[12.5px] text-ink-400">{issue.card}</span>
+                  <span className="nums text-[12px] text-ink-500">Promoters!A{issue.row}</span>
+                </li>
+              ) : null
+            }
+          />
+
+          <Section
             title={c.nameDiffers}
             why={c.nameDiffersWhy}
             rows={group('NAME_DIFFERS')}

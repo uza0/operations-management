@@ -9,6 +9,7 @@ import {
   companyRegister,
   fold,
   registerName,
+  registerSpacing,
   type Register,
 } from '@/server/services/payment-file';
 
@@ -46,7 +47,9 @@ export type AccountIssue =
   /** One card on more than one person in this system. */
   | { kind: 'CARD_SHARED'; card: string; names: string[]; ids: string[] }
   /** The same name twice on the roster — one of them collects nothing. */
-  | { kind: 'DUPLICATE_NAME'; name: string; codes: string[]; ids: string[] };
+  | { kind: 'DUPLICATE_NAME'; name: string; codes: string[]; ids: string[] }
+  /** A register row whose own name carries a stray space. */
+  | { kind: 'REGISTER_SPACING'; name: string; card: string; row: number };
 
 export type AccountCheck = {
   /** Null when nobody has uploaded the company's workbook yet. */
@@ -160,6 +163,7 @@ const ORDER: Record<AccountIssue['kind'], number> = {
   DUPLICATE_NAME: 2,
   CARD_SHARED: 3,
   NAME_DIFFERS: 4,
+  REGISTER_SPACING: 5,
 };
 
 export async function accountCheck(): Promise<AccountCheck> {
@@ -181,8 +185,19 @@ export async function accountCheck(): Promise<AccountCheck> {
     return { template: null, checked: people.length, clean: 0, issues: [] };
   }
 
-  const register = companyRegister(Buffer.from(templateRow.bytes as Buffer));
-  const issues = scan(people, register).sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
+  const bytes = Buffer.from(templateRow.bytes as Buffer);
+  const register = companyRegister(bytes);
+  const issues = [
+    ...scan(people, register),
+    ...registerSpacing(bytes).map(
+      (row): AccountIssue => ({
+        kind: 'REGISTER_SPACING',
+        name: row.name,
+        card: row.account,
+        row: row.row,
+      }),
+    ),
+  ].sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
 
   /*
    * Clean means "would be paid correctly today": a card the register knows,
