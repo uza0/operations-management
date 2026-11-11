@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
+import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
 import { formatDate, formatTime } from '@/lib/time';
 import { currentMember, touchMemberSession } from '@/server/services/member-auth';
@@ -13,7 +14,7 @@ import {
   sendDueReminders,
   sweepInBackground,
 } from '@/server/services/push';
-import { advanceEvents } from '@/server/services/lifecycle';
+import { advanceEvents, nagAboutClosing } from '@/server/services/lifecycle';
 
 import { MemberShell } from '../member/[token]/MemberShell';
 import { AttendanceScoreCard } from './AttendanceScoreCard';
@@ -55,6 +56,17 @@ export default async function MemberHomePage() {
     const { t: text } = await getT();
     /* The stages the clock decides, then the reminders. See /api/push/due. */
     await advanceEvents();
+    await nagAboutClosing((nag) => ({
+      title: text.push.closingTitle,
+      body:
+        nag.rung === '2h' || nag.rung === '1d'
+          ? format(text.push.closingBody, { event: nag.name, n: nag.people })
+          : format(text.push.closingBodyLate, {
+              event: nag.name,
+              n: nag.people,
+              days: Math.floor(nag.hours / 24),
+            }),
+    }));
     await sendDueReminders(reminderText(text));
   });
 

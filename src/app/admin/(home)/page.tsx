@@ -8,7 +8,7 @@ import { getT } from '@/lib/i18n/server';
 import { listEventsForUser } from '@/server/services/events';
 import { listRecentAudit } from '@/server/services/audit';
 import { PageHeader, Panel, StatTile } from '@/components/ui/panel';
-import { EmptyState } from '@/components/ui/states';
+import { EmptyState, Notice } from '@/components/ui/states';
 import { EventCard } from '@/components/event/EventCard';
 import {
   IconAlert,
@@ -68,6 +68,13 @@ export default async function AdminDashboard() {
   const unsent = unsentRows.map((row) => byId.get(row.id)).filter((e) => e !== undefined);
   const unclosed = unclosedRows.map((row) => byId.get(row.id)).filter((e) => e !== undefined);
 
+  /*
+   * Three days of a crew's money standing still is no longer an item in a
+   * list. It sits at the top of the page until somebody marks the names.
+   */
+  const DAY = 24 * 60 * 60 * 1000;
+  const stale = unclosedRows.filter((row) => Date.now() - (row.ended + row.grace) >= 3 * DAY);
+
   const attentionItems = [
     ...unsent.map((event) => ({
       key: `unsent-${event.id}`,
@@ -114,6 +121,12 @@ export default async function AdminDashboard() {
 
   return (
     <>
+      {stale.length > 0 ? (
+        <div className="mb-4">
+          <Notice tone="crit">{format(t.dashboard.closingBanner, { n: stale.length })}</Notice>
+        </div>
+      ) : null}
+
       <PageHeader
         title={t.dashboard.title}
         subtitle={t.dashboard.subtitle}

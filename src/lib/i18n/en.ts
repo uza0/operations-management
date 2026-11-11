@@ -141,6 +141,7 @@ export const en: Dictionary = {
     usernameTaken: 'That username is already in use',
   },
   dashboard: {
+    closingBanner: '{n} events are over and not closed — attendance is unfinished and the crew\u2019s money is held.',
     attentionNeverSent: 'The crew was due and it was never made ready — nobody was sent it',
     attentionNeedsClosing: 'Over but not closed — attendance unfinished and the money is held',
     title: 'Operations dashboard',
@@ -800,6 +801,9 @@ Any questions, message me.`,
     paidToHint: 'If the money was handed to a member of the team, name him — the payment file puts it on his own row. Leave it general when it was spent on the night itself.',
   },
   push: {
+    closingTitle: 'An event has not closed',
+    closingBody: '“{event}” is over and {n} people are unmarked. Their money is held until you mark them.',
+    closingBodyLate: '“{event}” has been open {days} days — {n} unmarked and their money is held.',
     title: 'Notifications',
     hint: 'We tell you when you are added to an event, an hour before you are due, when your money goes out, and when the people running the night say something.',
     enable: 'Turn notifications on',

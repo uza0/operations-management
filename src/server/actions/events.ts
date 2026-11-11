@@ -532,18 +532,19 @@ export async function changeEventStatusAction(
   });
 
   /*
-   * Leaving the draft is the moment the evening becomes real.
+   * Being made ready is the moment the evening becomes theirs.
    *
    * Until then it is invisible to the crew on purpose: the date moves, the
-   * gates are undecided, half the names on it come off again. The moment it
-   * stops being a draft it appears on their pages, so that is the moment
-   * their phones should say so rather than leaving them to notice.
+   * gates are undecided, half the names on it come off again. READY is a
+   * person saying the evening is settled, and it is the stage their pages
+   * begin showing it at — so it is the stage their phones should say so,
+   * rather than leaving them to find it.
    *
    * Keyed per membership, and sent once ever. Whoever is on the event now
    * hears it here; anybody added later hears it when his invitation goes out,
    * and a man who is on it for both of those hears it exactly once.
    */
-  if (from === 'DRAFT' && next !== 'DRAFT') {
+  if (next === 'READY' && from !== 'READY') {
     try {
       const crew = await db
         .select({ id: eventMembers.id, teamMemberId: eventMembers.teamMemberId })

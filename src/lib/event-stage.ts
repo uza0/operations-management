@@ -17,6 +17,27 @@ import type { EventStatus } from '@/lib/constants';
  */
 export type DisplayStage = EventStatus | 'NEEDS_CLOSING';
 
+/** The moment an evening's work ended, and the grace it is given after it. */
+export function endedAt(event: {
+  date: string;
+  startTime: string;
+  teamDepartureTime?: string | null;
+}): { ended: number; grace: number } {
+  const clock = event.teamDepartureTime || event.startTime;
+  const crossesMidnight = Boolean(
+    event.teamDepartureTime && event.teamDepartureTime < event.startTime,
+  );
+  return {
+    ended: momentOfBaghdad(event.date, clock, crossesMidnight ? 1 : 0),
+    /*
+     * Without a departure time the night is judged eight hours after it began
+     * rather than two after it ended — generous on purpose, because calling a
+     * running event over is the one mistake this must not make.
+     */
+    grace: event.teamDepartureTime ? 2 * 60 * 60 * 1000 : 8 * 60 * 60 * 1000,
+  };
+}
+
 export function displayStage(event: {
   status: string;
   date: string;
@@ -25,17 +46,6 @@ export function displayStage(event: {
 }, now = Date.now()): DisplayStage {
   if (event.status !== 'LIVE') return event.status as EventStatus;
 
-  /*
-   * Departure is optional. Without it the night is judged eight hours after
-   * it began rather than two after it ended — generous on purpose, because
-   * calling a running event over is the one mistake this must not make.
-   */
-  const clock = event.teamDepartureTime || event.startTime;
-  const crossesMidnight = Boolean(
-    event.teamDepartureTime && event.teamDepartureTime < event.startTime,
-  );
-  const ended = momentOfBaghdad(event.date, clock, crossesMidnight ? 1 : 0);
-  const grace = event.teamDepartureTime ? 2 * 60 * 60 * 1000 : 8 * 60 * 60 * 1000;
-
+  const { ended, grace } = endedAt(event);
   return ended + grace <= now ? 'NEEDS_CLOSING' : 'LIVE';
 }

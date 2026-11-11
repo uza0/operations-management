@@ -59,6 +59,17 @@ export const EVENT_STATUSES = [
 ] as const;
 export type EventStatus = (typeof EVENT_STATUSES)[number];
 
+/**
+ * The stages an evening is still being built in, and so is nobody's but the
+ * office's.
+ *
+ * A promoter sees an event from READY onwards and not a moment before: that
+ * is the point somebody deliberately says the evening is settled, and the
+ * point his phone is told about it. Before it, the date moves and half the
+ * crew on it comes off again.
+ */
+export const HIDDEN_FROM_CREW: string[] = ['DRAFT', 'PLANNING'];
+
 /** Allowed lifecycle moves. Anything else is rejected server-side. */
 export const EVENT_STATUS_FLOW: Record<EventStatus, EventStatus[]> = {
   DRAFT: ['PLANNING', 'ARCHIVED'],

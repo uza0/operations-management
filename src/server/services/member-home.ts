@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, asc, desc, eq, isNotNull, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -11,6 +11,7 @@ import {
   teamMembers,
   venues,
 } from '@/db/schema';
+import { HIDDEN_FROM_CREW } from '@/lib/constants';
 import { ARRIVAL_WINDOW_HOURS, seatStageFor } from '@/lib/journey';
 import { SEAT_SETUP_PAY } from '@/lib/money';
 
@@ -98,7 +99,7 @@ export async function getMemberHome(teamMemberId: string) {
       and(
         eq(eventMembers.teamMemberId, teamMemberId),
         ne(eventMembers.status, 'CANCELLED'),
-        eq(events.status, 'DRAFT'),
+        inArray(events.status, HIDDEN_FROM_CREW),
         eq(seatSetupDetails.status, 'READY'),
         isNotNull(seatSetupMembers.notifiedAt),
       ),
@@ -111,12 +112,15 @@ export async function getMemberHome(teamMemberId: string) {
    * is dropped rather than shown greyed out — he is not on that event, and a
    * line saying so is one more thing to read at a gate.
    *
-   * A draft is dropped too, and for a stronger reason. A draft is an evening
-   * somebody is still building: the date moves, the gates are not decided,
+   * An evening still being built is dropped too, and for a stronger reason.
+   * Until somebody calls it ready the date moves, the gates are undecided and
    * half the crew on it will be taken off again. A promoter who sees one puts
    * it in his week and arranges his life around it, and the first he hears
-   * that it was never real is when it quietly disappears. It becomes his
-   * business the moment it stops being a draft.
+   * that it was never real is when it quietly disappears.
+   *
+   * So it becomes his business at READY, not before — which is the moment a
+   * person deliberately says the evening is settled, and the moment his phone
+   * is told about it.
    */
   const live = [];
   const upcoming = [];
@@ -124,7 +128,7 @@ export async function getMemberHome(teamMemberId: string) {
 
   for (const raw of rows) {
     if (raw.status === 'CANCELLED') continue;
-    if (raw.eventStatus === 'DRAFT') continue;
+    if (HIDDEN_FROM_CREW.includes(raw.eventStatus)) continue;
     /* The id itself is the office's business; he only needs the fact. */
     const { payoutId, ...rest } = raw;
     const row = { ...rest, paid: payoutId !== null };

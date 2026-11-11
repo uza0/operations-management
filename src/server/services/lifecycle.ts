@@ -4,16 +4,20 @@ import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
+  eventAccess,
   eventExpenses,
   eventMembers,
   events,
   gates,
   teamMembers,
+  users,
   workingPoints,
 } from '@/db/schema';
 import { recordAudit } from '@/server/services/audit';
+import { pushOnce } from '@/server/services/push';
 import { momentOfBaghdad } from '@/lib/time';
-import { displayStage } from '@/lib/event-stage';
+import { displayStage, endedAt } from '@/lib/event-stage';
+import { unmarkedAttendance } from '@/server/services/seat-setup';
 import type { EventStatus } from '@/lib/constants';
 
 /**
@@ -199,7 +203,30 @@ export async function needsClosing(now = Date.now()) {
     .all();
 
   /* The same judgement the badge makes, so the two can never disagree. */
-  return rows.filter((row) => displayStage(row, now) === 'NEEDS_CLOSING');
+  return rows
+    .filter((row) => displayStage(row, now) === 'NEEDS_CLOSING')
+    .map((row) => ({ ...row, ...endedAt(row) }));
+}
+
+/**
+ * Finished evenings whose record is finished too.
+ *
+ * This is the one transition a clock may not make on its own, and the reason
+ * is in the closing itself: the moment an evening is COMPLETED every person
+ * nobody marked becomes a zero and every person marked becomes money owed.
+ * So the clock may only finish what a person already finished — if a single
+ * name on the night or on the chair afternoon is still unmarked, the evening
+ * stays open and somebody is told about it instead.
+ */
+export async function closable(now = Date.now()) {
+  const over = await needsClosing(now);
+  const checked = await Promise.all(
+    over.map(async (row) => {
+      const open = await unmarkedAttendance(row.id);
+      return { row, open, clean: open.event.length === 0 && open.seats.length === 0 };
+    }),
+  );
+  return checked;
 }
 
 /**
@@ -209,15 +236,18 @@ export async function needsClosing(now = Date.now()) {
  * a transition nobody can see is indistinguishable from a bug.
  */
 export async function advanceEvents(now = Date.now()): Promise<Advance[]> {
-  const [drafts, due, paid] = await Promise.all([
+  const [drafts, due, paid, over] = await Promise.all([
     draftsWithSomewhereToStand(),
     readyAndDue(now),
     paidInFull(),
+    closable(now),
   ]);
 
   const moves: { ids: string[]; from: EventStatus; to: EventStatus }[] = [
     { ids: drafts, from: 'DRAFT', to: 'PLANNING' },
     { ids: due, from: 'READY', to: 'LIVE' },
+    /* Only the nights whose attendance a person already finished. */
+    { ids: over.filter((e) => e.clean).map((e) => e.row.id), from: 'LIVE', to: 'COMPLETED' },
     { ids: paid, from: 'COMPLETED', to: 'ARCHIVED' },
   ];
 
@@ -268,4 +298,94 @@ export async function advanceEvents(now = Date.now()): Promise<Advance[]> {
   }
 
   return done;
+}
+
+/* -------------------------------------------------------------------------- */
+/* nagging about the ones that cannot close                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The rungs of the ladder, in hours after the evening ended.
+ *
+ * Four of them, and the gaps widen on purpose. The first is a nudge while the
+ * night is still in somebody's head; the last is three days of a man's money
+ * standing still, and by then it is no longer the leader's problem alone.
+ */
+const LADDER = [
+  { key: '2h', after: 2 },
+  { key: '1d', after: 24 },
+  { key: '3d', after: 72 },
+  { key: '7d', after: 168 },
+] as const;
+
+export type ClosingNag = {
+  eventId: string;
+  name: string;
+  /** Which rung this is, so the wording can get firmer. */
+  rung: (typeof LADDER)[number]['key'];
+  people: number;
+  hours: number;
+};
+
+/**
+ * Who has to hear that an evening will not close.
+ *
+ * The leaders of that event, because they are the ones who can mark the
+ * names — and only those of them the system can actually reach on a phone,
+ * which means a staff account linked to a crew record. Everybody else finds
+ * out from the dashboard, which is where the supervisor is looking anyway.
+ */
+async function leadersOf(eventId: string): Promise<string[]> {
+  const rows = await db
+    .select({ teamMemberId: users.teamMemberId })
+    .from(eventAccess)
+    .innerJoin(users, eq(eventAccess.userId, users.id))
+    .where(and(eq(eventAccess.eventId, eventId), isNull(eventAccess.gateId)))
+    .all();
+  return rows
+    .map((row) => row.teamMemberId)
+    .filter((id): id is string => Boolean(id));
+}
+
+/**
+ * Tells whoever can fix it that an evening is still open, once per rung.
+ *
+ * Keyed by event and rung, so a sweep that runs forty times a day sends four
+ * messages over a week rather than forty a day — the surest way to make a
+ * reminder invisible is to repeat it.
+ */
+export async function nagAboutClosing(
+  message: (nag: ClosingNag) => { title: string; body: string },
+  now = Date.now(),
+): Promise<ClosingNag[]> {
+  const over = await closable(now);
+  const sent: ClosingNag[] = [];
+
+  for (const { row, open, clean } of over) {
+    if (clean) continue;
+    const hours = Math.floor((now - (row.ended + row.grace)) / (60 * 60 * 1000));
+    const rung = [...LADDER].reverse().find((step) => hours >= step.after);
+    if (!rung) continue;
+
+    const nag: ClosingNag = {
+      eventId: row.id,
+      name: row.name,
+      rung: rung.key,
+      people: open.event.length + open.seats.length,
+      hours,
+    };
+    const leaders = await leadersOf(row.id);
+    if (leaders.length === 0) continue;
+
+    const text = message(nag);
+    const went = await pushOnce(`closing:${row.id}:${rung.key}`, leaders, {
+      title: text.title,
+      body: text.body,
+      url: `/leader/events/${row.id}/attendance`,
+      tag: `closing:${row.id}`,
+    });
+    if (went) sent.push(nag);
+  }
+
+  return sent;
 }

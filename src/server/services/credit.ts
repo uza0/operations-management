@@ -1,8 +1,9 @@
 import 'server-only';
 
-import { and, eq, gte, inArray, lte, ne } from 'drizzle-orm';
+import { and, eq, gte, inArray, lte, ne, notInArray } from 'drizzle-orm';
 
 import { db } from '@/db';
+import { HIDDEN_FROM_CREW } from '@/lib/constants';
 import {
   assignments,
   attendance,
@@ -202,10 +203,15 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
    * hidden from the man's page and its money was still sitting in "قيد
    * الاحتساب", a number with nothing behind it to explain it.
    *
-   * Nothing settled can be caught by this. The only road back to a draft is
-   * from planning, so a draft has never been worked, let alone paid.
+   * Planning is in the same list now, for the same reason and by the same
+   * rule the crew's own pages use: an evening is theirs from READY, and a
+   * figure for one they cannot see is the exact complaint this comment was
+   * written about.
+   *
+   * Nothing settled can be caught by this. The road onward from planning is
+   * one way, so neither stage has ever been worked, let alone paid.
    */
-  const conditions = [ne(events.status, 'DRAFT')];
+  const conditions = [notInArray(events.status, HIDDEN_FROM_CREW)];
   if (where.memberIds && where.memberIds.length > 0) {
     conditions.push(inArray(eventMembers.teamMemberId, where.memberIds));
   }

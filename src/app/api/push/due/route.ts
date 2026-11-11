@@ -1,6 +1,7 @@
 import { getT } from '@/lib/i18n/server';
 import { reminderText, sendDueReminders } from '@/server/services/push';
-import { advanceEvents } from '@/server/services/lifecycle';
+import { advanceEvents, nagAboutClosing } from '@/server/services/lifecycle';
+import { format } from '@/lib/i18n';
 
 /**
  * The clock reminders, for whoever is due, late to press, or about to leave.
@@ -29,9 +30,20 @@ export async function GET() {
    * other order leaves it a run behind.
    */
   const moved = await advanceEvents();
+  const nagged = await nagAboutClosing((nag) => ({
+    title: t.push.closingTitle,
+    body:
+      nag.rung === '2h' || nag.rung === '1d'
+        ? format(t.push.closingBody, { event: nag.name, n: nag.people })
+        : format(t.push.closingBodyLate, {
+            event: nag.name,
+            n: nag.people,
+            days: Math.floor(nag.hours / 24),
+          }),
+  }));
   const result = await sendDueReminders(reminderText(t));
   return Response.json(
-    { ...result, moved: moved.length },
+    { ...result, moved: moved.length, nagged: nagged.length },
     { headers: { 'Cache-Control': 'no-store' } },
   );
 }
