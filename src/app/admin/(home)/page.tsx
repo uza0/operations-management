@@ -26,6 +26,18 @@ import { format } from '@/lib/i18n';
 import type { AuditAction } from '@/lib/constants';
 
 export default async function AdminDashboard() {
+  /*
+   * The clock, ticked from the office too.
+   *
+   * It used to tick only on a promoter's page and on whatever cron fires,
+   * which meant a supervisor could watch an evening sit at READY an hour
+   * after its crew was due — the one screen where that is most obvious was
+   * the one screen that never moved it.
+   */
+  sweepInBackground(async () => {
+    await advanceEvents();
+  });
+
   const user = await requireRole('ADMIN');
   const { locale, t } = await getT();
 
