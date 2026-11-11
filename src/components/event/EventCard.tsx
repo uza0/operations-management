@@ -59,7 +59,7 @@ export function EventCard({
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate text-[15.5px] font-semibold text-ink-100">{event.name}</p>
+          <p className="line-clamp-2 text-[15.5px] font-semibold text-ink-100">{event.name}</p>
           <p className="mt-0.5 text-[12.5px] font-semibold" style={skin.label}>
             {t.enums.eventType[event.type as EventType]}
           </p>

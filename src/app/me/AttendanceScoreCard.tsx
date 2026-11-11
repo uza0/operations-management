@@ -6,7 +6,24 @@ import type { getT } from '@/lib/i18n/server';
 type Score = Awaited<ReturnType<typeof getMemberAttendanceScore>>;
 type T = Awaited<ReturnType<typeof getT>>['t'];
 
-export function AttendanceScoreCard({ score, t }: { score: Score; t: T }) {
+/**
+ * How much of his own attendance he records himself.
+ *
+ * Shown in two places and therefore in two sizes. The attendance screen is
+ * where somebody goes to look at this, so it explains itself in full. His
+ * home page is not: there it is a reminder, and a reminder that repeats the
+ * same four lines he read on the other screen is a reminder he stops seeing.
+ */
+export function AttendanceScoreCard({
+  score,
+  t,
+  compact = false,
+}: {
+  score: Score;
+  t: T;
+  /** The home page's version: the figure, the bar, and what to do about it. */
+  compact?: boolean;
+}) {
   const level =
     score.total === 0
       ? null
@@ -25,7 +42,9 @@ export function AttendanceScoreCard({ score, t }: { score: Score; t: T }) {
           <h2 id="attendance-score-title" className="text-[14.5px] font-bold text-ink-100">
             {t.member.attendanceScoreTitle}
           </h2>
-          <p className="mt-1 text-[12.5px] leading-5 text-ink-400">{t.member.attendanceScoreHint}</p>
+          {compact ? null : (
+            <p className="mt-1 text-[12.5px] leading-5 text-ink-400">{t.member.attendanceScoreHint}</p>
+          )}
         </div>
         {level ? <Badge tone={level.tone}>{level.label}</Badge> : null}
       </div>
@@ -45,11 +64,13 @@ export function AttendanceScoreCard({ score, t }: { score: Score; t: T }) {
             <div className="h-full rounded-full bg-brand-500 transition-[width] duration-300" style={{ width: `${score.percentage}%` }} />
           </div>
           {level ? <p className="mt-2 text-[12.5px] text-ink-400">{level.hint}</p> : null}
-          <p className="mt-2 border-t border-ink-700 pt-2 text-[12.5px] font-medium leading-5 text-ink-300">
-            {score.rank !== null
-              ? format(score.rank === 1 ? t.member.attendanceRankTop : t.member.attendanceRankPosition, { rank: score.rank, total: score.rankedPromoters })
-              : t.member.attendanceRankPending}
-          </p>
+          {compact ? null : (
+            <p className="mt-2 border-t border-ink-700 pt-2 text-[12.5px] font-medium leading-5 text-ink-300">
+              {score.rank !== null
+                ? format(score.rank === 1 ? t.member.attendanceRankTop : t.member.attendanceRankPosition, { rank: score.rank, total: score.rankedPromoters })
+                : t.member.attendanceRankPending}
+            </p>
+          )}
         </>
       )}
     </section>

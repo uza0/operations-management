@@ -105,7 +105,7 @@ export default async function MemberHomePage() {
         ) : null}
       </section>
 
-      <AttendanceScoreCard score={attendanceScore} t={t} />
+      <AttendanceScoreCard score={attendanceScore} t={t} compact />
       <Link href="/me/events" className="btn-ghost btn-sm w-full text-center">{t.memberAuth.myEvents}</Link>
 
       {nextSeat || nextEvent ? (
@@ -141,7 +141,21 @@ export default async function MemberHomePage() {
         </section>
       ) : null}
 
-      {empty ? <section className="rounded-card border border-ink-700 bg-ink-850 p-5 text-center"><p className="text-[13.5px] leading-6 text-ink-400">{t.memberAuth.none}</p></section> : null}
+      {/*
+        Nothing on, and nothing coming. Two different sentences, because a
+        promoter with seven finished nights behind him is not somebody with
+        no events — telling him so is the screen contradicting his own
+        history, and the page used to say nothing at all instead.
+      */}
+      {empty ? (
+        <section className="rounded-card border border-ink-700 bg-ink-850 p-5 text-center">
+          <p className="text-[13.5px] leading-6 text-ink-400">{t.memberAuth.none}</p>
+        </section>
+      ) : !nextSeat && !nextEvent ? (
+        <section className="rounded-card border border-ink-700 bg-ink-850 p-5 text-center">
+          <p className="text-[13.5px] leading-6 text-ink-400">{t.memberAuth.noneUpcoming}</p>
+        </section>
+      ) : null}
 
       {/*
         Said on his own page rather than as a banner that follows him around:

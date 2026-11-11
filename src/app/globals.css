@@ -251,8 +251,8 @@
   --type-festival: 167 123 232;
   --type-exhibition: 63 183 176;
   --type-conference: 107 163 226;
-  --type-workshop: 166 190 76;
-  --type-promotional: 229 150 70;
+  --type-workshop: 150 170 68;
+  --type-promotional: 222 145 68;
   --type-other: 150 143 134;
   --type-tint: 12%;
 
@@ -309,8 +309,8 @@
     --type-festival: 167 123 232;
     --type-exhibition: 63 183 176;
     --type-conference: 107 163 226;
-    --type-workshop: 166 190 76;
-    --type-promotional: 229 150 70;
+    --type-workshop: 150 170 68;
+    --type-promotional: 222 145 68;
     --type-other: 150 143 134;
     --type-tint: 12%;
 

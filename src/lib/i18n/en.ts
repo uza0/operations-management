@@ -611,6 +611,7 @@ export const en: Dictionary = {
     upcoming: 'Coming up',
     past: 'Finished',
     none: 'No events yet. They appear here as soon as you are invited.',
+    noneUpcoming: 'Nothing coming up. Your past events are kept under “My events”.',
     nextStep: 'Your next step',
     nextStepSeat: 'You have a chair setup shift for this event.',
     nextStepSeatInvite: 'Review the invitation and confirm if you can make it.',
