@@ -583,3 +583,80 @@ export function repairComputedTable(
   entries[index] = { name: part, data: Buffer.from(xml, 'utf8') };
   return { buffer: zipAll(recalculate(entries)), repairs };
 }
+
+/* -------------------------------------------------------------------------- */
+/* correcting a check that counts our own total                               */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Replaces the formula in one cell of one sheet, keeping its style.
+ *
+ * Used for a single cell of their `Checks` tab, and meant for nothing wider.
+ * Their checks are the reason the file is trusted on the first read, so the
+ * rule is that we do not touch them — with one exception, which is a check
+ * that has been made wrong by something we ourselves write.
+ *
+ * Silent when the cell is not there. A new template that moved the check is
+ * not a reason to refuse the week's payments; it is a reason to leave their
+ * formula exactly as they wrote it.
+ */
+export function rewriteFormula(
+  template: Buffer,
+  sheet: string,
+  ref: string,
+  formula: string,
+): Buffer {
+  const entries = unzipAll(template);
+  const part = sheetParts(entries).get(sheet);
+  if (!part) return template;
+
+  const index = entries.findIndex((e) => e.name === part);
+  if (index < 0) return template;
+
+  const xml = entries[index].data.toString('utf8');
+  const cell = new RegExp(`<c\\b[^>]*?\\br="${ref}"[^>]*?(?:/>|>[\\s\\S]*?</c>)`).exec(xml);
+  if (!cell || !/<f\b/.test(cell[0])) return template;
+
+  const style = /\bs="(\d+)"/.exec(cell[0])?.[1];
+  entries[index] = {
+    name: part,
+    data: Buffer.from(
+      xml.slice(0, cell.index) +
+        `<c r="${ref}"${style ? ` s="${style}"` : ''}><f>${escapeXml(formula)}</f></c>` +
+        xml.slice(cell.index + cell[0].length),
+      'utf8',
+    ),
+  };
+  return Buffer.from(zipAll(entries));
+}
+
+/**
+ * Widens one range, everywhere a formula in the book refers to it.
+ *
+ * Their sheets were written for a week somebody typed in by hand, and several
+ * of them read a fixed block of rows — fifteen on the costs sheet. A week
+ * that fills more rows than that is not refused and not warned about: the
+ * rows below the block are simply not seen by the formulas that total them,
+ * and two sides of their own comparison go quietly wrong together.
+ *
+ * Only text inside `<f>` is touched, and only this exact reference, so a
+ * range that happens to look like it in a label or a defined name is left
+ * alone. Both ends of a comparison must be widened in the same call, or the
+ * check they feed starts reporting a difference that is ours.
+ */
+export function widenReference(template: Buffer, from: string, to: string): Buffer {
+  const entries = unzipAll(template);
+  const parts = new Set(sheetParts(entries).values());
+  let touched = false;
+
+  for (const entry of entries) {
+    if (!parts.has(entry.name)) continue;
+    const xml = entry.data.toString('utf8');
+    const next = xml.replace(/<f\b[^>]*>[\s\S]*?<\/f>/g, (f) => f.split(from).join(to));
+    if (next === xml) continue;
+    entry.data = Buffer.from(next, 'utf8');
+    touched = true;
+  }
+
+  return touched ? Buffer.from(zipAll(entries)) : template;
+}

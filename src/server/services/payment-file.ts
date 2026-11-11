@@ -13,7 +13,14 @@ import {
   teamMembers,
 } from '@/db/schema';
 import { CLOSED_STATUSES, effectiveRate } from './credit';
-import { excelDate, fillTemplate, unzipAll, type CellValue } from './xlsx-template';
+import {
+  excelDate,
+  fillTemplate,
+  rewriteFormula,
+  unzipAll,
+  widenReference,
+  type CellValue,
+} from './xlsx-template';
 
 /**
  * The weekly payment file, filled from what the system already knows.
@@ -43,6 +50,48 @@ import { expenseAccount, type ExpenseAccount } from '@/server/services/settings'
 export const EVENTS_SHEET = 'Events';
 export const EXPENSES_SHEET = 'Expenses';
 export const EVENT_LIST_SHEET = 'Event List';
+export const CHECKS_SHEET = 'Checks';
+
+/**
+ * How far down the costs sheet their formulas look.
+ *
+ * Fifteen rows, in a form that was filled in by hand. The Dashboard totals a
+ * night's costs over that block and the Checks tab compares the result with
+ * the costs sheet, so a week with more than fourteen cost lines was losing
+ * the rest from both figures at once — agreeing with itself, and wrong. The
+ * block is widened on every sheet that reads it, in one place, so the two
+ * sides cannot drift apart.
+ */
+const COSTS_LAST = 400;
+const COSTS_WIDENED: [string, string][] = [
+  [`${EXPENSES_SHEET}!$E$2:$E$15`, `${EXPENSES_SHEET}!$E$2:$E$${COSTS_LAST}`],
+  [`${EXPENSES_SHEET}!$D$2:$D$15`, `${EXPENSES_SHEET}!$D$2:$D$${COSTS_LAST}`],
+];
+
+/**
+ * Their audit of the costs, and the one formula of theirs we rewrite.
+ *
+ * `Checks!B15` totals the Expenses sheet and compares it against the costs
+ * the Dashboard found, so that a cost typed on one sheet and not the other is
+ * caught before anybody transfers anything. It was written as a plain sum of
+ * the amount column over a fixed block of rows — which was right while a
+ * person typed the lines in and stopped.
+ *
+ * We now write a `الإجمالي / Total` line at the foot of those costs, and the
+ * sum counts it as one more cost. The check then reports a difference of
+ * exactly the week's costs, every week, on a file whose figures are correct.
+ * A check that cries wolf weekly is worse than no check at all: within a
+ * month nobody reads it, and the week it is right nobody notices.
+ *
+ * So the sum is made to skip the lines that are not costs, by the same rule
+ * their own Dashboard already uses: a real cost carries the night's event
+ * number, and the total line, the gap and the account below it do not. Both
+ * sides of the comparison then count the same thing in the same way, which
+ * is the only version of this that stays true when the form changes again.
+ */
+const COSTS_CHECK_CELL = 'B15';
+const COSTS_CHECK = `SUMIFS(${EXPENSES_SHEET}!$E$2:$E$${COSTS_LAST},${EXPENSES_SHEET}!$D$2:$D$${COSTS_LAST},"<>")`;
+
 export const PROMOTERS_SHEET = 'Promoters';
 
 export type Range = { from: string; to: string };
@@ -701,7 +750,7 @@ export function buildWorkbook(
     '',
   ]);
 
-  return fillTemplate(template, [
+  const filled = fillTemplate(template, [
     {
       sheet: EVENTS_SHEET,
       rows: eventRows,
@@ -711,6 +760,12 @@ export function buildWorkbook(
     { sheet: EXPENSES_SHEET, rows: costRows },
     { sheet: EVENT_LIST_SHEET, rows: listRows },
   ]);
+
+  const widened = COSTS_WIDENED.reduce(
+    (book, [from, to]) => widenReference(book, from, to),
+    filled,
+  );
+  return rewriteFormula(widened, CHECKS_SHEET, COSTS_CHECK_CELL, COSTS_CHECK);
 }
 
 export const fileNameFor = (range: Range) =>
