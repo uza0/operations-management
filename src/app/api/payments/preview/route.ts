@@ -1,4 +1,5 @@
 import { requireRole } from '@/server/auth/rbac';
+import { expenseAccount } from '@/server/services/settings';
 import {
   activeTemplate,
   buildWorkbook,
@@ -52,7 +53,7 @@ export async function GET(request: Request) {
   }
 
   const template = Buffer.from(row.bytes as Buffer);
-  const bytes = buildWorkbook(template, bundle, companyRegister(template));
+  const bytes = buildWorkbook(template, bundle, companyRegister(template), await expenseAccount());
 
   const name = `DRAFT-مسودة-${from}_${to}.xlsx`;
   return new Response(new Uint8Array(bytes), {

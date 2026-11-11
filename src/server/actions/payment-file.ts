@@ -4,13 +4,14 @@ import { revalidatePath } from 'next/cache';
 import { and, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { eventExpenses, events, eventMembers, paymentTemplates, payouts } from '@/db/schema';
+import { eventExpenses, events, eventMembers, paymentTemplates, payouts, teamMembers } from '@/db/schema';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
 import { str } from '@/lib/validation';
 import { format } from '@/lib/i18n';
 import { formatAmount } from '@/lib/money';
 import { requireRole } from '@/server/auth/rbac';
+import { EXPENSE_ACCOUNT, expenseAccount, writeSetting } from '@/server/services/settings';
 import { pushToMembers } from '@/server/services/push';
 import { recordAudit } from '@/server/services/audit';
 import { CLOSED_STATUSES } from '@/server/services/credit';
@@ -156,10 +157,11 @@ export async function generatePaymentFileAction(
     return fail(t.credit.nothingToSettle);
   }
 
-  const stops = blockers(bundle, companyRegister(template));
+  const account = await expenseAccount();
+  const stops = blockers(bundle, companyRegister(template), account);
   if (stops.length) return fail(`${t.payment.blocked}: ${stops.map((s) => s.label).join(' · ')}`);
 
-  const handover = buildHandover(template, bundle, range);
+  const handover = buildHandover(template, bundle, range, account);
 
   const payoutId = newId();
   await db.insert(payouts).values({
@@ -262,6 +264,63 @@ export async function generatePaymentFileAction(
 }
 
 /** Past files, newest first — the answer to "what did we actually send". */
+/**
+ * Who the week's event costs are reimbursed to.
+ *
+ * One standing choice rather than a question every Sunday: the same man pays
+ * for the scanner credit every night, and asking again each time is how it
+ * ends up answered wrong on the week somebody else is covering.
+ */
+export async function setExpenseAccountAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const user = await requireRole('ADMIN').catch(() => null);
+  if (!user) return fail(t.errors.forbidden);
+
+  const id = str(form, 'memberId');
+  if (id) {
+    const member = await db.query.teamMembers.findFirst({
+      where: eq(teamMembers.id, id),
+      columns: { id: true, fullName: true, active: true },
+    });
+    if (!member || !member.active) return fail(t.errors.notFound);
+  }
+
+  await writeSetting(EXPENSE_ACCOUNT, id || null, user.id);
+  await recordAudit({
+    eventId: null,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'EVENT',
+    entityId: EXPENSE_ACCOUNT,
+    entityLabel: t.payment.expenseAccount,
+    newValues: { memberId: id || null },
+    summary: t.payment.expenseAccount,
+  });
+
+  revalidatePath('/admin/settings');
+  revalidatePath('/admin/payments');
+  return ok();
+}
+
+/** The people an expense transfer can be made out to: on the roster, with a card. */
+export async function payableMembers() {
+  await requireRole('ADMIN');
+  return db
+    .select({
+      id: teamMembers.id,
+      name: teamMembers.fullName,
+      card: teamMembers.cardNumber,
+    })
+    .from(teamMembers)
+    .where(eq(teamMembers.active, true))
+    .orderBy(teamMembers.fullName)
+    .all();
+}
+
 export async function listHandovers() {
   const user = await requireRole('ADMIN').catch(() => null);
   if (!user) return [];

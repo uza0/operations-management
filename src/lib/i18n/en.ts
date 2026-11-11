@@ -866,6 +866,16 @@ Any questions, message me.`,
       'Not a fault. Some people have no bank account, so two friends share one card and divide the money when it lands. Both names sit against the same number in the company register, so the transfer reaches the same place whichever name we write. Once a man has a card of his own, put his number on his team page and it sorts itself out.',
     nameGuessedWhy:
       "These go out under the company's spelling rather than ours, because our name matches neither of the two on the account. The money lands correctly either way — but if a name looks wrong to you, a card number may be sitting on the wrong person's page.",
+    expenseAccount: 'Expense reimbursement account',
+    expenseAccountWhy:
+      'The night\u2019s costs — scanner credit, wristbands, getting there — come out of the team leader\u2019s own pocket on the night, and the company sends them back as one transfer rather than ten. Choose who is made whole: the file will carry a single line in his name on the Events sheet for the total, with every item listed on the Expenses sheet beside it.',
+    expenseAccountNone: 'Nobody chosen — costs will be listed on the Expenses sheet without being paid to anyone.',
+    expenseAccountPick: 'No account',
+    expenseAccountNoCard: 'no card',
+    expenseAccountSaved: 'Reimbursement account saved',
+    expenseAccountThis: 'This period\u2019s costs are reimbursed to',
+    expenseAccountMissing:
+      'There are costs in this period but no reimbursement account is set — they will be listed without being paid to anyone. Choose the person in settings.',
     history: 'Files sent',
     historyEmpty: 'No file has gone out yet.',
     historyHint: 'Every file is kept exactly as it went — three weeks later the question is never what was owed but what was sent.',

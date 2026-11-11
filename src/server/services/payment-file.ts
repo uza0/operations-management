@@ -38,6 +38,8 @@ import { excelDate, fillTemplate, unzipAll, type CellValue } from './xlsx-templa
  *   not a warning after it.
  */
 
+import { expenseAccount, type ExpenseAccount } from '@/server/services/settings';
+
 export const EVENTS_SHEET = 'Events';
 export const EXPENSES_SHEET = 'Expenses';
 export const EVENT_LIST_SHEET = 'Event List';
@@ -505,7 +507,12 @@ export type Warning = { kind: 'NAME_GUESSED'; label: string };
  * account and no transfer, and a silent row is the worst outcome here. So the
  * export refuses rather than produces a file with holes in it.
  */
-export function blockers(bundle: Bundle, register: Register): Blocker[] {
+export function blockers(
+  bundle: Bundle,
+  register: Register,
+  /** The costs line's destination, which is payable or the file is not. */
+  expenseAccount: ExpenseAccount | null = null,
+): Blocker[] {
   const out: Blocker[] = [];
   const seen = new Set<string>();
 
@@ -524,6 +531,16 @@ export function blockers(bundle: Bundle, register: Register): Blocker[] {
 
   for (const fee of bundle.fees) check(fee.memberName, fee.card);
   for (const cost of bundle.costs) if (cost.memberName) check(cost.memberName, cost.card);
+
+  /*
+   * The costs line is a transfer like any other, so it is held to the same
+   * test: an account their register does not know pays nobody, and the fact
+   * that it belongs to the man who runs the night makes that worse, not
+   * better — he is the one who already spent the money.
+   */
+  if (expenseAccount && bundle.costs.some((c) => !c.memberName)) {
+    check(expenseAccount.name, expenseAccount.card);
+  }
 
   for (const event of bundle.eventList) {
     if (!event.externalId) out.push({ kind: 'NO_EVENT_ID', label: event.name });
@@ -560,11 +577,43 @@ export function warnings(bundle: Bundle, register: Register): Warning[] {
 /* the workbook                                                               */
 /* -------------------------------------------------------------------------- */
 
+/**
+ * The company's event number, as a number.
+ *
+ * Their sheet stores it grouped — "2,163" — and a grouped string is text to
+ * Excel, so the column sorts as words and the leader retyped every one of
+ * them by hand. The separator is stripped before the cast; anything that is
+ * still not a number is passed through untouched rather than guessed at.
+ */
+export function eventIdCell(externalId: string | null): CellValue {
+  if (!externalId) return null;
+  const bare = externalId.replace(/[\s,]/g, '');
+  const n = Number(bare);
+  return bare !== '' && Number.isFinite(n) ? n : externalId;
+}
+
+/* The three lines the leader used to type at the foot of every file. */
+const TOTAL_LABEL = 'الإجمالي / Total';
+const EXPENSE_NOTE = 'Expenses to be transferred to the below account:';
+const EXPENSE_ROW_NOTE = 'Expenses details explained in expenses tab';
+
+/** The fee that is above the standing rate, and so worth the eye. */
+export const RAISED_FEE = 40_000;
+
+/** Blue, Accent 1, Lighter 60% — the shade the leader has always used. */
+const RAISED_FILL = 'FFB4C6E7';
+
 /** Their name for this person, so their own lookup finds the account. */
 const theirName = (register: Register, name: string, card: string | null) =>
   registerName(register, name, card)?.name ?? name;
 
-export function buildWorkbook(template: Buffer, bundle: Bundle, register: Register): Buffer {
+export function buildWorkbook(
+  template: Buffer,
+  bundle: Bundle,
+  register: Register,
+  /** Who the night's costs are reimbursed to; null when nobody is set. */
+  expenseAccount: ExpenseAccount | null = null,
+): Buffer {
   const eventRows: CellValue[][] = [];
 
   for (const fee of bundle.fees) {
@@ -592,19 +641,60 @@ export function buildWorkbook(template: Buffer, bundle: Bundle, register: Regist
     ]);
   }
 
-  const costRows: CellValue[][] = bundle.costs
-    .filter((c) => !c.memberName)
-    .map((c) => [
-      excelDate(c.date),
-      c.description,
-      c.eventName,
-      c.externalId ? Number(c.externalId) || c.externalId : null,
-      c.amount,
-      '',
+  /*
+   * The costs nobody was named for: the scanner credit, the wristbands, the
+   * taxi to the hall. They are listed here in full and paid as one line on
+   * the Events sheet, because the company sends one transfer and the leader
+   * who fronted them divides nothing — he is simply made whole.
+   */
+  const loose = bundle.costs.filter((c) => !c.memberName);
+  const looseTotal = loose.reduce((sum, c) => sum + c.amount, 0);
+
+  const costRows: CellValue[][] = loose.map((c) => [
+    excelDate(c.date),
+    c.description,
+    c.eventName,
+    eventIdCell(c.externalId),
+    c.amount,
+    '',
+  ]);
+
+  if (looseTotal > 0) {
+    costRows.push([null, TOTAL_LABEL, null, null, looseTotal, null]);
+    if (expenseAccount) {
+      /*
+       * Two blank rows and then the destination, exactly where the leader
+       * used to type it. The gap is not decoration: without it the account
+       * reads as one more cost in the list above.
+       */
+      costRows.push([], []);
+      costRows.push([null, EXPENSE_NOTE, null, null, null, null]);
+      costRows.push([
+        null,
+        theirName(register, expenseAccount.name, expenseAccount.card),
+        eventIdCell(expenseAccount.card),
+        null,
+        null,
+        null,
+      ]);
+    }
+  }
+
+  /* And the same figure, once, at the foot of the Events sheet. */
+  if (looseTotal > 0 && expenseAccount) {
+    eventRows.push([
+      null,
+      null,
+      theirName(register, expenseAccount.name, expenseAccount.card),
+      null,
+      looseTotal,
+      'Expense',
+      EXPENSE_ROW_NOTE,
     ]);
+  }
 
   const listRows: CellValue[][] = bundle.eventList.map((e) => [
-    e.externalId ? Number(e.externalId) || e.externalId : null,
+    eventIdCell(e.externalId),
     e.name,
     excelDate(e.date),
     excelDate(e.date),
@@ -612,7 +702,12 @@ export function buildWorkbook(template: Buffer, bundle: Bundle, register: Regist
   ]);
 
   return fillTemplate(template, [
-    { sheet: EVENTS_SHEET, rows: eventRows },
+    {
+      sheet: EVENTS_SHEET,
+      rows: eventRows,
+      /* The raised fees, shaded in the amount column and nowhere else. */
+      emphasis: { column: 4, test: (v) => v === RAISED_FEE, rgb: RAISED_FILL },
+    },
     { sheet: EXPENSES_SHEET, rows: costRows },
     { sheet: EVENT_LIST_SHEET, rows: listRows },
   ]);
@@ -637,12 +732,29 @@ export type Preview = {
   shared: { account: string; names: string[] }[];
   /** Null when nobody has uploaded the company's workbook yet. */
   template: { fileName: string; uploadedByName: string; createdAt: Date } | null;
+  /** Who the costs line is made out to, or null while nobody is chosen. */
+  expenseAccount: ExpenseAccount | null;
+  /** What that line would be worth this week. */
+  looseCosts: number;
 };
 
 export async function previewExport(range: Range): Promise<Preview> {
-  const [bundle, row] = await Promise.all([collect(range), activeTemplate()]);
+  const [bundle, row, account] = await Promise.all([
+    collect(range),
+    activeTemplate(),
+    expenseAccount(),
+  ]);
   if (!row) {
-    return { range, bundle, blockers: [], warnings: [], shared: [], template: null };
+    return {
+      range,
+      bundle,
+      blockers: [],
+      warnings: [],
+      shared: [],
+      template: null,
+      expenseAccount: account,
+      looseCosts: bundle.costs.filter((c) => !c.memberName).reduce((s, c) => s + c.amount, 0),
+    };
   }
 
   const template = Buffer.from(row.bytes as Buffer);
@@ -650,8 +762,10 @@ export async function previewExport(range: Range): Promise<Preview> {
   return {
     range,
     bundle,
-    blockers: blockers(bundle, register),
+    blockers: blockers(bundle, register, account),
     warnings: warnings(bundle, register),
+    expenseAccount: account,
+    looseCosts: bundle.costs.filter((c) => !c.memberName).reduce((s, c) => s + c.amount, 0),
     /*
      * Only the ones this file actually pays. Their whole register has a
      * handful of shared cards in it; listing all of them every week would be
@@ -696,11 +810,12 @@ export function buildHandover(
   template: Buffer,
   bundle: Bundle,
   range: Range,
+  expenseAccountMember: ExpenseAccount | null = null,
 ): Omit<Handover, 'id'> {
   const register = companyRegister(template);
   return {
     fileName: fileNameFor(range),
-    bytes: buildWorkbook(template, bundle, register),
+    bytes: buildWorkbook(template, bundle, register, expenseAccountMember),
     feesTotal: bundle.feesTotal,
     costsTotal: bundle.costsTotal,
     rowCount: bundle.fees.length + bundle.costs.length,

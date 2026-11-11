@@ -117,6 +117,27 @@ export async function PaymentFilePage({
         )}
       </Panel>
 
+      {/*
+        Where the week's costs are going, said on the page that sends them.
+        Without it the line simply appears in the file — a transfer in
+        somebody's name that nothing on screen ever mentioned.
+      */}
+      {preview.looseCosts > 0 ? (
+        <div className="mt-4">
+          {preview.expenseAccount ? (
+            <Notice tone="info">
+              {t.payment.expenseAccountThis}:{' '}
+              <span style={{ unicodeBidi: 'plaintext' }}>{preview.expenseAccount.name}</span>
+              {' — '}
+              <span className="nums">{formatAmount(preview.looseCosts)}</span>{' '}
+              {t.credit.currency}
+            </Notice>
+          ) : (
+            <Notice tone="warn">{t.payment.expenseAccountMissing}</Notice>
+          )}
+        </div>
+      ) : null}
+
       {preview.blockers.length ? (
         <Panel title={t.payment.blocked} className="mt-4">
           <p className="mb-3 text-[12.5px] leading-6 text-ink-400">{t.payment.blockedWhy}</p>

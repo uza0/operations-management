@@ -9,7 +9,10 @@ import { Badge } from '@/components/ui/status';
 import { Notice } from '@/components/ui/states';
 
 import { TemplateForm } from '@/features/payment/TemplateForm';
+import { ExpenseAccountForm } from '@/features/payment/ExpenseAccountForm';
 import { activeTemplate } from '@/server/services/payment-file';
+import { payableMembers } from '@/server/actions/payment-file';
+import { EXPENSE_ACCOUNT, readSetting } from '@/server/services/settings';
 
 import { PasswordForm } from './PasswordForm';
 import { AccountManager } from './AccountManager';
@@ -27,6 +30,11 @@ export default async function SettingsPage() {
         createdAt: templateRow.createdAt,
       }
     : null;
+
+  const [members, expenseAccountId] = await Promise.all([
+    payableMembers(),
+    readSetting(EXPENSE_ACCOUNT),
+  ]);
 
   const accounts = me.systemDeveloper
     ? await db
@@ -67,6 +75,10 @@ export default async function SettingsPage() {
 
         <Panel title={t.payment.template} className="lg:col-span-1">
           <TemplateForm t={t} locale={locale} current={template} />
+        </Panel>
+
+        <Panel title={t.payment.expenseAccount} className="lg:col-span-2">
+          <ExpenseAccountForm t={t} members={members} currentId={expenseAccountId} />
         </Panel>
 
         <div className="lg:col-span-3"><LogoutPanel t={t} /></div>

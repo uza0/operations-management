@@ -1618,3 +1618,21 @@ export const pushSent = sqliteTable(
     sentAt: integer('sent_at', { mode: 'timestamp_ms' }).notNull(),
   },
 );
+
+/**
+ * A handful of choices that belong to the company rather than to a row.
+ *
+ * Deliberately a key and a value and nothing else. There are two or three of
+ * these in the whole system — which account the week's event costs are
+ * reimbursed to, and whatever joins it — and a table per choice, or a column
+ * bolted onto something unrelated, is how a settings screen becomes a
+ * migration every time somebody asks a question.
+ */
+export const settings = sqliteTable('settings', {
+  key: text('key').primaryKey(),
+  value: text('value'),
+  updatedById: text('updated_by_id').references(() => users.id, {
+    onDelete: 'set null',
+  }),
+  ...timestamps,
+});

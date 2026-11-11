@@ -292,7 +292,64 @@ export type SheetRows = {
   sheet: string;
   /** Rows of values, written from row 2 down. Headers are never touched. */
   rows: CellValue[][];
+  /**
+   * One column, painted where a test says so.
+   *
+   * This is the leader's own highlighter, moved into the export. He shades
+   * every raised fee by hand after each file so the office can see at a
+   * glance which nights were paid above the standing rate — a hundred and
+   * seventy rows, every week, looking for one number.
+   */
+  emphasis?: {
+    /** Zero-based column index, the same frame the rows use. */
+    column: number;
+    test: (value: CellValue) => boolean;
+    /** ARGB, e.g. FFB4C6E7. */
+    rgb: string;
+  };
 };
+
+/**
+ * Adds a cell format that is some existing one plus a background colour, and
+ * returns its index.
+ *
+ * Cloning the neighbouring cell's format rather than writing a fresh one is
+ * what keeps the number format, the borders and the font: a cell painted from
+ * nothing comes back as unformatted text in the middle of a money column.
+ */
+function styleWithFill(entries: ZipEntry[], baseStyle: string | null, rgb: string): string | null {
+  const entry = entries.find((e) => e.name === 'xl/styles.xml');
+  if (!entry) return null;
+  let xml = entry.data.toString('utf8');
+
+  const fills = /<fills[^>]*count="(\d+)"[^>]*>([\s\S]*?)<\/fills>/.exec(xml);
+  const xfs = /<cellXfs[^>]*count="(\d+)"[^>]*>([\s\S]*?)<\/cellXfs>/.exec(xml);
+  if (!fills || !xfs) return null;
+
+  const fillId = Number(fills[1]);
+  const newFill =
+    `<fill><patternFill patternType="solid">` +
+    `<fgColor rgb="${rgb}"/><bgColor indexed="64"/></patternFill></fill>`;
+  xml = xml.replace(
+    fills[0],
+    `<fills count="${fillId + 1}">${fills[2]}${newFill}</fills>`,
+  );
+
+  /* The format being cloned, found by counting <xf> elements. */
+  const list = [...xfs[2].matchAll(/<xf\b[^>]*?(?:\/>|>[\s\S]*?<\/xf>)/g)].map((m) => m[0]);
+  const index = baseStyle === null ? 0 : Number(baseStyle);
+  const base = list[index] ?? '<xf numFmtId="0" fontId="0" fillId="0" borderId="0"/>';
+  const cloned = base
+    .replace(/\sfillId="\d+"/, '')
+    .replace(/\sapplyFill="[^"]*"/, '')
+    .replace(/^<xf\b/, `<xf fillId="${fillId}" applyFill="1"`);
+
+  const xfId = Number(xfs[1]);
+  xml = xml.replace(xfs[0], `<cellXfs count="${xfId + 1}">${xfs[2]}${cloned}</cellXfs>`);
+
+  entry.data = Buffer.from(xml, 'utf8');
+  return String(xfId);
+}
 
 /**
  * Fills the named sheets of a workbook and returns the new file.
@@ -304,7 +361,7 @@ export function fillTemplate(template: Buffer, sheets: SheetRows[]): Buffer {
   const entries = unzipAll(template);
   const parts = sheetParts(entries);
 
-  for (const { sheet, rows } of sheets) {
+  for (const { sheet, rows, emphasis } of sheets) {
     const part = parts.get(sheet);
     if (!part) throw new Error(`القالب ما بيه تبويب اسمه "${sheet}"`);
     const entry = entries.find((e) => e.name === part);
@@ -321,6 +378,13 @@ export function fillTemplate(template: Buffer, sheets: SheetRows[]): Buffer {
       pattern.size > 0 ? Math.max(...pattern.keys()) + 1 : 0,
     );
 
+    /*
+     * The painted format is made once, and only if some row actually asks
+     * for it: a workbook that gains a fill and a cell format every week ends
+     * up carrying fifty of them, none of which anything uses.
+     */
+    let painted: string | null | undefined;
+
     const body: string[] = [header];
     rows.forEach((values, i) => {
       const row = i + 2;
@@ -330,7 +394,14 @@ export function fillTemplate(template: Buffer, sheets: SheetRows[]): Buffer {
         const v = values[c] ?? null;
         /* A trailing column that is neither given nor computed is left out. */
         if (v === null && !p?.formula) continue;
-        cells.push(cellXml(`${colName(c)}${row}`, v, p, row, patternRow));
+        let style = p;
+        if (emphasis && c === emphasis.column && emphasis.test(v)) {
+          if (painted === undefined) {
+            painted = styleWithFill(entries, p?.style ?? null, emphasis.rgb);
+          }
+          if (painted !== null) style = { style: painted, formula: p?.formula ?? null };
+        }
+        cells.push(cellXml(`${colName(c)}${row}`, v, style, row, patternRow));
       }
       body.push(`<row r="${row}">${cells.join('')}</row>`);
     });
