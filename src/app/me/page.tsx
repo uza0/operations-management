@@ -13,6 +13,7 @@ import {
   sendDueReminders,
   sweepInBackground,
 } from '@/server/services/push';
+import { advanceEvents } from '@/server/services/lifecycle';
 
 import { MemberShell } from '../member/[token]/MemberShell';
 import { AttendanceScoreCard } from './AttendanceScoreCard';
@@ -52,6 +53,8 @@ export default async function MemberHomePage() {
    */
   sweepInBackground(async () => {
     const { t: text } = await getT();
+    /* The stages the clock decides, then the reminders. See /api/push/due. */
+    await advanceEvents();
     await sendDueReminders(reminderText(text));
   });
 

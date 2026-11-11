@@ -52,6 +52,8 @@ export async function listEventsForUser(user: SessionUser): Promise<EventListRow
       date: events.date,
       startTime: events.startTime,
       teamArrivalTime: events.teamArrivalTime,
+      /* For the badge that tells an unfinished night from a running one. */
+      teamDepartureTime: events.teamDepartureTime,
       venueName: venues.name,
       teamSize: sql<number>`(select count(*) from ${eventMembers} where ${eventMembers.eventId} = ${events.id})`,
       gateCount: sql<number>`(select count(*) from ${gates} where ${gates.eventId} = ${events.id})`,

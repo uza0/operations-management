@@ -141,6 +141,8 @@ export const en: Dictionary = {
     usernameTaken: 'That username is already in use',
   },
   dashboard: {
+    attentionNeverSent: 'The crew was due and it was never made ready — nobody was sent it',
+    attentionNeedsClosing: 'Over but not closed — attendance unfinished and the money is held',
     title: 'Operations dashboard',
     subtitle: 'Operational status across all events',
     activeEvents: 'Live events',
@@ -166,6 +168,7 @@ export const en: Dictionary = {
     attentionIncomplete: 'Event setup is not complete',
   },
   event: {
+    needsClosing: 'Needs closing',
     externalId: "The company's event number",
     partners: 'Partner / sponsor companies',
     partnersPlaceholder: 'e.g. OA — or several, separated by commas',

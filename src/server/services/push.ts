@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { momentOfBaghdad } from '@/lib/time';
+
 import webpush from 'web-push';
 import { and, eq, gte, inArray, lte, ne } from 'drizzle-orm';
 
@@ -212,7 +214,6 @@ export async function pushOnce(
 
 /** Baghdad, where the events are, and which keeps one offset all year. */
 const TZ = 'Asia/Baghdad';
-const BAGHDAD_OFFSET_MS = 3 * 60 * 60 * 1000;
 
 /**
  * The exact moment a clock time on an event's date actually falls.
@@ -223,13 +224,7 @@ const BAGHDAD_OFFSET_MS = 3 * 60 * 60 * 1000;
  * clock reads 00:30, the event is dated the day before, and the two only
  * reconcile as a moment.
  */
-function momentOf(date: string, clock: string, addDays = 0): number {
-  const [y, m, d] = date.split('-').map(Number);
-  const [hh, mm] = clock.split(':').map(Number);
-  return (
-    Date.UTC(y, (m || 1) - 1, (d || 1) + addDays, hh || 0, mm || 0) - BAGHDAD_OFFSET_MS
-  );
-}
+export const momentOf = momentOfBaghdad;
 
 /**
  * Yesterday, today and tomorrow in Baghdad.

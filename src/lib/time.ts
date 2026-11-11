@@ -159,3 +159,22 @@ export function rangesOverlap(
   if (b2 <= b1) b2 += 24 * 60;
   return a1 < b2 && b1 < a2;
 }
+
+/**
+ * The exact moment a wall clock on a given date falls, in Baghdad.
+ *
+ * A date and a clock time are not a moment until a place is named. Baghdad
+ * keeps one offset all year, which is why this is arithmetic rather than a
+ * timezone library — and why a shift ending at half past midnight behaves:
+ * the clock reads 00:30, the event is dated the day before, and only a real
+ * timestamp reconciles the two.
+ */
+const BAGHDAD_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+export function momentOfBaghdad(date: string, clock: string, addDays = 0): number {
+  const [y, m, d] = date.split('-').map(Number);
+  const [hh, mm] = clock.split(':').map(Number);
+  return (
+    Date.UTC(y, (m || 1) - 1, (d || 1) + addDays, hh || 0, mm || 0) - BAGHDAD_OFFSET_MS
+  );
+}

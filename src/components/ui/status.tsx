@@ -63,6 +63,13 @@ export function Badge({
   );
 }
 
+/**
+ * The tone of the one stage that is shown but never stored — see
+ * `displayStage`. Warn rather than crit: the night went fine, the paperwork
+ * did not, and a red badge for a finished event reads as a disaster.
+ */
+export const needsClosingTone: Tone = 'warn';
+
 export const eventStatusTone: Record<EventStatus, Tone> = {
   DRAFT: 'neutral',
   PLANNING: 'info',

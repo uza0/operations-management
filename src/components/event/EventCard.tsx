@@ -4,7 +4,8 @@ import type { ReactNode } from 'react';
 import type { Dictionary } from '@/lib/i18n';
 import type { EventStatus, EventType } from '@/lib/constants';
 import { formatDate, formatTime } from '@/lib/time';
-import { Badge, eventStatusTone } from '@/components/ui/status';
+import { Badge, eventStatusTone, needsClosingTone } from '@/components/ui/status';
+import { displayStage } from '@/lib/event-stage';
 import { IconGate, IconPin, IconUsers, IconClock } from '@/components/ui/icons';
 import { typeSkin } from '@/lib/event-type';
 
@@ -16,6 +17,8 @@ export type EventCardData = {
   date: string;
   startTime: string;
   teamArrivalTime: string;
+  /** Optional: without it an evening is judged from its start. */
+  teamDepartureTime?: string | null;
   venueName: string;
   teamSize: number;
   gateCount: number;
@@ -48,6 +51,7 @@ export function EventCard({
    * says what this is, the chip says how it is going.
    */
   const skin = typeSkin(event.type);
+  const stage = displayStage(event);
 
   const card = (
     <Link
@@ -64,8 +68,16 @@ export function EventCard({
             {t.enums.eventType[event.type as EventType]}
           </p>
         </div>
-        <Badge tone={eventStatusTone[status]} pulse={status === 'LIVE'}>
-          {t.enums.eventStatus[status]}
+        {/*
+          What the clock says, which is not always what the record says: an
+          evening whose attendance is unfinished stays LIVE so that nobody is
+          paid for it yet, but it stopped being tonight days ago.
+        */}
+        <Badge
+          tone={stage === 'NEEDS_CLOSING' ? needsClosingTone : eventStatusTone[status]}
+          pulse={stage === 'LIVE'}
+        >
+          {stage === 'NEEDS_CLOSING' ? t.event.needsClosing : t.enums.eventStatus[status]}
         </Badge>
       </div>
 

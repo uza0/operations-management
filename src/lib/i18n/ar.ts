@@ -144,6 +144,8 @@ export const ar = {
     usernameTaken: 'اسم المستخدم مستخدم مسبقاً',
   },
   dashboard: {
+    attentionNeverSent: 'وصل وقت الفريق وما انترقّت لـ«جاهزة» — البروموترز ما وصلتهم',
+    attentionNeedsClosing: 'خلصت وما انغلقت — الحضور ناقص والفلوس موقوفة',
     title: 'لوحة تحكم العمليات',
     subtitle: 'الحالة التشغيلية لجميع الفعاليات',
     activeEvents: 'فعاليات جارية',
@@ -169,6 +171,7 @@ export const ar = {
     attentionIncomplete: 'إعداد الفعالية بعده غير مكتمل',
   },
   event: {
+    needsClosing: 'تحتاج إغلاق',
     externalId: 'رقم الفعالية عند الشركة',
     partners: 'الشركات الشريكة / الراعية',
     partnersPlaceholder: 'مثال: OA — أو أكثر من شركة مفصولة بفاصلة',

@@ -20,6 +20,7 @@ import {
   IconTarget,
 } from '@/components/ui/icons';
 import { formatDate, formatDateTime, todayISO } from '@/lib/time';
+import { needsClosing, overdueToReady } from '@/server/services/lifecycle';
 import { format } from '@/lib/i18n';
 import type { AuditAction } from '@/lib/constants';
 
@@ -55,7 +56,31 @@ export default async function AdminDashboard() {
         )
     : [];
   const eventsWithLeader = new Set(leaderGrants.map((grant) => grant.eventId));
+  /*
+   * Two things the clock has already decided, placed first because both are
+   * money standing still: an evening nobody closed, and an evening whose
+   * crew was due and which was never sent to them at all. The second is the
+   * one the system deliberately refuses to fix by itself.
+   */
+  const [unsentRows, unclosedRows] = await Promise.all([overdueToReady(), needsClosing()]);
+  /* Only the ones this account can already see — the list is a shortcut, not a leak. */
+  const byId = new Map(allEvents.map((event) => [event.id, event]));
+  const unsent = unsentRows.map((row) => byId.get(row.id)).filter((e) => e !== undefined);
+  const unclosed = unclosedRows.map((row) => byId.get(row.id)).filter((e) => e !== undefined);
+
   const attentionItems = [
+    ...unsent.map((event) => ({
+      key: `unsent-${event.id}`,
+      event,
+      href: `/admin/events/${event.id}`,
+      title: t.dashboard.attentionNeverSent,
+    })),
+    ...unclosed.map((event) => ({
+      key: `unclosed-${event.id}`,
+      event,
+      href: `/admin/events/${event.id}/attendance`,
+      title: t.dashboard.attentionNeedsClosing,
+    })),
     ...allEvents
       .filter((event) => event.openIssues > 0)
       .map((event) => ({
