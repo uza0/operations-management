@@ -9,6 +9,7 @@ import { MARKER_STYLE, MARKER_TYPES, type MarkerType } from '@/lib/constants';
 import { Notice, FormError, EmptyState } from '@/components/ui/states';
 import { Badge } from '@/components/ui/status';
 import { IconMinus, IconPlus, IconRefresh, IconTrash, IconCopy, IconMap } from '@/components/ui/icons';
+import { useConfirm } from '@/components/ui/client';
 import type { Dictionary } from '@/lib/i18n';
 
 import type { StageMarker } from './MapStage';
@@ -72,6 +73,7 @@ export function MapEditor({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [pending, startTransition] = useTransition();
+  const [ask, confirmDialog] = useConfirm();
 
   const selected = markers.find((m) => m.id === selectedId) ?? null;
 
@@ -138,9 +140,9 @@ export function MapEditor({
     setSaved(false);
   }
 
-  function remove() {
+  async function remove() {
     if (!selected) return;
-    if (!window.confirm(`${t.map.deleteMarker} — ${selected.name}?`)) return;
+    if (!(await ask(`${t.map.deleteMarker} — ${selected.name}?`))) return;
     setMarkers((current) => current.filter((m) => m.id !== selected.id));
     setSelectedId(null);
     setDirty(true);
@@ -188,6 +190,7 @@ export function MapEditor({
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[196px_minmax(0,1fr)_284px]">
+      {confirmDialog}
       {/* Toolbox ---------------------------------------------------------- */}
       <aside className="panel order-2 p-3 lg:order-1">
         <p className="mb-2 px-1 text-[12.5px] font-semibold uppercase tracking-wide text-ink-500">
@@ -461,7 +464,7 @@ export function MapEditor({
                   <IconCopy width={15} height={15} />
                   {t.map.duplicateMarker}
                 </button>
-                <button type="button" className="btn-danger btn-sm" onClick={remove}>
+                <button type="button" className="btn-danger btn-sm" onClick={() => void remove()}>
                   <IconTrash width={15} height={15} />
                   {t.common.delete}
                 </button>

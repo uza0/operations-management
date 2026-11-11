@@ -9,7 +9,7 @@ import {
 } from '@/server/actions/journey';
 import { idle } from '@/server/actions/types';
 import { FormError } from '@/components/ui/states';
-import { ConfirmSubmit, SubmitButton } from '@/components/ui/client';
+import { ConfirmSubmit, SubmitButton, useConfirm } from '@/components/ui/client';
 import { DECLINE_REASONS } from '@/lib/constants';
 import { formatAmount } from '@/lib/money';
 import { format, type Dictionary } from '@/lib/i18n';
@@ -63,6 +63,12 @@ export function SeatSetupCard({
   const [arrivalWindowOpen, setArrivalWindowOpen] = useState(stage === 'ARRIVING');
   const [online, setOnline] = useState(true);
   const offline = useOfflineAttendance(token, t);
+  const [ask, confirmDialog] = useConfirm();
+
+  /* The question the two departure buttons below both ask. */
+  const askThenDepart = async () => {
+    if (await ask(t.journey.departHint)) void offline.record('SEAT_DEPARTURE', seatMemberId);
+  };
   const pendingArrival = offline.pendingFor('SEAT_ARRIVAL', seatMemberId);
   const pendingDeparture = offline.pendingFor('SEAT_DEPARTURE', seatMemberId);
 
@@ -113,6 +119,7 @@ export function SeatSetupCard({
 
   return (
     <li className="rounded-control border border-ink-700 bg-ink-900 p-3.5">
+      {confirmDialog}
       <p className="text-[16px] font-bold leading-tight text-ink-100">{when}</p>
       <p className={`mt-1 text-[12px] font-semibold ${setupStatus === 'READY' ? 'text-ok-text' : 'text-ink-400'}`}>
         {setupStatus === 'READY' ? t.seatSetup.memberReadyNotice : t.seatSetup.memberPlanningNotice}
@@ -247,11 +254,7 @@ export function SeatSetupCard({
                   type="button"
                   className="btn-outline w-full"
                   disabled={offline.busy}
-                  onClick={() => {
-                    if (window.confirm(t.journey.departHint)) {
-                      void offline.record('SEAT_DEPARTURE', seatMemberId);
-                    }
-                  }}
+                  onClick={() => void askThenDepart()}
                 >
                   {offline.busy ? t.common.saving : t.journey.depart}
                 </button>
@@ -278,11 +281,7 @@ export function SeatSetupCard({
               type="button"
               className="btn-outline w-full"
               disabled={offline.busy}
-              onClick={() => {
-                if (window.confirm(t.journey.departHint)) {
-                  void offline.record('SEAT_DEPARTURE', seatMemberId);
-                }
-              }}
+              onClick={() => void askThenDepart()}
             >
               {offline.busy ? t.common.saving : t.journey.depart}
             </button>

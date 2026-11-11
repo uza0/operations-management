@@ -14,7 +14,7 @@ import {
 import { idle } from '@/server/actions/types';
 import { EmptyState, FormError } from '@/components/ui/states';
 import { Badge, attendanceTone } from '@/components/ui/status';
-import { Dialog, SubmitButton } from '@/components/ui/client';
+import { Dialog, SubmitButton, useConfirm } from '@/components/ui/client';
 import { IconCheckCircle, IconSearch } from '@/components/ui/icons';
 import { ATTENDANCE_STATUSES, type AttendanceStatus } from '@/lib/constants';
 import { formatTime } from '@/lib/time';
@@ -268,6 +268,7 @@ export function AttendanceTable({
   const [bulkError, setBulkError] = useState<string | null>(null);
   const [bulkMessage, setBulkMessage] = useState<string | null>(null);
   const [autoFillStatus, setAutoFillStatus] = useState<'PRESENT' | 'LATE'>('PRESENT');
+  const [ask, confirmDialog] = useConfirm();
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -323,7 +324,7 @@ export function AttendanceTable({
   }
 
   async function completeUnrecorded() {
-    if (picked.size === 0 || !window.confirm(t.attendance.autoFillConfirm)) return;
+    if (picked.size === 0 || !(await ask(t.attendance.autoFillConfirm))) return;
     setBulkError(null);
     setBulkMessage(null);
     setBulkPending(true);
@@ -346,6 +347,7 @@ export function AttendanceTable({
 
   return (
     <>
+      {confirmDialog}
       <div className="mb-3 flex flex-wrap gap-2">
         <div className="relative min-w-[220px] flex-1 sm:max-w-sm">
           <IconSearch

@@ -3,6 +3,7 @@ import type { Metadata, Viewport } from 'next';
 import { getLocale } from '@/lib/i18n/server';
 import { dirFor, getDictionary } from '@/lib/i18n';
 import { AppRuntime } from '@/components/pwa/AppRuntime';
+import { ConfirmWordsProvider } from '@/components/ui/client';
 import { themeScript } from '@/components/pwa/ThemeToggle';
 
 import './globals.css';
@@ -106,7 +107,21 @@ export default async function RootLayout({
         <a href="#main" className="skip-link">
           {t.nav.overview}
         </a>
-        {children}
+        {/*
+          The three words every confirmation needs, and nothing else of the
+          dictionary: a question can be raised on any page, and the whole
+          dictionary would be a large thing to send to the browser everywhere
+          for the sake of a title and two buttons.
+        */}
+        <ConfirmWordsProvider
+          words={{
+            title: t.common.confirmTitle,
+            confirm: t.common.confirm,
+            cancel: t.common.cancel,
+          }}
+        >
+          {children}
+        </ConfirmWordsProvider>
         <AppRuntime />
       </body>
     </html>

@@ -57,7 +57,13 @@ export function EventCard({
     <Link
       href={href}
       style={skin.surface}
-      className={`panel lift group block p-4 hover:brightness-110 ${
+      /*
+       * Full height, because a grid row is as tall as its tallest card and a
+       * card that stops short leaves its own controls hanging in the gap
+       * below it — the delete button is placed against the bottom edge, and
+       * without this that edge is not where the card ends.
+       */
+      className={`panel lift group block h-full p-4 hover:brightness-110 ${
         action ? 'pb-12' : ''
       }`}
     >
@@ -101,12 +107,19 @@ export function EventCard({
             <IconGate width={15} height={15} className="text-ink-500" />
             <span className="nums">{event.gateCount}</span>
           </span>
-          {event.openIssues ? (
+        </div>
+        {/*
+          On its own line. It used to share the half-width column with the two
+          counts, where its words were wider than the space left and ran out
+          past the card's edge — a chip about trouble, itself broken.
+        */}
+        {event.openIssues ? (
+          <div className="col-span-2">
             <Badge tone="crit" className="!py-0.5">
               <span className="nums">{event.openIssues}</span> {t.issue.openCount}
             </Badge>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
       </dl>
     </Link>
   );
@@ -114,7 +127,7 @@ export function EventCard({
   if (!action) return card;
 
   return (
-    <div className="relative">
+    <div className="relative h-full">
       {card}
       <div className="absolute bottom-3 end-3">{action}</div>
     </div>

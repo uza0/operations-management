@@ -40,6 +40,37 @@ export function useDict(): Dictionary {
 }
 
 /* -------------------------------------------------------------------------- */
+/* The handful of words a confirmation needs                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Three strings, carried separately from the dictionary.
+ *
+ * A confirmation can be raised from anywhere, including pages that mount no
+ * dictionary of their own, so the words have to be available everywhere. The
+ * whole dictionary is far too large to hand to the browser on every page for
+ * the sake of three words, so only the three travel, from the root layout.
+ *
+ * The defaults are Arabic because the app is, and because a missing provider
+ * must still produce a usable button rather than an empty one.
+ */
+export type ConfirmWords = { title: string; confirm: string; cancel: string };
+
+const WORDS: ConfirmWords = { title: 'تأكيد الإجراء', confirm: 'تأكيد', cancel: 'إلغاء' };
+
+const WordsCtx = createContext<ConfirmWords>(WORDS);
+
+export function ConfirmWordsProvider({
+  words,
+  children,
+}: {
+  words: ConfirmWords;
+  children: ReactNode;
+}) {
+  return <WordsCtx.Provider value={words}>{children}</WordsCtx.Provider>;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Buttons                                                                     */
 /* -------------------------------------------------------------------------- */
 
@@ -79,6 +110,16 @@ export function SubmitButton({
 /**
  * Destructive actions always confirm first (spec §46 / §64). Harmless actions
  * never do.
+ *
+ * The question is asked in the app's own dialog rather than the browser's.
+ * The browser's is quicker to write and worse in every way that matters here:
+ * it arrives in the browser's language and not the page's, it cannot be read
+ * right-to-left, it names the site at the top as though the page were trying
+ * something, and on a phone it is a grey system sheet in the middle of a
+ * dark screen. The question itself is the same; only its manners change.
+ *
+ * The form is submitted afterwards through the pressed button, so a form with
+ * several buttons still knows which one was pressed.
  */
 export function ConfirmSubmit({
   children,
@@ -94,20 +135,118 @@ export function ConfirmSubmit({
   value?: string;
 }) {
   const { pending } = useFormStatus();
+  const [asking, setAsking] = useState(false);
+  const button = useRef<HTMLButtonElement>(null);
+
   return (
-    <button
-      type="submit"
-      name={name}
-      value={value}
-      className={className}
-      disabled={pending}
-      onClick={(e) => {
-        if (!window.confirm(message)) e.preventDefault();
-      }}
-    >
-      {children}
-    </button>
+    <>
+      <button
+        ref={button}
+        type="submit"
+        name={name}
+        value={value}
+        className={className}
+        disabled={pending}
+        onClick={(e) => {
+          e.preventDefault();
+          setAsking(true);
+        }}
+      >
+        {children}
+      </button>
+      <ConfirmDialog
+        open={asking}
+        message={message}
+        danger={className.includes('danger')}
+        onCancel={() => setAsking(false)}
+        onConfirm={() => {
+          setAsking(false);
+          const el = button.current;
+          /* Submitted through the button so its name and value go with it. */
+          el?.form?.requestSubmit(el);
+        }}
+      />
+    </>
   );
+}
+
+/**
+ * The question itself: a line of text and two answers.
+ *
+ * Deliberately bare. A confirmation is read in a second and answered in two,
+ * so it carries no icon, no heading of its own beyond the one word, and
+ * nothing to scroll. The dangerous answer wears the dangerous colour and the
+ * safe one is placed first, where a thumb reaches it without aiming.
+ */
+export function ConfirmDialog({
+  open,
+  message,
+  onConfirm,
+  onCancel,
+  danger = true,
+  confirmLabel,
+}: {
+  open: boolean;
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  danger?: boolean;
+  confirmLabel?: string;
+}) {
+  const words = useContext(WordsCtx);
+  return (
+    <Dialog open={open} onClose={onCancel} title={words.title}>
+      <p className="text-[14px] leading-7 text-ink-200">{message}</p>
+      <div className="mt-5 flex justify-end gap-2">
+        <button type="button" className="btn-secondary" onClick={onCancel}>
+          {words.cancel}
+        </button>
+        <button
+          type="button"
+          className={danger ? 'btn-danger' : 'btn-primary'}
+          onClick={onConfirm}
+        >
+          {confirmLabel ?? words.confirm}
+        </button>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * The same question, for code that has to wait for the answer.
+ *
+ * `window.confirm` stops the page until it is answered, which is what makes
+ * it so easy to write — `if (!confirm(...)) return;` and the rest of the
+ * function carries on. Nothing in a browser can block like that honestly, so
+ * the answer arrives as a promise instead and the caller awaits it. Returns
+ * the asking function and the dialog to render; put the second anywhere in
+ * the component's own markup.
+ */
+export function useConfirm(): [(message: string) => Promise<boolean>, ReactNode] {
+  const [question, setQuestion] = useState<{
+    message: string;
+    settle: (answer: boolean) => void;
+  } | null>(null);
+
+  const ask = (message: string) =>
+    new Promise<boolean>((resolve) => setQuestion({ message, settle: resolve }));
+
+  const answer = (value: boolean) => {
+    question?.settle(value);
+    setQuestion(null);
+  };
+
+  return [
+    ask,
+    <ConfirmDialog
+      key="confirm"
+      open={question !== null}
+      message={question?.message ?? ''}
+      onConfirm={() => answer(true)}
+      onCancel={() => answer(false)}
+    />,
+  ];
 }
 
 export function CopyButton({
@@ -122,24 +261,46 @@ export function CopyButton({
   className?: string;
 }) {
   const [done, setDone] = useState(false);
+  /*
+   * The clipboard is refused often enough to need a way out: an insecure
+   * origin, a browser that wants a fresher gesture, a webview that simply
+   * does not have one. The way out is to put the text on the screen, already
+   * selected, so it can be copied by hand.
+   */
+  const [manual, setManual] = useState(false);
+  const field = useRef<HTMLInputElement>(null);
+
   return (
-    <button
-      type="button"
-      className={className}
-      onClick={async () => {
-        try {
-          await navigator.clipboard.writeText(value);
-        } catch {
-          // Clipboard can be blocked; fall back to a selectable prompt.
-          window.prompt(label, value);
-        }
-        setDone(true);
-        setTimeout(() => setDone(false), 1600);
-      }}
-    >
-      {done ? <IconCheckCircle width={15} height={15} /> : <IconCopy width={15} height={15} />}
-      {done ? copiedLabel : label}
-    </button>
+    <>
+      <button
+        type="button"
+        className={className}
+        onClick={async () => {
+          try {
+            await navigator.clipboard.writeText(value);
+          } catch {
+            setManual(true);
+            return;
+          }
+          setDone(true);
+          setTimeout(() => setDone(false), 1600);
+        }}
+      >
+        {done ? <IconCheckCircle width={15} height={15} /> : <IconCopy width={15} height={15} />}
+        {done ? copiedLabel : label}
+      </button>
+
+      <Dialog open={manual} onClose={() => setManual(false)} title={label}>
+        <input
+          ref={field}
+          className="field w-full text-center"
+          readOnly
+          value={value}
+          onFocus={(e) => e.currentTarget.select()}
+          autoFocus
+        />
+      </Dialog>
+    </>
   );
 }
 

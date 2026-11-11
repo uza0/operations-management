@@ -25,6 +25,8 @@ export const en: Dictionary = {
     duplicate: 'Duplicate',
     close: 'Close',
     confirm: 'Confirm',
+    confirmTitle: 'Confirm action',
+    copyManual: 'Copy it manually',
     back: 'Back',
     search: 'Search',
     filter: 'Filter',

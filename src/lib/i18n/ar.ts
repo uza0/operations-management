@@ -27,6 +27,8 @@ export const ar = {
     duplicate: 'نسخ',
     close: 'إغلاق',
     confirm: 'تأكيد',
+    confirmTitle: 'تأكيد الإجراء',
+    copyManual: 'انسخه يدوياً',
     back: 'رجوع',
     search: 'بحث',
     filter: 'تصفية',

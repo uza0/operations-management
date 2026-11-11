@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { useOfflineAttendance } from './useOfflineAttendance';
 import { OfflineAttendanceNotice } from './OfflineAttendanceNotice';
 import { FormError } from '@/components/ui/states';
+import { useConfirm } from '@/components/ui/client';
 import type { Dictionary } from '@/lib/i18n';
 
 /**
@@ -78,6 +79,7 @@ export function DepartureButton({
 }) {
   const offline = useOfflineAttendance(token, t);
   const [online, setOnline] = useState(true);
+  const [ask, confirmDialog] = useConfirm();
   const pending = offline.pendingFor('EVENT_DEPARTURE');
 
   useEffect(() => {
@@ -93,12 +95,13 @@ export function DepartureButton({
   }, []);
 
   if (offlineOnly && online) return null;
-  const submit = () => {
-    if (window.confirm(t.journey.departHint)) void offline.record('EVENT_DEPARTURE');
+  const submit = async () => {
+    if (await ask(t.journey.departHint)) void offline.record('EVENT_DEPARTURE');
   };
 
   return (
     <div className="space-y-2">
+      {confirmDialog}
       {pending ? (
         <OfflineAttendanceNotice
           t={t}
@@ -111,7 +114,7 @@ export function DepartureButton({
           type="button"
           className="btn-outline w-full"
           disabled={offline.busy}
-          onClick={submit}
+          onClick={() => void submit()}
         >
           {offline.busy ? t.common.saving : t.journey.depart}
         </button>
