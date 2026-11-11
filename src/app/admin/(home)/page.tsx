@@ -20,7 +20,8 @@ import {
   IconTarget,
 } from '@/components/ui/icons';
 import { formatDate, formatDateTime, todayISO } from '@/lib/time';
-import { needsClosing, overdueToReady } from '@/server/services/lifecycle';
+import { advanceEvents, needsClosing, overdueToReady } from '@/server/services/lifecycle';
+import { sweepInBackground } from '@/server/services/push';
 import { format } from '@/lib/i18n';
 import type { AuditAction } from '@/lib/constants';
 
@@ -62,6 +63,14 @@ export default async function AdminDashboard() {
    * crew was due and which was never sent to them at all. The second is the
    * one the system deliberately refuses to fix by itself.
    */
+  /*
+   * The sweep used to depend on a promoter opening his page, which on a
+   * quiet day means nothing advances at all. The supervisor's own dashboard
+   * drives it too — throttled, in the background, and never blocking the
+   * page it is drawn on.
+   */
+  sweepInBackground(() => advanceEvents());
+
   const [unsentRows, unclosedRows] = await Promise.all([overdueToReady(), needsClosing()]);
   /* Only the ones this account can already see — the list is a shortcut, not a leak. */
   const byId = new Map(allEvents.map((event) => [event.id, event]));

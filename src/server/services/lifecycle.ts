@@ -389,3 +389,47 @@ export async function nagAboutClosing(
 
   return sent;
 }
+
+/**
+ * Checks one event's stage the moment something about it changed.
+ *
+ * The sweep is a backstop, not the mechanism. It runs on a schedule and on
+ * whoever happens to open a page, which is fine for "the crew is due now"
+ * and useless for "a gate was just added" — the supervisor is looking at the
+ * screen that should already have changed, and a stage that arrives ten
+ * minutes later reads as a bug whether or not it is one.
+ *
+ * So the one rule that is about an edit rather than about the clock is
+ * evaluated at the edit. Safe to call from anywhere and cheap when there is
+ * nothing to do: an event that is not a draft is one query and no write.
+ */
+export async function promoteIfBuilt(eventId: string): Promise<boolean> {
+  const row = await db
+    .select({ id: events.id, name: events.name, status: events.status })
+    .from(events)
+    .where(eq(events.id, eventId))
+    .get();
+  if (!row || row.status !== 'DRAFT') return false;
+
+  const somewhere = await draftsWithSomewhereToStand();
+  if (!somewhere.includes(eventId)) return false;
+
+  await db
+    .update(events)
+    .set({ status: 'PLANNING', updatedAt: new Date() })
+    .where(and(eq(events.id, eventId), eq(events.status, 'DRAFT')));
+
+  await recordAudit({
+    eventId,
+    actorId: null,
+    actorName: SYSTEM_ACTOR,
+    action: 'STATUS_CHANGE',
+    entity: 'EVENT',
+    entityId: eventId,
+    entityLabel: row.name,
+    oldValues: { status: 'DRAFT' },
+    newValues: { status: 'PLANNING' },
+    summary: `${row.name}: DRAFT → PLANNING`,
+  });
+  return true;
+}

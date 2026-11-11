@@ -229,6 +229,16 @@ export const events = sqliteTable(
      * in theirs can be put beside each other.
      */
     externalId: text('external_id'),
+    /**
+     * When somebody changed this night's attendance after its money had gone
+     * out, if anybody did.
+     *
+     * Attendance is what decided the money, so a change after the handover
+     * leaves the record and the transfer disagreeing. The change is allowed —
+     * a supervisor sometimes has to correct a real mistake — but it is never
+     * silent: the evening carries this from then on.
+     */
+    editedAfterPayoutAt: integer('edited_after_payout_at', { mode: 'timestamp_ms' }),
     /*
      * The companies putting the night on with us — a sponsor, an organiser,
      * sometimes two or three of them.

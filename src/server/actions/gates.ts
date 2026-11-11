@@ -17,6 +17,7 @@ import {
 } from '@/lib/validation';
 import { assertEventManager } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
+import { promoteIfBuilt } from '@/server/services/lifecycle';
 
 import { fail, ok, type ActionState } from './types';
 
@@ -131,6 +132,7 @@ export async function saveGateAction(
     });
   }
 
+  await promoteIfBuilt(eventId);
   revalidateEvent(eventId);
   return ok();
 }
@@ -184,6 +186,7 @@ export async function deleteGateAction(
     summary: `${t.enums.auditAction.DELETE} — ${gate.name}`,
   });
 
+  await promoteIfBuilt(eventId);
   revalidateEvent(eventId);
   return ok();
 }
@@ -280,6 +283,7 @@ export async function saveWorkingPointAction(
     });
   }
 
+  await promoteIfBuilt(eventId);
   revalidateEvent(eventId);
   return ok();
 }
@@ -327,6 +331,7 @@ export async function deleteWorkingPointAction(
     summary: `${t.enums.auditAction.DELETE} — ${point.name}`,
   });
 
+  await promoteIfBuilt(eventId);
   revalidateEvent(eventId);
   return ok();
 }

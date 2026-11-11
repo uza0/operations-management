@@ -23,6 +23,7 @@ import { recordAudit } from '@/server/services/audit';
 import { unmarkedAttendance } from '@/server/services/seat-setup';
 import { pushOnce } from '@/server/services/push';
 import { cloneEventPlan } from '@/server/services/clone';
+import { promoteIfBuilt } from '@/server/services/lifecycle';
 import { eventTeamLeaderId, eventTeamLeaderIds, setEventTeamLeader, setEventTeamLeaders, setGateLeader } from '@/server/services/access';
 import { hrefForStep } from '@/features/event/setup-steps';
 import { getStaffedLocations } from '@/server/services/staffing';
@@ -124,6 +125,15 @@ export async function createEventAction(
       createdById: user.id,
     });
   }
+
+  /*
+   * A copy arrives with last time's gates already in it, so it is a plan the
+   * moment it exists — and the supervisor is looking at the screen that
+   * should say so. Judged by the same rule as any other event, not declared:
+   * copying a source that never had a gate leaves this one a draft, which is
+   * the right answer.
+   */
+  if (cloned) await promoteIfBuilt(id);
 
   // Selected team leaders get an explicit event grant as soon as it is created.
   if (form.has('primaryLeaderId') || form.has('assistantLeaderIds')) {

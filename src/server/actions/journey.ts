@@ -12,6 +12,7 @@ import {
   seatSetupMembers,
 } from '@/db/schema';
 import { getT } from '@/lib/i18n/server';
+import { markEditedAfterPayout, payoutLock } from '@/server/services/credit';
 import { newId } from '@/lib/ids';
 import { DECLINE_REASONS, type DeclineReason } from '@/lib/constants';
 import {
@@ -279,6 +280,12 @@ export async function reportArrivalAction(
 
   if (!row.confirmedAt) return fail(t.journey.confirmFirst);
   if (att?.reportedArrivalAt) return ok(t.journey.arrivalAlready);
+  /*
+   * A night whose money has gone out is nobody's to change, his least of
+   * all — pressing "I arrived" on an evening already paid would rewrite what
+   * the payment was decided on.
+   */
+  if ((await payoutLock(row.id, 'MEMBER')).locked) return fail(t.credit.attendanceLocked);
   /* The window is enforced here, not by hiding the button. */
   if (stage !== 'ARRIVING') return fail(t.journey.tooEarly);
 
@@ -335,6 +342,7 @@ export async function reportDepartureAction(
   if (att?.reportedDepartureAt) return ok(t.journey.departureAlready);
   if (stage !== 'ON_DUTY') return fail(t.journey.notOnDuty);
   if (!att) return fail(t.errors.notFound);
+  if ((await payoutLock(row.id, 'MEMBER')).locked) return fail(t.credit.attendanceLocked);
 
   const clock = baghdadClock(now);
 
@@ -399,6 +407,11 @@ export async function approveArrivalsAction(
       .where(and(eq(attendance.eventMemberId, id), eq(attendance.eventId, eventId)))
       .get();
     if (!att || !att.reportedArrivalAt || att.approvedAt) continue;
+
+    /* Approving sets PRESENT or LATE, which is what the money reads. */
+    const lock = await payoutLock(id, user.role === 'ADMIN' ? 'ADMIN' : 'TEAM_LEADER');
+    if (lock.locked && !lock.mayOverride) continue;
+    if (lock.locked && lock.mayOverride) await markEditedAfterPayout(lock.eventId);
 
     /*
      * Late is a timekeeping fact, not a punishment, and it is worked out from

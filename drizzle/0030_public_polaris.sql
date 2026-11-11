@@ -1,0 +1,1 @@
+ALTER TABLE `events` ADD `edited_after_payout_at` integer;

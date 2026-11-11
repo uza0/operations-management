@@ -438,3 +438,58 @@ export async function payrollLedger(range?: Range): Promise<MemberLedger[]> {
       (a, b) => b.totalAmount - a.totalAmount || a.employeeCode.localeCompare(b.employeeCode),
     );
 }
+
+/* -------------------------------------------------------------------------- */
+/* what a handover freezes                                                    */
+/* -------------------------------------------------------------------------- */
+
+export type PayoutLock =
+  /** Nothing has gone out for this line; it is ordinary work in progress. */
+  | { locked: false }
+  /** It went out, and this person may not change what it was paid on. */
+  | { locked: true; mayOverride: false }
+  /** It went out, and this person may — at the cost of saying so afterwards. */
+  | { locked: true; mayOverride: true; eventId: string };
+
+/**
+ * Whether a night's attendance is still anybody's to change.
+ *
+ * Attendance is what decided the money. Once a line has gone out in a payment
+ * file, changing what it was decided on leaves the system's record saying one
+ * thing and the transfer that reached the man saying another — and nothing
+ * anywhere would notice.
+ *
+ * So the line freezes with the handover. A leader cannot touch it at all: he
+ * is the one who files it, and the week after is exactly when a quiet
+ * correction looks like tidying up. A supervisor can, because sometimes the
+ * record really is wrong and somebody must be able to say so — but the event
+ * is marked afterwards, so that the disagreement between the record and the
+ * money is visible rather than discovered.
+ */
+export async function payoutLock(
+  eventMemberId: string,
+  role: 'ADMIN' | 'TEAM_LEADER' | 'GATE_LEADER' | 'MEMBER',
+): Promise<PayoutLock> {
+  const row = await db
+    .select({ payoutId: eventMembers.payoutId, eventId: eventMembers.eventId })
+    .from(eventMembers)
+    .where(eq(eventMembers.id, eventMemberId))
+    .get();
+  if (!row?.payoutId) return { locked: false };
+  if (role === 'ADMIN') return { locked: true, mayOverride: true, eventId: row.eventId };
+  return { locked: true, mayOverride: false };
+}
+
+/**
+ * Records that somebody changed a paid night after it was paid.
+ *
+ * The mark lives on the event rather than on the line: whoever is looking at
+ * the week wants to know which evening to re-read, and a flag on one of
+ * forty rows is a flag nobody finds.
+ */
+export async function markEditedAfterPayout(eventId: string) {
+  await db
+    .update(events)
+    .set({ editedAfterPayoutAt: new Date(), updatedAt: new Date() })
+    .where(eq(events.id, eventId));
+}

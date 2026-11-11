@@ -18,6 +18,7 @@ import {
 } from '@/db/schema';
 import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
+import { markEditedAfterPayout, payoutLock } from '@/server/services/credit';
 import { newId } from '@/lib/ids';
 import { nowHHmm } from '@/lib/time';
 import {
@@ -60,6 +61,26 @@ function errorFor(t: Awaited<ReturnType<typeof getT>>['t'], key: string) {
  * Manual attendance (spec §16). Check-in is stamped the first time someone is
  * marked present or late; correcting a status later never invents a new time.
  */
+/**
+ * Refuses, or allows and marks, a change to a night whose money has gone out.
+ *
+ * Returns the message to fail with, or null to carry on. Called at every
+ * point that can change what a payment was decided on, which is the only way
+ * a rule like this holds: one of them left out is the one somebody uses.
+ */
+async function frozenByPayout(
+  eventMemberId: string,
+  isAdmin: boolean,
+  t: Awaited<ReturnType<typeof getT>>['t'],
+): Promise<string | null> {
+  const lock = await payoutLock(eventMemberId, isAdmin ? 'ADMIN' : 'TEAM_LEADER');
+  if (!lock.locked) return null;
+  if (!lock.mayOverride) return t.credit.attendanceLocked;
+  await markEditedAfterPayout(lock.eventId);
+  return null;
+}
+
+
 export async function recordAttendanceAction(
   _prev: ActionState,
   form: FormData,
@@ -91,6 +112,9 @@ export async function recordAttendanceAction(
     .where(eq(eventMembers.id, parsed.data.eventMemberId))
     .get();
   if (!member || member.eventId !== eventId) return fail(t.errors.notFound);
+
+ const frozen = await frozenByPayout(parsed.data.eventMemberId, scope.user.role === 'ADMIN', t);
+  if (frozen) return fail(frozen);
 
   const existing = await db.query.attendance.findFirst({
     where: eq(attendance.eventMemberId, parsed.data.eventMemberId),
@@ -164,6 +188,9 @@ export async function checkOutAction(
   const id = str(form, 'eventMemberId');
   if (!id) return fail(t.errors.notFound);
 
+  const frozen = await frozenByPayout(id, scope.user.role === 'ADMIN', t);
+  if (frozen) return fail(frozen);
+
   await db
     .update(attendance)
     .set({ checkOutTime: nowHHmm(), recordedById: user.id, updatedAt: new Date() })
@@ -208,6 +235,9 @@ export async function setAttendanceTimesAction(
     .where(eq(eventMembers.id, parsed.data.eventMemberId))
     .get();
   if (!member || member.eventId !== eventId) return fail(t.errors.notFound);
+
+ const frozen = await frozenByPayout(parsed.data.eventMemberId, user.role === 'ADMIN', t);
+  if (frozen) return fail(frozen);
 
   const existing = await db.query.attendance.findFirst({
     where: eq(attendance.eventMemberId, parsed.data.eventMemberId),
@@ -300,6 +330,11 @@ export async function completeUnrecordedAttendanceAction(
       .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
       .where(and(eq(eventMembers.id, id), eq(eventMembers.eventId, eventId)))
       .get();
+    /* A paid line is skipped rather than failing the whole sweep. */
+    const lock = await payoutLock(id, user.role === 'ADMIN' ? 'ADMIN' : 'TEAM_LEADER');
+    if (lock.locked && !lock.mayOverride) continue;
+    if (lock.locked && lock.mayOverride) await markEditedAfterPayout(lock.eventId);
+
     if (!member || member.memberStatus === 'CANCELLED') {
       skipped += 1;
       continue;

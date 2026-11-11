@@ -14,16 +14,13 @@ import { EmptyState, FormError } from '@/components/ui/states';
 import {
   Badge,
   StaffingIndicator,
-  locationStatusTone,
 } from '@/components/ui/status';
 import { ConfirmSubmit, Dialog, SubmitButton } from '@/components/ui/client';
 import { IconEdit, IconGate, IconPlus, IconTarget } from '@/components/ui/icons';
 import {
   GATE_TYPES,
-  LOCATION_STATUSES,
   WORKING_POINT_TYPES,
   type GateType,
-  type LocationStatus,
   type WorkingPointType,
 } from '@/lib/constants';
 import { format, type Dictionary } from '@/lib/i18n';
@@ -111,23 +108,13 @@ function GateForm({
             ))}
           </select>
         </div>
-        <div>
-          <label className="field-label" htmlFor="gate-status">
-            {t.common.status}
-          </label>
-          <select
-            id="gate-status"
-            name="status"
-            className="field"
-            defaultValue={gate?.status ?? 'INACTIVE'}
-          >
-            {LOCATION_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {t.enums.locationStatus[status as LocationStatus]}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/*
+          A gate had its own four-stage status, and nothing in the system read
+          it: not the staffing figures, not the board, not the money, not a
+          single reminder. It was a dropdown to fill in on every gate of every
+          event that painted a badge and bought nothing. A gate is open when
+          the evening is, which the event already says.
+        */}
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -257,23 +244,6 @@ function WorkingPointForm({
             {WORKING_POINT_TYPES.map((type) => (
               <option key={type} value={type}>
                 {t.enums.workingPointType[type as WorkingPointType]}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="field-label" htmlFor="wp-status">
-            {t.common.status}
-          </label>
-          <select
-            id="wp-status"
-            name="status"
-            className="field"
-            defaultValue={point?.status ?? 'INACTIVE'}
-          >
-            {LOCATION_STATUSES.map((status) => (
-              <option key={status} value={status}>
-                {t.enums.locationStatus[status as LocationStatus]}
               </option>
             ))}
           </select>
@@ -417,9 +387,6 @@ export function GateManager({
               {location.capacity ? ` · ${t.gate.capacity} ${location.capacity}` : ''}
             </p>
           </div>
-          <Badge tone={locationStatusTone[location.status as LocationStatus]}>
-            {t.enums.locationStatus[location.status as LocationStatus]}
-          </Badge>
         </div>
 
         <StaffingIndicator

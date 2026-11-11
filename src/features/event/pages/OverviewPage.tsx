@@ -176,6 +176,20 @@ export async function EventOverviewPage({
         />
       </div>
 
+      {/*
+        Said on the evening itself, because whoever opens it is the person
+        who has to decide whether the record or the transfer is the one to
+        correct. It never goes away: the disagreement does not either.
+      */}
+      {event.editedAfterPayoutAt ? (
+        <div className="mt-4">
+          <Notice tone="warn">
+            <span className="font-semibold">{t.credit.editedAfterPayout}</span>{' '}
+            {t.credit.editedAfterPayoutWhy}
+          </Notice>
+        </div>
+      ) : null}
+
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-3">
         <div className="space-y-4 lg:col-span-2">
           {/* Gate staffing ------------------------------------------------ */}
