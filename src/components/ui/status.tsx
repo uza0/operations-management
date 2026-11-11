@@ -10,7 +10,6 @@ import type {
   EventStatus,
   IssuePriority,
   IssueStatus,
-  LocationStatus,
   Priority,
   StaffingLevel,
   TimelineStatus,
@@ -79,12 +78,6 @@ export const eventStatusTone: Record<EventStatus, Tone> = {
   ARCHIVED: 'neutral',
 };
 
-export const locationStatusTone: Record<LocationStatus, Tone> = {
-  INACTIVE: 'neutral',
-  READY: 'brand',
-  ACTIVE: 'ok',
-  CLOSED: 'neutral',
-};
 
 export const attendanceTone: Record<AttendanceStatus, Tone> = {
   PENDING: 'neutral',

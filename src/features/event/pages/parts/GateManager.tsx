@@ -12,7 +12,6 @@ import {
 import { idle } from '@/server/actions/types';
 import { EmptyState, FormError } from '@/components/ui/states';
 import {
-  Badge,
   StaffingIndicator,
 } from '@/components/ui/status';
 import { ConfirmSubmit, Dialog, SubmitButton } from '@/components/ui/client';

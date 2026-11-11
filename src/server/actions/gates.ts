@@ -52,6 +52,12 @@ export async function saveGateAction(
     description: str(form, 'description'),
     capacity: str(form, 'capacity') ? num(form, 'capacity') : null,
     requiredStaff: num(form, 'requiredStaff', 1),
+    /*
+     * The form stopped asking: a gate is open when the evening is, which the
+     * event already says. The column stays — this system never drops one —
+     * so a new gate takes the resting value and an edit keeps whatever is
+     * already there rather than silently resetting it.
+     */
     status: str(form, 'status') ?? 'INACTIVE',
     gateLeaderId: str(form, 'gateLeaderId'),
   });
@@ -78,7 +84,7 @@ export async function saveGateAction(
         description: parsed.data.description ?? null,
         capacity: parsed.data.capacity ?? null,
         requiredStaff: parsed.data.requiredStaff,
-        status: parsed.data.status,
+        status: str(form, 'status') ?? existing.status,
         gateLeaderId: parsed.data.gateLeaderId || null,
         updatedAt: new Date(),
       })
@@ -212,6 +218,12 @@ export async function saveWorkingPointAction(
     type: str(form, 'type') ?? 'OTHER',
     description: str(form, 'description'),
     requiredStaff: num(form, 'requiredStaff', 1),
+    /*
+     * The form stopped asking: a gate is open when the evening is, which the
+     * event already says. The column stays — this system never drops one —
+     * so a new gate takes the resting value and an edit keeps whatever is
+     * already there rather than silently resetting it.
+     */
     status: str(form, 'status') ?? 'INACTIVE',
   });
   if (!parsed.success) {
@@ -242,7 +254,7 @@ export async function saveWorkingPointAction(
         type: parsed.data.type,
         description: parsed.data.description ?? null,
         requiredStaff: parsed.data.requiredStaff,
-        status: parsed.data.status,
+        status: str(form, 'status') ?? existing.status,
         updatedAt: new Date(),
       })
       .where(eq(workingPoints.id, id));
