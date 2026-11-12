@@ -3,10 +3,12 @@
 import { useActionState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
-import { reversePayoutAction, settlePayoutAction } from '@/server/actions/payroll';
+import Link from 'next/link';
+
+import { reversePayoutAction } from '@/server/actions/payroll';
 import { idle } from '@/server/actions/types';
 import { FormError } from '@/components/ui/states';
-import { ConfirmSubmit, SubmitButton } from '@/components/ui/client';
+import { ConfirmSubmit } from '@/components/ui/client';
 import { formatAmount } from '@/lib/money';
 import { format, type Dictionary, type Locale } from '@/lib/i18n';
 import { formatDate } from '@/lib/time';
@@ -49,12 +51,11 @@ export function PayoutPanel({
   payouts: PayoutRow[];
 }) {
   const router = useRouter();
-  const [state, settle] = useActionState(settlePayoutAction, idle);
   const [reverseState, reverse] = useActionState(reversePayoutAction, idle);
 
   useEffect(() => {
-    if (state.status === 'success' || reverseState.status === 'success') router.refresh();
-  }, [state, reverseState, router]);
+    if (reverseState.status === 'success') router.refresh();
+  }, [reverseState, router]);
 
   const ready = Boolean(from && to);
 
@@ -64,37 +65,34 @@ export function PayoutPanel({
       <p className="mt-1 text-[12.5px] leading-5 text-ink-500">{t.credit.payoutHint}</p>
 
       <div className="mt-3 rounded-card border border-ink-700 bg-ink-850 p-3">
-        {ready ? (
-          <>
-            <p className="text-[13px] text-ink-300">
-              {t.credit.payoutPreview}
-              <span className="mx-1.5 text-ink-600">·</span>
-              <span className="nums font-semibold text-ink-100">
-                {formatAmount(owedTotal)} {t.credit.currency}
-              </span>
-              <span className="mx-1.5 text-ink-600">·</span>
-              <span className="nums">{format(t.credit.payoutPeople, { n: owedPeople })}</span>
-            </p>
-            <p className="mt-1 text-[12px] leading-5 text-ink-500">{t.credit.payoutOutside}</p>
+        {/*
+          The figure, and the way to the one place it is paid from.
 
-            <form action={settle} className="mt-2.5">
-              <input type="hidden" name="fromDate" value={from} />
-              <input type="hidden" name="toDate" value={to} />
-              <ConfirmSubmit
-                className="btn-primary btn-sm"
-                message={t.credit.payoutConfirm}
-              >
-                {t.credit.payoutSettle}
-              </ConfirmSubmit>
-            </form>
-            <FormError message={state.status === 'error' ? state.message : null} />
-          </>
-        ) : (
-          /* Without both ends there is no span, and no span means no handover. */
-          <p className="text-[12.5px] leading-5 text-ink-500">
-            {t.credit.payoutFrom} — {t.credit.payoutTo}
+          There used to be a button here that marked the span as handed over.
+          It wrote the same record the payment file writes, without making a
+          file — so a span settled here by a slip of the hand was quietly
+          missing from the next file the company was sent, and those people
+          were not paid. Nothing is handed over in cash, so nothing needs a
+          second door: the file is the handover.
+        */}
+        {ready ? (
+          <p className="text-[13px] text-ink-300">
+            {t.credit.payoutPreview}
+            <span className="mx-1.5 text-ink-600">·</span>
+            <span className="nums font-semibold text-ink-100">
+              {formatAmount(owedTotal)} {t.credit.currency}
+            </span>
+            <span className="mx-1.5 text-ink-600">·</span>
+            <span className="nums">{format(t.credit.payoutPeople, { n: owedPeople })}</span>
           </p>
-        )}
+        ) : null}
+        <p className="mt-1 text-[12px] leading-5 text-ink-500">{t.credit.payoutViaFile}</p>
+        <Link
+          href={ready ? `/admin/payments?from=${from}&to=${to}` : '/admin/payments'}
+          className="btn-primary btn-sm mt-2.5 inline-flex"
+        >
+          {t.payment.nav}
+        </Link>
       </div>
 
       <h3 className="mt-4 text-[13.5px] font-semibold text-ink-200">

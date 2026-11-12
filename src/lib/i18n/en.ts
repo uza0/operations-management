@@ -1114,7 +1114,9 @@ Any questions, message me.`,
     salaried: 'On salary',
     payoutTitle: 'Wage handover',
     payoutHint:
-      'The company settles several events at once. Pick the span, read who gets what, then record the handover.',
+      'The company gathers several events and hands over once. Pick the span and see who is due what.',
+    payoutViaFile:
+      'A handover is recorded only by the payment file: generating it marks everyone in it as paid.',
     payoutFrom: 'From',
     payoutTo: 'To',
     payoutPreview: 'Owed in this span',
