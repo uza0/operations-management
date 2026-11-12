@@ -258,7 +258,10 @@ export async function advanceEvents(now = Date.now()): Promise<Advance[]> {
     const named = await db
       .select({ id: events.id, name: events.name })
       .from(events)
-      .where(and(inArray(events.id, move.ids), eq(events.status, move.from)))
+      /* Not the ones a supervisor took back by hand: those wait for him. */
+      .where(
+        and(inArray(events.id, move.ids), eq(events.status, move.from), isNull(events.heldAt)),
+      )
       .all();
     if (named.length === 0) continue;
 
@@ -405,11 +408,11 @@ export async function nagAboutClosing(
  */
 export async function promoteIfBuilt(eventId: string): Promise<boolean> {
   const row = await db
-    .select({ id: events.id, name: events.name, status: events.status })
+    .select({ id: events.id, name: events.name, status: events.status, heldAt: events.heldAt })
     .from(events)
     .where(eq(events.id, eventId))
     .get();
-  if (!row || row.status !== 'DRAFT') return false;
+  if (!row || row.status !== 'DRAFT' || row.heldAt) return false;
 
   const somewhere = await draftsWithSomewhereToStand();
   if (!somewhere.includes(eventId)) return false;

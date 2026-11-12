@@ -9,7 +9,7 @@ import { EventCard } from '@/components/event/EventCard';
 import { TypeLegend } from '@/components/event/TypeLegend';
 import { DeleteEventButton } from '@/components/event/DeleteEventButton';
 import { IconCalendar, IconPlus } from '@/components/ui/icons';
-import { EVENT_STATUSES, type EventStatus } from '@/lib/constants';
+import { DELETABLE_STATUSES, EVENT_STATUSES, type EventStatus } from '@/lib/constants';
 
 export default async function AdminEventsPage({
   searchParams,
@@ -93,8 +93,16 @@ export default async function AdminEventsPage({
               t={t}
               locale={locale}
               href={`/admin/events/${event.id}`}
+              /*
+                Only before the night. An event that has run carries the
+                attendance its money was worked out from, and is archived
+                rather than deleted — the server refuses it either way.
+              */
               action={
-                <DeleteEventButton t={t} eventId={event.id} eventName={event.name} />
+                user.systemDeveloper ||
+                DELETABLE_STATUSES.includes(event.status as EventStatus) ? (
+                  <DeleteEventButton t={t} eventId={event.id} eventName={event.name} />
+                ) : undefined
               }
             />
           ))}

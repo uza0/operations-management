@@ -239,6 +239,19 @@ export const events = sqliteTable(
      * silent: the evening carries this from then on.
      */
     editedAfterPayoutAt: integer('edited_after_payout_at', { mode: 'timestamp_ms' }),
+    /**
+     * When a supervisor took this event back a stage by hand, and so took it
+     * off the clock.
+     *
+     * The stages move themselves now: an event whose crew is due becomes
+     * live, one whose attendance is finished closes, one that is paid is
+     * archived. That made moving one backwards pointless — the conditions
+     * that carried it forward were still true, so the next sweep carried it
+     * forward again within minutes, and a supervisor reopening a night to
+     * correct it watched it shut in his face. While this is set the sweep
+     * leaves the event alone; moving it forward by hand clears it.
+     */
+    heldAt: integer('held_at', { mode: 'timestamp_ms' }),
     /*
      * The companies putting the night on with us — a sponsor, an organiser,
      * sometimes two or three of them.

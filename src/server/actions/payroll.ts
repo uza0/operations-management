@@ -38,7 +38,6 @@ function revalidate() {
   revalidatePath('/admin/credits');
   revalidatePath('/admin/team');
   revalidatePath('/admin/payments');
-  revalidatePath('/leader/payments');
 }
 
 /**

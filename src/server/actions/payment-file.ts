@@ -41,9 +41,7 @@ const MAX_TEMPLATE = 8 * 1024 * 1024;
 
 function revalidate() {
   revalidatePath('/admin/payments');
-  revalidatePath('/leader/payments');
   revalidatePath('/admin/credits');
-  revalidatePath('/leader/credits');
   revalidatePath('/admin/settings');
 }
 

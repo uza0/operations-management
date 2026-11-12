@@ -60,6 +60,13 @@ export const EVENT_STATUSES = [
 export type EventStatus = (typeof EVENT_STATUSES)[number];
 
 /**
+ * The stages in which an event may still be deleted outright: before its
+ * crew was ever due. After that it carries attendance and money, and it is
+ * archived instead.
+ */
+export const DELETABLE_STATUSES: EventStatus[] = ['DRAFT', 'PLANNING', 'READY'];
+
+/**
  * The stages an evening is still being built in, and so is nobody's but the
  * office's.
  *

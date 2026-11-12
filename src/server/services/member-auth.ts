@@ -144,7 +144,7 @@ export async function isLockedOut(key: string): Promise<boolean> {
   return failures >= MAX_ATTEMPTS;
 }
 
-async function recordAttempt(key: string, succeeded: boolean): Promise<void> {
+export async function recordAttempt(key: string, succeeded: boolean): Promise<void> {
   await db.insert(memberLoginAttempts).values({
     id: newId(),
     phoneKey: key,

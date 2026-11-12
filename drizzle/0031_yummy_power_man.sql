@@ -1,0 +1,1 @@
+ALTER TABLE `events` ADD `held_at` integer;

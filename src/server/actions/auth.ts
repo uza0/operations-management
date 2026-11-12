@@ -16,6 +16,7 @@ import { recordAudit } from '@/server/services/audit';
 import type { Role } from '@/lib/constants';
 
 import { fail, ok, type ActionState } from './types';
+import { isLockedOut, recordAttempt } from '@/server/services/member-auth';
 
 export async function loginAction(
   _prev: ActionState,
@@ -30,6 +31,17 @@ export async function loginAction(
 
   if (!username || !password) return fail(t.errors.required);
 
+  /*
+   * Five wrong passwords in a row and the account rests for a quarter of an
+   * hour. The promoters' door has had this from the start; the office door,
+   * which opens onto everybody's pay, had nothing, and a password can be
+   * guessed at a few hundred tries a minute by anything that can post a form.
+   * Counted per username, in the same ledger, under a prefix a phone number
+   * can never collide with.
+   */
+  const attemptKey = `staff:${username.slice(0, 64)}`;
+  if (await isLockedOut(attemptKey)) return fail(t.auth.locked);
+
   const user = await db.query.users.findFirst({
     where: eq(users.username, username),
   });
@@ -40,7 +52,11 @@ export async function loginAction(
     user?.passwordHash ?? '$2b$10$ZZZZZZZZZZZZZZZZZZZZZeZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ';
   const valid = await bcrypt.compare(password, hash).catch(() => false);
 
-  if (!user || !valid) return fail(t.auth.invalidCredentials);
+  if (!user || !valid) {
+    await recordAttempt(attemptKey, false);
+    return fail(t.auth.invalidCredentials);
+  }
+  await recordAttempt(attemptKey, true);
   if (!user.active) return fail(t.auth.accountDisabled);
 
   await createSession({

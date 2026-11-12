@@ -105,6 +105,7 @@ export const en: Dictionary = {
     signIn: 'Sign in',
     signingIn: 'Signing in…',
     invalidCredentials: 'Incorrect username or password',
+    locked: 'Too many attempts on this account. Try again in fifteen minutes.',
     accountDisabled: 'This account is disabled',
     demoAccounts: 'Demo accounts',
     unauthorized: 'You do not have access to this page',
@@ -224,6 +225,8 @@ export const en: Dictionary = {
     advanceTo: 'Move status to',
     archive: 'Archive event',
     archiveConfirm: 'Archive this event? Its data stays available for reporting.',
+    held: 'Off the automatic schedule.',
+    heldWhy: 'You moved it back a stage by hand, so the system will not move it on its own. Moving it forward by hand puts it back on the schedule.',
     deleteConfirm:
       'Delete "{name}" and everything on it: team, board, attendance, reports, issues. This cannot be undone.',
     empty: 'No events yet',

@@ -5,12 +5,26 @@ import { redirect } from 'next/navigation';
 import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { assignments, eventAccess, eventMembers, events, gates, users, venues } from '@/db/schema';
+import {
+  assignments,
+  attendance,
+  eventAccess,
+  eventMembers,
+  events,
+  gates,
+  users,
+  venues,
+} from '@/db/schema';
 import { format } from '@/lib/i18n';
 import { formatDate } from '@/lib/time';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
-import { EVENT_STATUS_FLOW, type EventStatus } from '@/lib/constants';
+import {
+  DELETABLE_STATUSES,
+  EVENT_STATUSES,
+  EVENT_STATUS_FLOW,
+  type EventStatus,
+} from '@/lib/constants';
 import { bool, eventSchema, firstIssueKey, str } from '@/lib/validation';
 import {
   assertEventManager,
@@ -529,7 +543,17 @@ export async function changeEventStatusAction(
 
   await db
     .update(events)
-    .set({ status: next, updatedAt: new Date() })
+    .set({
+      status: next,
+      /*
+       * A step backwards by hand takes the event off the clock, and a step
+       * forwards by hand puts it back. Without the first, the sweep carried a
+       * reopened night forward again within minutes, because everything that
+       * had closed it was still true.
+       */
+      heldAt: EVENT_STATUSES.indexOf(next) < EVENT_STATUSES.indexOf(from) ? new Date() : null,
+      updatedAt: new Date(),
+    })
     .where(eq(events.id, eventId));
 
   await recordAudit({
@@ -601,6 +625,26 @@ export async function deleteEventAction(form: FormData): Promise<void> {
 
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) redirect('/admin/events');
+
+  /*
+   * Only an evening that has not happened can be deleted.
+   *
+   * Deleting takes the attendance with it, and the attendance is what the
+   * money was worked out from: remove a night that was paid and the transfers
+   * the company made have nothing left to be checked against. Once the crew
+   * has been due, or anybody has been marked, the event is history and the
+   * way to put it out of sight is to archive it. The list hides the button
+   * for these; this is the rule the button stands in front of.
+   *
+   * The system's developer is the one exception, because rehearsals and
+   * test nights are run through every stage too and somebody has to be able
+   * to clear them away.
+   */
+  const marked = await db.$count(attendance, eq(attendance.eventId, eventId));
+  const happened = !DELETABLE_STATUSES.includes(event.status as EventStatus) || marked > 0;
+  if (happened && !user.systemDeveloper) {
+    redirect(`/admin/events/${eventId}`);
+  }
 
   const { t } = await getT();
   await recordAudit({

@@ -181,6 +181,19 @@ export async function EventOverviewPage({
         who has to decide whether the record or the transfer is the one to
         correct. It never goes away: the disagreement does not either.
       */}
+      {/*
+        Taken off the clock by a supervisor's own step backwards. Said here
+        because otherwise the event simply stops moving and nothing explains
+        why the stage that used to change by itself no longer does.
+      */}
+      {event.heldAt ? (
+        <div className="mt-4">
+          <Notice tone="info">
+            <span className="font-semibold">{t.event.held}</span> {t.event.heldWhy}
+          </Notice>
+        </div>
+      ) : null}
+
       {event.editedAfterPayoutAt ? (
         <div className="mt-4">
           <Notice tone="warn">
