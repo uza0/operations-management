@@ -396,7 +396,7 @@ export async function updateEventAction(
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/leader/events/${eventId}`);
-  return ok();
+  redirect(`/admin/events/${eventId}`);
 }
 
 /**
