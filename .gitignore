@@ -37,3 +37,8 @@ signing-key-info.txt
 /build-log.txt
 *.idsig
 /_to_delete/
+
+# Files handed over by Claude, and what it could not delete itself
+*.tar.gz
+/Claude outputs/
+/_to_delete/
