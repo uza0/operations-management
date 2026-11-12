@@ -495,25 +495,3 @@ export async function announcementAudience(input: {
 /* -------------------------------------------------------------------------- */
 /* making sure something calls it                                             */
 /* -------------------------------------------------------------------------- */
-
-let lastSweep = 0;
-
-/**
- * Runs the due-reminder sweep off the back of an ordinary page load.
- *
- * A reminder an hour before arrival needs something to fire every so often,
- * and a Vercel deployment may or may not have a cron to spare — the smaller
- * plans allow one a day, which is no use to an event that starts at six. So
- * the app does it itself: the pages people open on an event evening are
- * opened constantly, and one of them in ten minutes does the sweep.
- *
- * Never awaited by the page: a promoter opening his own page must not wait
- * on a hundred and twenty push deliveries, and a failure here must not turn
- * his page into an error.
- */
-export function sweepInBackground(run: () => Promise<unknown>) {
-  const now = Date.now();
-  if (now - lastSweep < 10 * 60 * 1000) return;
-  lastSweep = now;
-  void run().catch(() => {});
-}

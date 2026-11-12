@@ -104,17 +104,41 @@ export function formatWeekday(value: string, locale: 'ar' | 'en' = 'ar'): string
   return (locale === 'ar' ? AR_WEEKDAYS : EN_WEEKDAYS)[index];
 }
 
+/**
+ * A moment, as the clock on the venue wall shows it.
+ *
+ * Baghdad is three hours ahead of UTC all year — there has been no summer
+ * time since 2008 — so the wall clock is the instant moved three hours on and
+ * read as though it were UTC. Reading the machine's own clock instead was
+ * right on a laptop in Baghdad and three hours slow on the server, which
+ * keeps UTC: an arrival marked by a leader at ten past nine went on the
+ * record as ten past six, beside a promoter's own press at the right time.
+ */
+const BAGHDAD_OFFSET_MS = 3 * 60 * 60 * 1000;
+
+function baghdadParts(value: Date) {
+  const wall = new Date(value.getTime() + BAGHDAD_OFFSET_MS);
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return {
+    date: `${wall.getUTCFullYear()}-${pad(wall.getUTCMonth() + 1)}-${pad(wall.getUTCDate())}`,
+    clock: `${pad(wall.getUTCHours())}:${pad(wall.getUTCMinutes())}`,
+  };
+}
+
+/** "HH:mm" in Baghdad for a moment; what an attendance row stores. */
+export function baghdadClock(value: Date): string {
+  return baghdadParts(value).clock;
+}
+
 export function formatDateTime(value: Date | null, locale: 'ar' | 'en' = 'ar'): string {
   if (!value) return '—';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const date = `${value.getFullYear()}-${pad(value.getMonth() + 1)}-${pad(value.getDate())}`;
-  return `${formatDate(date, locale)} · ${formatTime(`${pad(value.getHours())}:${pad(value.getMinutes())}`, locale)}`;
+  const { date, clock } = baghdadParts(value);
+  return `${formatDate(date, locale)} · ${formatTime(clock, locale)}`;
 }
 
 export function formatClock(value: Date | null, locale: 'ar' | 'en' = 'ar'): string {
   if (!value) return '—';
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return formatTime(`${pad(value.getHours())}:${pad(value.getMinutes())}`, locale);
+  return formatTime(baghdadParts(value).clock, locale);
 }
 
 /**
@@ -134,10 +158,9 @@ export function todayISO(): string {
   }).format(new Date());
 }
 
+/** The time on the venue wall right now, as "HH:mm". */
 export function nowHHmm(): string {
-  const d = new Date();
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return baghdadClock(new Date());
 }
 
 /**
@@ -169,8 +192,6 @@ export function rangesOverlap(
  * the clock reads 00:30, the event is dated the day before, and only a real
  * timestamp reconciles the two.
  */
-const BAGHDAD_OFFSET_MS = 3 * 60 * 60 * 1000;
-
 export function momentOfBaghdad(date: string, clock: string, addDays = 0): number {
   const [y, m, d] = date.split('-').map(Number);
   const [hh, mm] = clock.split(':').map(Number);

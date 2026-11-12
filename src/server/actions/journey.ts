@@ -28,6 +28,7 @@ import { recordAudit } from '@/server/services/audit';
 import { resolveMemberByToken } from '@/server/services/member';
 
 import { fail, ok, type ActionState } from './types';
+import { baghdadClock } from '@/lib/time';
 
 /**
  * The four things a promoter does with his own link: answer the invitation
@@ -37,22 +38,6 @@ import { fail, ok, type ActionState } from './types';
  * hides the buttons that do not belong to the moment, but hiding a button is
  * decoration — these are the checks.
  */
-
-/**
- * The clock on the wall at the venue, not the clock on the server.
- *
- * Every time written into an attendance row is a venue time: the server runs
- * in UTC, and "17:40" on somebody's record has to mean twenty to six in
- * Baghdad or it means nothing at all.
- */
-function baghdadClock(at: Date): string {
-  return new Intl.DateTimeFormat('en-GB', {
-    timeZone: 'Asia/Baghdad',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).format(at);
-}
 
 /**
  * Offline attendance is queued with the device time so that syncing later does

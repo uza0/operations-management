@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 import { getT } from '@/lib/i18n/server';
 import { getMemberPortal, type MemberPortalData } from '@/server/services/member';
-import { formatDate, formatDateTime, formatTime } from '@/lib/time';
+import { formatClock, formatDate, formatDateTime, formatTime } from '@/lib/time';
 import { format } from '@/lib/i18n';
 import { ARRIVAL_WINDOW_HOURS, venueMoment } from '@/lib/journey';
 import { plural } from '@/lib/plural';
@@ -768,13 +768,7 @@ export default async function MemberPortalPage({
                       line={{
                         ...row,
                         acknowledgedLabel: row.acknowledgedAt
-                          ? formatTime(
-                              `${String(row.acknowledgedAt.getHours()).padStart(
-                                2,
-                                '0',
-                              )}:${String(row.acknowledgedAt.getMinutes()).padStart(2, '0')}`,
-                              locale,
-                            )
+                          ? formatClock(row.acknowledgedAt, locale)
                           : null,
                       }}
                     />
@@ -891,13 +885,7 @@ export default async function MemberPortalPage({
                       line={{
                         ...row,
                         acknowledgedLabel: row.acknowledgedAt
-                          ? formatTime(
-                              `${String(row.acknowledgedAt.getHours()).padStart(
-                                2,
-                                '0',
-                              )}:${String(row.acknowledgedAt.getMinutes()).padStart(2, '0')}`,
-                              locale,
-                            )
+                          ? formatClock(row.acknowledgedAt, locale)
                           : null,
                       }}
                     />

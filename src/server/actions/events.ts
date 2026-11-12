@@ -396,7 +396,7 @@ export async function updateEventAction(
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/leader/events/${eventId}`);
-  redirect(`/admin/events/${eventId}`);
+  return ok();
 }
 
 /**
@@ -650,24 +650,6 @@ export async function saveReportNotesAction(
   revalidatePath(`/admin/events/${eventId}/reports`);
   revalidatePath(`/leader/events/${eventId}/reports`);
   return ok();
-}
-
-/** Used by the "understaffed gates" panel to jump straight to assigning. */
-export async function countGateAssignments(eventId: string, gateId: string) {
-  const rows = await db
-    .select({ id: assignments.id })
-    .from(assignments)
-    .where(and(eq(assignments.eventId, eventId), eq(assignments.gateId, gateId)));
-  return rows.length;
-}
-
-export async function listGateNames(eventId: string) {
-  return db.select({ id: gates.id, name: gates.name }).from(gates).where(eq(gates.eventId, eventId));
-}
-
-export async function redirectToWorkspace(eventId: string) {
-  const user = await currentUser();
-  redirect(`${workspaceBase(user?.role ?? 'TEAM_LEADER')}/events/${eventId}`);
 }
 
 /**

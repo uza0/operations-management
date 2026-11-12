@@ -134,7 +134,13 @@ export async function setMemberRateAction(
  * the page rendered and wrong when the button was pressed is the one kind of
  * bug this cannot have.
  */
-export async function previewPayout(fromDate: string, toDate: string) {
+/*
+ * Not exported, and that is the point. Every exported function in a file of
+ * server actions is an address a browser can call; this one reads names and
+ * what each is owed and checks nobody, because the action that calls it
+ * already has. It stays a private helper so it cannot be asked directly.
+ */
+async function previewPayout(fromDate: string, toDate: string) {
   const rows = await db
     .select({
       eventMemberId: eventMembers.id,

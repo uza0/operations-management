@@ -1,7 +1,4 @@
-import { getT } from '@/lib/i18n/server';
-import { reminderText, sendDueReminders } from '@/server/services/push';
-import { advanceEvents, nagAboutClosing } from '@/server/services/lifecycle';
-import { format } from '@/lib/i18n';
+import { runSweep } from '@/server/services/sweep';
 
 /**
  * The clock reminders, for whoever is due, late to press, or about to leave.
@@ -23,27 +20,5 @@ import { format } from '@/lib/i18n';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const { t } = await getT();
-  /*
-   * Stages first, reminders second. An evening that has just become LIVE is
-   * one the reminder sweep should already be treating as under way, and the
-   * other order leaves it a run behind.
-   */
-  const moved = await advanceEvents();
-  const nagged = await nagAboutClosing((nag) => ({
-    title: t.push.closingTitle,
-    body:
-      nag.rung === '2h' || nag.rung === '1d'
-        ? format(t.push.closingBody, { event: nag.name, n: nag.people })
-        : format(t.push.closingBodyLate, {
-            event: nag.name,
-            n: nag.people,
-            days: Math.floor(nag.hours / 24),
-          }),
-  }));
-  const result = await sendDueReminders(reminderText(t));
-  return Response.json(
-    { ...result, moved: moved.length, nagged: nagged.length },
-    { headers: { 'Cache-Control': 'no-store' } },
-  );
+  return Response.json(await runSweep(), { headers: { 'Cache-Control': 'no-store' } });
 }

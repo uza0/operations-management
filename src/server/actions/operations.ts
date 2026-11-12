@@ -872,20 +872,6 @@ export async function deleteTimelineItemAction(
 
 /* ------------------------------ lookup helpers ---------------------------- */
 
-export async function listEventLocations(eventId: string) {
-  const [gateRows, wpRows] = await Promise.all([
-    db
-      .select({ id: gates.id, name: gates.name })
-      .from(gates)
-      .where(eq(gates.eventId, eventId)),
-    db
-      .select({ id: workingPoints.id, name: workingPoints.name })
-      .from(workingPoints)
-      .where(eq(workingPoints.eventId, eventId)),
-  ]);
-  return { gates: gateRows, workingPoints: wpRows };
-}
-
 /**
  * The same attendance mark for everyone selected.
  *

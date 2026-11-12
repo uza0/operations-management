@@ -61,7 +61,14 @@ export async function loginAction(
     summary: `${user.name} — ${t.enums.auditAction.LOGIN}`,
   });
 
-  redirect(next && next.startsWith('/') ? next : homeFor(user.role as Role));
+  /*
+   * Only a path on this site. `//elsewhere.example` also starts with a slash
+   * and a browser reads it as another host, so a sign-in link could be made
+   * to end on somebody else's page wearing this one's address until the
+   * last moment.
+   */
+  const local = /^\/(?![\/\\])/.test(next);
+  redirect(local ? next : homeFor(user.role as Role));
 }
 
 export async function logoutAction(): Promise<void> {

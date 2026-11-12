@@ -84,7 +84,29 @@ export async function GET(request: Request) {
     const existing = await db.get<{ count: number }>(
       sql`select count(*) as count from users`,
     );
-    if ((existing?.count ?? 0) > 0 && !reset) {
+    /*
+     * Wiping a database that has accounts in it takes more than the link.
+     *
+     * The key rides in the URL, which means it sits in a browser's history
+     * and in the host's request log, and the same link is opened after every
+     * release. One stray `&reset=1` on it used to be the whole distance
+     * between a routine update and an empty system. So a reset of a database
+     * that is in use must also be switched on from the host's own settings,
+     * by somebody who can reach them, and switched off again afterwards.
+     */
+    const inUse = (existing?.count ?? 0) > 0;
+    if (inUse && reset && process.env.SETUP_ALLOW_RESET !== '1') {
+      return NextResponse.json(
+        {
+          status: 'reset-refused',
+          message:
+            'This database is in use, so it was not wiped. Nothing was changed. To wipe it on purpose, set SETUP_ALLOW_RESET=1 in the host settings, redeploy, run this again, then remove the setting.',
+        },
+        { status: 409 },
+      );
+    }
+
+    if (inUse && !reset) {
       /*
        * A release that adds a colleague to the standing account list must be
        * able to reach a database full of real work. Adding the missing ones is
@@ -127,7 +149,7 @@ export async function GET(request: Request) {
         message:
           upgraded.length > 0 || addedAccounts.length > 0
             ? 'The database already has accounts, so the data was kept. New columns and any new sign-in accounts were added so the site matches this release.'
-            : 'The database already has accounts and is up to date, so nothing was changed. Add &reset=1 to load data again: the real roster by default, or the demonstration with &demo=1.',
+            : 'The database already has accounts and is up to date, so nothing was changed.',
       });
     }
 

@@ -9,12 +9,7 @@ import { currentMember, touchMemberSession } from '@/server/services/member-auth
 import { currentUser, homeFor } from '@/server/auth/rbac';
 import { getMemberHome } from '@/server/services/member-home';
 import { getMemberAttendanceScore } from '@/server/services/member';
-import {
-  reminderText,
-  sendDueReminders,
-  sweepInBackground,
-} from '@/server/services/push';
-import { advanceEvents, nagAboutClosing } from '@/server/services/lifecycle';
+import { sweepInBackground } from '@/server/services/sweep';
 
 import { MemberShell } from '../member/[token]/MemberShell';
 import { AttendanceScoreCard } from './AttendanceScoreCard';
@@ -52,23 +47,7 @@ export default async function MemberHomePage() {
    * While somebody is here, see whether anybody is due at a gate within the
    * hour. Not awaited and never fatal — this page is his, not the sweep's.
    */
-  sweepInBackground(async () => {
-    const { t: text } = await getT();
-    /* The stages the clock decides, then the reminders. See /api/push/due. */
-    await advanceEvents();
-    await nagAboutClosing((nag) => ({
-      title: text.push.closingTitle,
-      body:
-        nag.rung === '2h' || nag.rung === '1d'
-          ? format(text.push.closingBody, { event: nag.name, n: nag.people })
-          : format(text.push.closingBodyLate, {
-              event: nag.name,
-              n: nag.people,
-              days: Math.floor(nag.hours / 24),
-            }),
-    }));
-    await sendDueReminders(reminderText(text));
-  });
+  sweepInBackground();
 
   const [{ locale, t }, home, staff, attendanceScore] = await Promise.all([
     getT(),
