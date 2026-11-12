@@ -396,7 +396,12 @@ export async function updateEventAction(
 
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/leader/events/${eventId}`);
-  return ok();
+  /*
+   * Back to the event once the edit is saved, in whichever workspace the
+   * person saving it works from: a leader sent to the supervisor's address
+   * would land on a page that refuses him.
+   */
+  redirect(`${workspaceBase(user.role)}/events/${eventId}`);
 }
 
 /**
