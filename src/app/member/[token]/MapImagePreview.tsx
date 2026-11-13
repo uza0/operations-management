@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 /**
  * The venue map as a picture, or nothing at all.
@@ -14,6 +14,16 @@ import { useState } from 'react';
  */
 export function MapImagePreview({ title, url }: { title: string; url: string }) {
   const [failed, setFailed] = useState(false);
+  const img = useRef<HTMLImageElement>(null);
+
+  // The picture is in the HTML the server sent, so on a quick failure the
+  // error has come and gone before this component is listening for it. Ask
+  // the element once it is ours: finished loading, and nothing to show.
+  useEffect(() => {
+    const el = img.current;
+    if (el && el.complete && el.naturalWidth === 0) setFailed(true);
+  }, []);
+
   if (failed) return null;
 
   return (
@@ -22,6 +32,7 @@ export function MapImagePreview({ title, url }: { title: string; url: string }) 
       <a href={url} target="_blank" rel="noopener noreferrer">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
+          ref={img}
           src={url}
           alt={title}
           onError={() => setFailed(true)}

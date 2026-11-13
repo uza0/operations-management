@@ -1114,7 +1114,6 @@ export const ar = {
     markLate: 'متأخر',
     markAbsent: 'غائب',
     markExcused: 'بعذر',
-    notCheckedIn: 'لم يسجّل حضوره',
     empty: 'لا يوجد أعضاء لتسجيل حضورهم',
     emptyHint: 'أضف أعضاء إلى الفعالية أولاً.',
     checkOutAction: 'تسجيل الانصراف',

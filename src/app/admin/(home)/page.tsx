@@ -16,7 +16,6 @@ import {
   IconPlus,
   IconUsers,
   IconCheckCircle,
-  IconPin,
   IconTarget,
 } from '@/components/ui/icons';
 import { formatDate, formatDateTime, todayISO } from '@/lib/time';

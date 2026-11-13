@@ -44,7 +44,7 @@ export function SignInTabs({
             onClick={() => setTab(key)}
             className={
               tab === key
-                ? 'rounded-[10px] bg-brand px-3 py-2 text-[13.5px] font-semibold text-white'
+                ? 'rounded-[10px] bg-brand-600 px-3 py-2 text-[13.5px] font-semibold text-white'
                 : 'rounded-[10px] px-3 py-2 text-[13.5px] font-medium text-ink-400 hover:text-ink-200'
             }
           >
