@@ -282,6 +282,11 @@ export const ar = {
     uploadHint: 'صورة PNG أو JPG أو SVG، بحد أقصى 8 ميغابايت. يُفضّل عرض 1600 بكسل أو أكثر.',
   },
   team: {
+    favorite: 'مفضّل',
+    favoriteAdd: 'أضفه للمفضلين',
+    favoriteRemove: 'شيله من المفضلين',
+    favoritesOnly: 'المفضلين بس',
+    favoritesCount: 'المفضلين ({n})',
     title: 'قاعدة بيانات الفريق',
     subtitle: 'أشخاص يعملون في الفعاليات — يُعاد استخدامهم في أي فعالية',
     newMember: 'عضو جديد',

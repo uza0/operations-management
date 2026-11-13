@@ -1,0 +1,1 @@
+ALTER TABLE `team_members` ADD `favorite` integer DEFAULT false NOT NULL;

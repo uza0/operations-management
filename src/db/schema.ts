@@ -141,6 +141,15 @@ export const teamMembers = sqliteTable(
      * figure a closed event was settled at stays what it was settled at.
      */
     defaultPay: real('default_pay'),
+    /**
+     * The supervisor's own shortlist: the people he wants beside the new
+     * faces when a big night needs more hands than usual.
+     *
+     * A label and nothing more. It changes no pay, no access and no order on
+     * any page a promoter or a team leader sees; only the admin's roster and
+     * the admin's "add to event" picker ever read it.
+     */
+    favorite: integer('favorite', { mode: 'boolean' }).notNull().default(false),
     notes: text('notes'),
     /*
      * How this person signs in: their phone number and a four-digit code,

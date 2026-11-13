@@ -25,6 +25,7 @@ import {
   IconQr,
   IconRefresh,
   IconSearch,
+  IconStar,
   IconTrash,
   IconUsers,
 } from '@/components/ui/icons';
@@ -44,7 +45,13 @@ export type EventTeamRow = {
   qrDataUrl: string | null;
 };
 
-export type AvailablePerson = { id: string; name: string; employeeCode: string };
+export type AvailablePerson = {
+  id: string;
+  name: string;
+  employeeCode: string;
+  /** The admin's shortlist; always false for anybody else looking. */
+  favorite?: boolean;
+};
 
 function AddMembers({
   t,
@@ -60,6 +67,8 @@ function AddMembers({
   const router = useRouter();
   const [state, action] = useActionState(addMembersToEventAction, idle);
   const [query, setQuery] = useState('');
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const favoriteCount = people.filter((p) => p.favorite).length;
 
   useEffect(() => {
     if (state.status === 'success') {
@@ -80,12 +89,20 @@ function AddMembers({
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return people;
-    return people.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) || p.employeeCode.toLowerCase().includes(q),
-    );
-  }, [people, query]);
+    const matching = q
+      ? people.filter(
+          (p) =>
+            p.name.toLowerCase().includes(q) || p.employeeCode.toLowerCase().includes(q),
+        )
+      : people;
+    /*
+     * The starred first, so on a big night the people the admin wants beside
+     * the new faces are at the top of the list; the order within each group
+     * stays the alphabetical one it arrived in.
+     */
+    const shortlisted = onlyFavorites ? matching.filter((p) => p.favorite) : matching;
+    return [...shortlisted].sort((a, b) => Number(Boolean(b.favorite)) - Number(Boolean(a.favorite)));
+  }, [people, query, onlyFavorites]);
 
   if (people.length === 0) {
     return <EmptyState title={t.common.noResults} hint={t.team.emptyHint} />;
@@ -109,6 +126,18 @@ function AddMembers({
           aria-label={t.common.search}
         />
       </div>
+
+      {favoriteCount > 0 ? (
+        <button
+          type="button"
+          aria-pressed={onlyFavorites}
+          onClick={() => setOnlyFavorites((v) => !v)}
+          className={`btn-sm ${onlyFavorites ? 'btn-secondary text-warn-text' : 'btn-ghost'}`}
+        >
+          <IconStar width={15} height={15} filled={onlyFavorites} />
+          {format(t.team.favoritesCount, { n: favoriteCount })}
+        </button>
+      ) : null}
 
       {/*
         Select all, over whatever the search has left. Adding a whole roster to
@@ -170,7 +199,18 @@ function AddMembers({
                 })
               }
             />
-            <span className="flex-1 text-[14px] text-ink-100">{person.name}</span>
+            <span className="flex flex-1 items-center gap-1.5 text-[14px] text-ink-100">
+              {person.name}
+              {person.favorite ? (
+                <IconStar
+                  width={14}
+                  height={14}
+                  filled
+                  className="text-warn-text"
+                  aria-label={t.team.favorite}
+                />
+              ) : null}
+            </span>
             <span className="nums text-[12px] text-ink-500">{person.employeeCode}</span>
           </label>
         ))}

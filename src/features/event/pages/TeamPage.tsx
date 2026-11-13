@@ -106,11 +106,19 @@ export async function EventTeamPage({ eventId }: { eventId: string }) {
             id: teamMembers.id,
             name: teamMembers.fullName,
             employeeCode: teamMembers.employeeCode,
+            favorite: teamMembers.favorite,
           })
           .from(teamMembers)
           .where(eq(teamMembers.active, true))
       )
           .filter((p) => !inEvent.has(p.id))
+          /*
+           * The shortlist is the admin's own note. A team leader adding
+           * people sees the plain roster, with no hint of who is starred.
+           */
+          .map(({ favorite, ...p }) =>
+            scope.user.role === 'ADMIN' ? { ...p, favorite } : p,
+          )
           // Alphabetical across both scripts — see src/lib/sort.ts.
           .sort(byName)
     : [];

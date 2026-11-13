@@ -370,3 +370,15 @@ export const IconHome = (p: IconProps) => (
     <path d="M6 10v9a1 1 0 0 0 1 1h3v-5h4v5h3a1 1 0 0 0 1-1v-9" />
   </Base>
 );
+
+/** A five-point star; filled when `filled` is set. */
+export function IconStar({ filled = false, ...props }: IconProps & { filled?: boolean }) {
+  return (
+    <Base {...props}>
+      <path
+        d="M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8L12 16.8l-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z"
+        fill={filled ? 'currentColor' : 'none'}
+      />
+    </Base>
+  );
+}

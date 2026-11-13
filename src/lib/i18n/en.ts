@@ -279,6 +279,11 @@ export const en: Dictionary = {
     uploadHint: 'PNG, JPG or SVG up to 8 MB. 1600px wide or more works best.',
   },
   team: {
+    favorite: 'Favourite',
+    favoriteAdd: 'Add to favourites',
+    favoriteRemove: 'Remove from favourites',
+    favoritesOnly: 'Favourites only',
+    favoritesCount: 'Favourites ({n})',
     title: 'Team database',
     subtitle: 'People who work events — reusable across any event',
     newMember: 'New member',

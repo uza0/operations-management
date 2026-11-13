@@ -9,7 +9,7 @@ import {
   saveTeamMemberAction,
   toggleTeamMemberAction,
 } from '@/server/actions/team';
-import { importTeamAction } from '@/server/actions/team';
+import { importTeamAction, toggleFavoriteAction } from '@/server/actions/team';
 import { idle } from '@/server/actions/types';
 import { format } from '@/lib/i18n';
 import { EmptyState, FormError } from '@/components/ui/states';
@@ -22,6 +22,7 @@ import {
   IconPrint,
   IconSearch,
   IconUpload,
+  IconStar,
   IconUsers,
 } from '@/components/ui/icons';
 import type { Dictionary } from '@/lib/i18n';
@@ -42,6 +43,7 @@ export type TeamRow = {
   sessions?: number;
   active: boolean;
   salaried: boolean;
+  favorite?: boolean;
   defaultPay: number | null;
   notes: string | null;
   eventCount: number;
@@ -257,6 +259,8 @@ export function TeamManager({
   completedEventCount: number;
 }) {
   const [query, setQuery] = useState('');
+  const [onlyFavorites, setOnlyFavorites] = useState(false);
+  const favoriteCount = members.filter((m) => m.favorite).length;
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<TeamRow | null>(null);
   const [importing, setImporting] = useState(false);
@@ -271,13 +275,14 @@ export function TeamManager({
             (m.phone ?? '').includes(q),
         )
       : members;
+    const shortlisted = onlyFavorites ? matching.filter((m) => m.favorite) : matching;
     /*
      * Alphabetical across both scripts — SQLite's own ORDER BY puts every
      * Latin name before every Arabic one, which on a roster that mixes them
      * reads as no order at all. See src/lib/sort.ts.
      */
-    return [...matching].sort((a, b) => compareNames(a.fullName, b.fullName));
-  }, [members, query]);
+    return [...shortlisted].sort((a, b) => compareNames(a.fullName, b.fullName));
+  }, [members, query, onlyFavorites]);
 
   return (
     <>
@@ -349,6 +354,16 @@ export function TeamManager({
             aria-label={t.common.search}
           />
         </div>
+        {/* The admin's own shortlist, one tap away from the whole roster. */}
+        <button
+          type="button"
+          aria-pressed={onlyFavorites}
+          onClick={() => setOnlyFavorites((v) => !v)}
+          className={`btn-sm whitespace-nowrap ${onlyFavorites ? 'btn-secondary text-warn-text' : 'btn-ghost'}`}
+        >
+          <IconStar width={15} height={15} filled={onlyFavorites} />
+          {format(t.team.favoritesCount, { n: favoriteCount })}
+        </button>
         <div className="flex flex-wrap items-center gap-2">
           {/*
            * Export first, then import: that is the order they are used in.
@@ -414,14 +429,28 @@ export function TeamManager({
                   <tr key={member.id}>
                     <td data-label={t.memberAuth.photoTitle}><TeamPhotoCell member={member} labels={{ upload: member.photoUrl ? t.memberAuth.photoReplace : t.memberAuth.photoUpload, approve: t.memberAuth.photoApprove, pending: t.memberAuth.photoReview, error: t.memberAuth.photoUploadError }} /></td>
                     <td data-label="">
-                      <button
-                        type="button"
-                        className="flex min-h-[44px] w-full items-center gap-2 text-start font-medium text-ink-100 hover:text-brand-300"
-                        onClick={() => setEditing(member)}
-                      >
-                        <IconEdit width={14} height={14} className="text-ink-500" />
-                        {member.fullName}
-                      </button>
+                      <div className="flex items-center gap-1">
+                        <form action={toggleFavoriteAction}>
+                          <input type="hidden" name="memberId" value={member.id} />
+                          <button
+                            type="submit"
+                            className={`press -ms-1.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full hover:bg-ink-800 ${member.favorite ? 'text-warn-text' : 'text-ink-600 hover:text-ink-400'}`}
+                            aria-pressed={Boolean(member.favorite)}
+                            aria-label={member.favorite ? t.team.favoriteRemove : t.team.favoriteAdd}
+                            title={member.favorite ? t.team.favoriteRemove : t.team.favoriteAdd}
+                          >
+                            <IconStar width={17} height={17} filled={Boolean(member.favorite)} />
+                          </button>
+                        </form>
+                        <button
+                          type="button"
+                          className="flex min-h-[44px] min-w-0 flex-1 items-center gap-2 text-start font-medium text-ink-100 hover:text-brand-300"
+                          onClick={() => setEditing(member)}
+                        >
+                          <IconEdit width={14} height={14} className="text-ink-500" />
+                          {member.fullName}
+                        </button>
+                      </div>
                     </td>
                     <td data-label={t.team.employeeCode} className="nums text-ink-300">
                       {member.employeeCode}

@@ -31,6 +31,7 @@ export default async function TeamPage() {
       pendingPhotoUrl: teamMembers.pendingPhotoUrl,
       active: teamMembers.active,
       salaried: teamMembers.salaried,
+      favorite: teamMembers.favorite,
       defaultPay: teamMembers.defaultPay,
       notes: teamMembers.notes,
       eventCount: sql<number>`(select count(*) from ${eventMembers} where ${eventMembers.teamMemberId} = ${teamMembers.id})`,

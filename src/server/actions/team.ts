@@ -233,6 +233,30 @@ export async function toggleTeamMemberAction(
   return ok();
 }
 
+/**
+ * Stars or un-stars someone on the admin's own shortlist.
+ *
+ * Nothing else changes: not pay, not access, not anything a promoter or a
+ * team leader can see. It is a note the admin leaves himself.
+ */
+export async function toggleFavoriteAction(form: FormData): Promise<void> {
+  try {
+    await assertRole('ADMIN');
+  } catch {
+    return;
+  }
+  const id = str(form, 'memberId');
+  if (!id) return;
+  const member = await db.query.teamMembers.findFirst({ where: eq(teamMembers.id, id) });
+  if (!member) return;
+  await db
+    .update(teamMembers)
+    .set({ favorite: !member.favorite })
+    .where(eq(teamMembers.id, id));
+  revalidatePath('/admin/team');
+  revalidatePath('/admin/events', 'layout');
+}
+
 export async function deleteTeamMemberAction(
   _prev: ActionState,
   form: FormData,
