@@ -64,7 +64,7 @@ export const STANDING_ACCOUNTS: StandingAccount[] = [
     username: 'mustafa',
     name: 'Mustafa Asad',
     email: 'mustafa@operations.local',
-    role: 'ADMIN',
+    role: 'TEAM_LEADER',
     envVar: 'SEED_MUSTAFA_PASSWORD',
     fallbackPassword: 'Mustafa@12345',
   },

@@ -23,7 +23,7 @@ import {
   type SeatStage,
 } from '@/lib/journey';
 import { str } from '@/lib/validation';
-import { assertEventStaff } from '@/server/auth/rbac';
+import { canAccessEventMember, currentUser, resolveEventScope } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
 import { resolveMemberByToken } from '@/server/services/member';
 
@@ -369,8 +369,10 @@ export async function approveArrivalsAction(
 ): Promise<ActionState> {
   const { t } = await getT();
   const eventId = String(form.get('eventId') ?? '');
-  const user = await assertEventStaff(eventId).catch(() => null);
+  const user = await currentUser();
   if (!user) return fail(t.errors.forbidden);
+  const scope = await resolveEventScope(eventId, user);
+  if (!scope) return fail(t.errors.forbidden);
 
   const ids = [...new Set(form.getAll('eventMemberId').map(String).filter(Boolean))];
   if (ids.length === 0) return ok();
@@ -392,6 +394,7 @@ export async function approveArrivalsAction(
       .where(and(eq(attendance.eventMemberId, id), eq(attendance.eventId, eventId)))
       .get();
     if (!att || !att.reportedArrivalAt || att.approvedAt) continue;
+    if (!(await canAccessEventMember(eventId, id, scope))) continue;
 
     /* Approving sets PRESENT or LATE, which is what the money reads. */
     const lock = await payoutLock(id, user.role === 'ADMIN' ? 'ADMIN' : 'TEAM_LEADER');
@@ -692,8 +695,10 @@ export async function approveSeatArrivalsAction(
 ): Promise<ActionState> {
   const { t } = await getT();
   const eventId = String(form.get('eventId') ?? '');
-  const user = await assertEventStaff(eventId).catch(() => null);
+  const user = await currentUser();
   if (!user) return fail(t.errors.forbidden);
+  const scope = await resolveEventScope(eventId, user);
+  if (!scope) return fail(t.errors.forbidden);
 
   const ids = [...new Set(form.getAll('seatMemberId').map(String).filter(Boolean))];
   if (ids.length === 0) return ok();
@@ -707,6 +712,7 @@ export async function approveSeatArrivalsAction(
       .where(and(eq(seatSetupMembers.id, id), eq(seatSetupMembers.eventId, eventId)))
       .get();
     if (!row || !row.reportedArrivalAt || row.approvedAt) continue;
+    if (!(await canAccessEventMember(eventId, row.eventMemberId, scope))) continue;
 
     await db
       .update(seatSetupMembers)

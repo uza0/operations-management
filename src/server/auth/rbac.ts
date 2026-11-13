@@ -1,10 +1,10 @@
 import 'server-only';
 
 import { redirect } from 'next/navigation';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { eventAccess, users } from '@/db/schema';
+import { assignments, eventAccess, users } from '@/db/schema';
 import type { Role } from '@/lib/constants';
 
 import { readSession, type SessionUser } from './session';
@@ -114,20 +114,27 @@ export async function assertEventManager(eventId: string): Promise<SessionUser> 
   return user;
 }
 
-/**
- * Anyone with a part in this event: a manager, or a gate leader.
- *
- * Confirming that a man is standing at your gate is the gate leader's job by
- * definition — he is the one who can see him — so this is deliberately wider
- * than assertEventManager, and the caller still has to decide whether the
- * person being confirmed is at that gate.
- */
-export async function assertEventStaff(eventId: string): Promise<SessionUser> {
-  const user = await currentUser();
-  if (!user) throw new ForbiddenError();
-  const scope = await resolveEventScope(eventId, user);
-  if (!scope) throw new ForbiddenError();
-  return user;
+/** A gate leader may only act on a person with an active assignment at their gate. */
+export async function canAccessEventMember(
+  eventId: string,
+  eventMemberId: string,
+  scope: EventScope,
+): Promise<boolean> {
+  if (scope.canManage) return true;
+  if (!scope.gateId) return false;
+  const assignment = await db
+    .select({ id: assignments.id })
+    .from(assignments)
+    .where(
+      and(
+        eq(assignments.eventId, eventId),
+        eq(assignments.eventMemberId, eventMemberId),
+        eq(assignments.gateId, scope.gateId),
+        ne(assignments.status, 'CANCELLED'),
+      ),
+    )
+    .get();
+  return Boolean(assignment);
 }
 
 /** Where a signed-in user's own home is. */

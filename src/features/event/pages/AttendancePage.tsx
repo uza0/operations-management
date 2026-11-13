@@ -105,7 +105,7 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
     : 0;
 
   /* Event day's first question, above everything else on the page. */
-  const arrivals = await buildArrivals(eventId);
+  const arrivals = await buildArrivals(eventId, scope.gateId);
 
   const rate =
     data.length > 0

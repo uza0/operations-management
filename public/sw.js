@@ -72,6 +72,11 @@ function isStaticAsset(url) {
   );
 }
 
+function isPrivatePage(pathname) {
+  return /^\/(?:admin|leader|me|settings|login)(?:\/|$)/.test(pathname) ||
+    /^\/(?:member|setup)\/[^/]+\/?$/.test(pathname);
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
 
@@ -101,10 +106,16 @@ self.addEventListener('fetch', (event) => {
   }
 
   if (request.mode === 'navigate') {
+    const privatePage = isPrivatePage(url.pathname);
+    const offlineMemberPage = /^\/(?:member|setup)\/[^/]+\/?$/.test(url.pathname);
+    // Account and event workspaces must never fall back to cached private data.
+    // Member token pages are an explicit offline feature, cached only on request.
+    if (privatePage && !offlineMemberPage) return;
+
     event.respondWith(
       fetch(request)
         .then((response) => {
-          if (response.ok) {
+          if (response.ok && !privatePage) {
             const copy = response.clone();
             caches.open(PAGE_CACHE).then((cache) => cache.put(request, copy));
           }

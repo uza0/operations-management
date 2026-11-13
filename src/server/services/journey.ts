@@ -3,7 +3,7 @@ import 'server-only';
 import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { attendance, eventMembers, events, teamMembers } from '@/db/schema';
+import { assignments, attendance, eventMembers, events, teamMembers } from '@/db/schema';
 import { isOverdue, venueMoment } from '@/lib/journey';
 import { byName } from '@/lib/sort';
 
@@ -124,7 +124,7 @@ export type ArrivalRow = {
   minutesOff: number | null;
 };
 
-export async function buildArrivals(eventId: string): Promise<{
+export async function buildArrivals(eventId: string, gateId: string | null = null): Promise<{
   pending: ArrivalRow[];
   approved: ArrivalRow[];
   missing: ArrivalRow[];
@@ -146,10 +146,18 @@ export async function buildArrivals(eventId: string): Promise<{
       checkInTime: attendance.checkInTime,
       approvedAt: attendance.approvedAt,
       status: attendance.status,
+      gateId: assignments.gateId,
     })
     .from(eventMembers)
     .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
     .leftJoin(attendance, eq(attendance.eventMemberId, eventMembers.id))
+    .leftJoin(
+      assignments,
+      and(
+        eq(assignments.eventMemberId, eventMembers.id),
+        ne(assignments.status, 'CANCELLED'),
+      ),
+    )
     .where(
       and(eq(eventMembers.eventId, eventId), ne(eventMembers.status, 'CANCELLED')),
     );
@@ -160,7 +168,10 @@ export async function buildArrivals(eventId: string): Promise<{
   const approved: ArrivalRow[] = [];
   const missing: ArrivalRow[] = [];
 
-  for (const row of rows) {
+  const scopedRows = gateId ? rows.filter((row) => row.gateId === gateId) : rows;
+  const uniqueRows = [...new Map(scopedRows.map((row) => [row.eventMemberId, row])).values()];
+
+  for (const row of uniqueRows) {
     const entry: ArrivalRow = {
       eventMemberId: row.eventMemberId,
       name: row.name,

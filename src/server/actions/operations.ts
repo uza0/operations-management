@@ -34,7 +34,13 @@ import {
   timelineSchema,
 } from '@/lib/validation';
 import type { AttendanceStatus, IssueStatus, Priority } from '@/lib/constants';
-import { assertEventManager, assertRole, currentUser, resolveEventScope } from '@/server/auth/rbac';
+import {
+  assertEventManager,
+  assertRole,
+  canAccessEventMember,
+  currentUser,
+  resolveEventScope,
+} from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
 import { announcementAudience, pushToMembers } from '@/server/services/push';
 import { routeNewIssue } from '@/server/services/issue-routing';
@@ -112,6 +118,7 @@ export async function recordAttendanceAction(
     .where(eq(eventMembers.id, parsed.data.eventMemberId))
     .get();
   if (!member || member.eventId !== eventId) return fail(t.errors.notFound);
+  if (!(await canAccessEventMember(eventId, member.id, scope))) return fail(t.errors.forbidden);
 
  const frozen = await frozenByPayout(parsed.data.eventMemberId, scope.user.role === 'ADMIN', t);
   if (frozen) return fail(frozen);
@@ -187,6 +194,8 @@ export async function checkOutAction(
 
   const id = str(form, 'eventMemberId');
   if (!id) return fail(t.errors.notFound);
+
+  if (!(await canAccessEventMember(eventId, id, scope))) return fail(t.errors.forbidden);
 
   const frozen = await frozenByPayout(id, scope.user.role === 'ADMIN', t);
   if (frozen) return fail(frozen);
