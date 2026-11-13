@@ -33,6 +33,7 @@ import type {
 import { InvitationScreen } from './InvitationScreen';
 import { ArrivalButton, DepartureButton } from './ArrivalActions';
 import { PanicButton } from './PanicButton';
+import { MapImagePreview } from './MapImagePreview';
 import { SeatSetupCard } from './SeatSetupCard';
 import { MemberIssueForm } from './MemberIssueForm';
 import { MemberIssueCard } from './MemberIssueCard';
@@ -420,16 +421,7 @@ export default async function MemberPortalPage({
         <MemberOfflineReady t={t} />
         <PendingAttendanceSync t={t} token={token} />
         {data.mapSource?.kind === 'image' ? (
-          <section className="panel overflow-hidden p-3 sm:p-4">
-            <h2 className="mb-3 text-[14px] font-semibold text-ink-100">{t.map.mapPreviewTitle}</h2>
-            <a href={data.mapSource.url} target="_blank" rel="noopener noreferrer">
-              <img
-                src={data.mapSource.url}
-                alt={t.map.mapPreviewTitle}
-                className="max-h-[72vh] w-full rounded-card border border-ink-700 bg-white object-contain"
-              />
-            </a>
-          </section>
+          <MapImagePreview title={t.map.mapPreviewTitle} url={data.mapSource.url} />
         ) : data.mapSource ? (
           <MapSourcePreview
             title={t.map.mapPreviewTitle}
@@ -516,12 +508,17 @@ export default async function MemberPortalPage({
                 {urgent.map((row) => (
                   <div
                     key={row.id}
-                    className="rounded-card border border-crit/60 bg-crit/12 p-4"
+                    /*
+                      Amber, not red. Red on this page belongs to the call for
+                      help; an urgent notice in the same red directly under it
+                      made two alarms of one, and the eye learned to skip both.
+                    */
+                    className="rounded-card border border-warn/60 bg-warn/12 p-4"
                     role="alert"
                   >
                     <div className="mb-1 flex items-center gap-2">
-                      <IconAlert width={17} height={17} className="text-crit-text" />
-                      <span className="text-[12px] font-bold uppercase tracking-wide text-crit-text">
+                      <IconAlert width={17} height={17} className="text-warn-text" />
+                      <span className="text-[12px] font-bold uppercase tracking-wide text-warn-text">
                         {t.enums.priority.URGENT}
                       </span>
                     </div>
@@ -718,12 +715,17 @@ export default async function MemberPortalPage({
                 {urgent.map((row) => (
                   <div
                     key={row.id}
-                    className="rounded-card border border-crit/60 bg-crit/12 p-4"
+                    /*
+                      Amber, not red. Red on this page belongs to the call for
+                      help; an urgent notice in the same red directly under it
+                      made two alarms of one, and the eye learned to skip both.
+                    */
+                    className="rounded-card border border-warn/60 bg-warn/12 p-4"
                     role="alert"
                   >
                     <div className="mb-1 flex items-center gap-2">
-                      <IconAlert width={17} height={17} className="text-crit-text" />
-                      <span className="text-[12px] font-bold uppercase tracking-wide text-crit-text">
+                      <IconAlert width={17} height={17} className="text-warn-text" />
+                      <span className="text-[12px] font-bold uppercase tracking-wide text-warn-text">
                         {t.enums.priority.URGENT}
                       </span>
                     </div>

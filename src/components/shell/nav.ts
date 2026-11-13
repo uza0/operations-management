@@ -24,16 +24,16 @@ export function globalNav(t: Dictionary, role: Role): NavSection[] {
           { href: '/admin/events', label: t.nav.events, icon: 'calendar' },
           { href: '/admin/venues', label: t.nav.venues, icon: 'pin' },
           { href: '/admin/team', label: t.nav.team, icon: 'users' },
-          { href: '/admin/credits', label: t.nav.credits, icon: 'report' },
-          { href: '/admin/payments', label: t.payment.nav, icon: 'report' },
-          { href: '/admin/insights', label: t.insights.nav, icon: 'dashboard' },
+          { href: '/admin/credits', label: t.nav.credits, icon: 'wallet' },
+          { href: '/admin/payments', label: t.payment.nav, icon: 'fileOut' },
+          { href: '/admin/insights', label: t.insights.nav, icon: 'chart' },
           { href: '/admin/settings', label: t.nav.settings, icon: 'settings' },
           /*
            * Some of the people who run events also work them. Their promoter
            * session is a separate cookie, so this is a door, not a role
            * change: what it opens is still decided by that other session.
            */
-          { href: '/me', label: t.memberAuth.openAsMember, icon: 'users' },
+          { href: '/me', label: t.memberAuth.openAsMember, icon: 'user' },
         ],
       },
     ];
@@ -44,7 +44,7 @@ export function globalNav(t: Dictionary, role: Role): NavSection[] {
   ];
 
   // Payroll, payment files, member ledgers and event costs are admin-only.
-  items.push({ href: '/me', label: t.memberAuth.openAsMember, icon: 'users' });
+  items.push({ href: '/me', label: t.memberAuth.openAsMember, icon: 'user' });
   items.push({ href: '/leader/settings', label: t.nav.settings, icon: 'settings' });
 
   return [{ items }];
@@ -64,7 +64,7 @@ export function eventNav(
    * crumb above the title — which on a phone is the size of a grain of rice.
    */
   const home: NavItem[] = [
-    { href: `${base}/events`, label: t.nav.home, icon: 'calendar' },
+    { href: `${base}/events`, label: t.nav.home, icon: 'home', exact: true },
   ];
   const core: NavItem[] = [
     { href: root, label: t.nav.overview, icon: 'dashboard', exact: true },
@@ -77,7 +77,7 @@ export function eventNav(
      * produces, so a menu that puts the list first offers the result before
      * the act.
      */
-    { href: `${root}/board`, label: t.nav.board, icon: 'gate' },
+    { href: `${root}/board`, label: t.nav.board, icon: 'columns' },
     { href: `${root}/assignments`, label: t.nav.assignments, icon: 'clipboard' },
     { href: `${root}/attendance`, label: t.nav.attendance, icon: 'checkCircle' },
     /*
@@ -85,10 +85,10 @@ export function eventNav(
      * sits after attendance because that is the order the work happens in on
      * the screen: the chairs are set, then the night is worked.
      */
-    { href: `${root}/seats`, label: t.seatSetup.title, icon: 'clipboard' },
+    { href: `${root}/seats`, label: t.seatSetup.title, icon: 'chair' },
   ];
   const ops: NavItem[] = [
-    { href: `${root}/notify`, label: t.nav.notify, icon: 'megaphone' },
+    { href: `${root}/notify`, label: t.nav.notify, icon: 'send' },
     { href: `${root}/timeline`, label: t.nav.timeline, icon: 'clock' },
     { href: `${root}/announcements`, label: t.nav.announcements, icon: 'megaphone' },
     { href: `${root}/issues`, label: t.nav.issues, icon: 'alert' },
@@ -104,7 +104,7 @@ export function eventNav(
   ];
 
   if (base === '/admin') {
-    closing.unshift({ href: `${root}/expenses`, label: t.expense.title, icon: 'report' });
+    closing.unshift({ href: `${root}/expenses`, label: t.expense.title, icon: 'wallet' });
   }
 
   if (!canManage) {

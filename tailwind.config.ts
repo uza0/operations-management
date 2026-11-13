@@ -79,8 +79,14 @@ const config: Config = {
        * `rounded-lg` is what stops the radii drifting apart again.
        */
       borderRadius: {
-        card: '16px',
-        control: '12px',
+        /*
+         * Fourteen and ten, down from sixteen and twelve. At sixteen every
+         * surface had the same soft corner as every button, and a screen of
+         * boxes read as one undifferentiated cushion; a slightly squarer
+         * panel lets the fully round buttons be the round things.
+         */
+        card: '14px',
+        control: '10px',
       },
       boxShadow: {
         panel: 'var(--shadow-panel)',

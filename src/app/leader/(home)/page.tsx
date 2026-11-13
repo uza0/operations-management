@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { requireUser } from '@/server/auth/rbac';
 import { getT } from '@/lib/i18n/server';
 import { listEventsForUser } from '@/server/services/events';
-import { PageHeader, Panel, StatTile } from '@/components/ui/panel';
+import { PageHeader, Panel, StatTile, StatStrip } from '@/components/ui/panel';
 import { EmptyState } from '@/components/ui/states';
 import { EventCard } from '@/components/event/EventCard';
 import { IconAlert, IconCalendar, IconTarget, IconUsers } from '@/components/ui/icons';
@@ -37,7 +37,7 @@ export default async function LeaderDashboard() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <StatStrip cols={4}>
         <StatTile
           label={t.dashboard.activeEvents}
           value={live.length}
@@ -61,7 +61,7 @@ export default async function LeaderDashboard() {
           tone={openIssues ? 'crit' : 'ok'}
           icon={<IconAlert width={16} height={16} />}
         />
-      </div>
+      </StatStrip>
 
       <div className="mt-5">
         <Panel title={t.nav.myEvents} bodyClassName="p-4 sm:p-5">

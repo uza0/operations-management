@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import { getT } from '@/lib/i18n/server';
-import { PageHeader, Panel, StatTile } from '@/components/ui/panel';
+import { PageHeader, Panel, StatStrip, StatTile } from '@/components/ui/panel';
 import { EmptyState, Notice } from '@/components/ui/states';
 import { accountCheck, type AccountIssue } from '@/server/services/account-check';
 
@@ -38,7 +38,7 @@ export async function AccountCheckPage() {
         <Notice tone="warn">{t.payment.templateNone}</Notice>
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-3">
+          <StatStrip cols={3}>
             <StatTile label={c.checked} value={data.checked} />
             <StatTile
               label={c.clean}
@@ -51,7 +51,7 @@ export async function AccountCheckPage() {
               tone={blocking > 0 ? 'crit' : 'ok'}
               hint={c.blockingHint}
             />
-          </div>
+          </StatStrip>
 
           {data.issues.length === 0 ? (
             <div className="mt-4">

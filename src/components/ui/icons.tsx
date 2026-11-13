@@ -305,3 +305,68 @@ export const IconTarget = (p: IconProps) => (
     <circle cx="12" cy="12" r="0.8" fill="currentColor" />
   </Base>
 );
+
+/*
+ * Drawn for the navigation, where two entries had been sharing one picture.
+ * An icon in a menu is there to be told apart from its neighbours at the
+ * edge of the eye; the same glyph beside two different words tells the eye
+ * they are the same place, and it stops reading the icons at all.
+ */
+
+/** Money owed to people: a wallet. */
+export const IconWallet = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H18a1 1 0 0 1 1 1v2" />
+    <path d="M4 7.5V17a2 2 0 0 0 2 2h13a1 1 0 0 0 1-1V9a1 1 0 0 0-1-1H6.5A2.5 2.5 0 0 1 4 7.5Z" />
+    <path d="M16.5 13.5h.01" />
+  </Base>
+);
+
+/** The file that goes to the company: a sheet with an arrow leaving it. */
+export const IconFileOut = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M13 3H6a1 1 0 0 0-1 1v16a1 1 0 0 0 1 1h5" />
+    <path d="M13 3v5h5M18 8v3" />
+    <path d="M14 17h7M18 14l3 3-3 3" />
+  </Base>
+);
+
+/** The operation in figures: bars. */
+export const IconChart = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M4 20h16" />
+    <path d="M7 20v-6M12 20V6M17 20v-9" />
+  </Base>
+);
+
+/** The distribution board: lanes side by side. */
+export const IconColumns = (p: IconProps) => (
+  <Base {...p}>
+    <rect x="4" y="4" width="16" height="16" rx="2" />
+    <path d="M9.5 4v16M14.5 4v16" />
+  </Base>
+);
+
+/** Seating and hall set-up: a chair. */
+export const IconChair = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M7 12V5a1 1 0 0 1 1-1h8a1 1 0 0 1 1 1v7" />
+    <path d="M5 12h14v3H5zM7 15v5M17 15v5" />
+  </Base>
+);
+
+/** Telling the crew: a message being sent. */
+export const IconSend = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M20.5 3.5 3.5 10l6.5 3 3 6.5 7.5-16Z" />
+    <path d="m10 13 4-4" />
+  </Base>
+);
+
+/** Back to the list of events: a house. */
+export const IconHome = (p: IconProps) => (
+  <Base {...p}>
+    <path d="M4 11.5 12 4l8 7.5" />
+    <path d="M6 10v9a1 1 0 0 0 1 1h3v-5h4v5h3a1 1 0 0 0 1-1v-9" />
+  </Base>
+);

@@ -112,6 +112,54 @@
 }
 
 /* ---------------------------------------------------------------------------
+   The display face: IBM Plex Sans Arabic, for headings and figures only.
+
+   One family for everything is what makes a screen read as a form: the title
+   of the page and the label of a field differ only in how heavy they are.
+   Plex has squarer bowls and flatter terminals than the text face, enough to
+   tell a heading from a paragraph at a glance without shouting, and its
+   Latin figures are drawn to sit beside Arabic, which matters on a screen
+   that is half numbers. Two weights, because a display face that is used at
+   five weights has become the text face. SIL OFL; licence beside the files.
+   --------------------------------------------------------------------------- */
+@font-face {
+  font-family: 'Plex Arabic';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/plex-arabic-600.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+08A0-08FF, U+FB50-FDFF,
+    U+FE70-FEFF;
+}
+@font-face {
+  font-family: 'Plex Arabic';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/plex-arabic-700.woff2') format('woff2');
+  unicode-range: U+0600-06FF, U+0750-077F, U+0870-088E, U+08A0-08FF, U+FB50-FDFF,
+    U+FE70-FEFF;
+}
+@font-face {
+  font-family: 'Plex Arabic';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url('/fonts/plex-latin-600.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Plex Arabic';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/plex-latin-700.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC,
+    U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* ---------------------------------------------------------------------------
    The two themes.
 
    Colours are bare RGB channels in variables, and tailwind.config.ts reads
@@ -127,6 +175,7 @@
    near-blacks (#1B1917, #0A0908) are already in it.
    --------------------------------------------------------------------------- */
 :root {
+  --font-display: 'Plex Arabic', 'Noto Sans Arabic', 'Noto Sans', system-ui, sans-serif;
   --font-ui: 'Noto Sans Arabic', 'Noto Sans', system-ui, -apple-system, 'Segoe UI', Tahoma,
     sans-serif;
   color-scheme: light;
@@ -367,29 +416,6 @@
   }
 }
 
-/* The sign-in backdrop: two brand washes breathing against each other. Very
-   slow and very low-contrast on purpose — it should register as depth, not as
-   something happening. */
-@keyframes drift {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(2%, -2%, 0) scale(1.08);
-  }
-}
-
-@keyframes driftAlt {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1.06);
-  }
-  50% {
-    transform: translate3d(-3%, 2%, 0) scale(1);
-  }
-}
-
 /* A ring opening outwards from the mark while the session is being created. */
 @keyframes halo {
   from {
@@ -491,6 +517,12 @@
   }
 
   /* Numbers stay latin and LTR even inside RTL text. */
+  /* Headings and figures. See the display face at the top of this file. */
+  .display,
+  h1,
+  h2 {
+    font-family: var(--font-display);
+  }
   .nums {
     font-variant-numeric: tabular-nums;
     direction: ltr;
@@ -600,6 +632,18 @@
 
   .panel {
     @apply rounded-card border border-ink-700 bg-ink-900 shadow-panel;
+  }
+
+  /*
+   * A box inside a panel is a smaller thing than the panel, and should look
+   * it. Left alone, a tile inside a card had the card's own corner and the
+   * card's own border, so the two read as equals stacked on each other and
+   * a page became boxes all the way down. The inner one takes the smaller
+   * corner and gives up its shadow: it is a part, not a peer.
+   */
+  .panel [class~='rounded-card'] {
+    border-radius: theme('borderRadius.control');
+    box-shadow: none;
   }
 
   .panel-head {

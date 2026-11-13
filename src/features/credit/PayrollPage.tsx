@@ -2,7 +2,7 @@ import Link from 'next/link';
 
 import { getT } from '@/lib/i18n/server';
 import { payrollLedger } from '@/server/services/credit';
-import { PageHeader, StatTile } from '@/components/ui/panel';
+import { PageHeader, StatTile, StatStrip } from '@/components/ui/panel';
 import { formatDate, isValidDate } from '@/lib/time';
 import { format } from '@/lib/i18n';
 
@@ -77,7 +77,7 @@ export async function PayrollPage({
 
       <RangeForm base={base} t={t} from={range.from} to={range.to} exportHref={exportHref} />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-3">
+      <StatStrip cols={3} className="mb-4">
         <StatTile
           label={t.credit.grandTotal}
           value={formatMoney(grandTotal, locale)}
@@ -86,7 +86,7 @@ export async function PayrollPage({
         />
         <StatTile label={t.credit.peopleWithDays} value={owed.length} />
         <StatTile label={t.credit.eventsCounted} value={eventsCounted} />
-      </div>
+      </StatStrip>
 
       <div className="panel">
         <div className="table-wrap">

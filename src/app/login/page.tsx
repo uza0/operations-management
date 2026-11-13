@@ -64,40 +64,16 @@ export default async function LoginPage({
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
       {/*
-        The backdrop: two brand washes breathing against each other on
-        half-minute cycles, out of phase so the light never settles and never
-        arrives anywhere. Each is its own layer because two gradients in one
-        background cannot be animated apart, and the whole thing is decoration
-        — `aria-hidden`, and held still entirely for anyone who has asked their
-        device for less motion.
+        A plain page with the brand's own rule across the top of it.
+
+        There used to be a ruled grid here with two coloured glows drifting
+        behind it. It was handsome and it was everybody's: that exact
+        backdrop is on a thousand sign-in pages, and a visitor who has seen
+        it on ten of them reads the eleventh as a template before reading a
+        word. The door to a working tool does not need atmosphere. It needs
+        to say whose it is, once, and get out of the way of two fields.
       */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.17] will-change-transform"
-        style={{
-          backgroundImage:
-            'radial-gradient(circle at 18% 12%, #e4584a 0, transparent 46%)',
-          animation: 'drift 26s var(--ease-soft) infinite',
-        }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-[0.15] will-change-transform"
-        style={{
-          backgroundImage:
-            'radial-gradient(circle at 84% 82%, #921f15 0, transparent 44%)',
-          animation: 'driftAlt 34s var(--ease-soft) infinite',
-        }}
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0"
-        style={{
-          backgroundImage:
-            'linear-gradient(rgba(255,255,255,.028) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px)',
-          backgroundSize: '52px 52px',
-        }}
-      />
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-brand-600" />
 
       <div className="stagger relative w-full max-w-[420px]">
         <div className="mb-6 flex items-center justify-between">

@@ -9,20 +9,28 @@ import type { NavItem, NavSection } from './nav';
 import {
   IconAlert,
   IconCalendar,
+  IconChair,
+  IconChart,
   IconCheckCircle,
   IconClipboard,
   IconClock,
   IconClose,
+  IconColumns,
   IconDashboard,
+  IconFileOut,
   IconGate,
   IconHistory,
+  IconHome,
   IconMap,
   IconMegaphone,
   IconMenu,
   IconPin,
   IconReport,
+  IconSend,
   IconSettings,
+  IconUser,
   IconUsers,
+  IconWallet,
 } from '@/components/ui/icons';
 
 const ICONS: Record<string, React.ComponentType<{ width?: number; height?: number }>> = {
@@ -40,6 +48,14 @@ const ICONS: Record<string, React.ComponentType<{ width?: number; height?: numbe
   alert: IconAlert,
   report: IconReport,
   history: IconHistory,
+  wallet: IconWallet,
+  fileOut: IconFileOut,
+  chart: IconChart,
+  user: IconUser,
+  columns: IconColumns,
+  chair: IconChair,
+  send: IconSend,
+  home: IconHome,
 };
 
 function NavList({ sections, onNavigate }: { sections: NavSection[]; onNavigate?: () => void }) {

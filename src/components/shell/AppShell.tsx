@@ -54,7 +54,8 @@ export async function AppShell({
               >
                 {t.app.name}
               </span>
-              <span className="block truncate text-[12px] text-ink-500">
+              {/* Two lines if it needs them: a strapline cut off mid-word is worse than none. */}
+              <span className="block text-[11.5px] leading-[1.35] text-ink-500">
                 {t.app.tagline}
               </span>
             </span>

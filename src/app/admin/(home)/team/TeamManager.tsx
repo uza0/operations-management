@@ -217,7 +217,7 @@ function RowActions({ t, member }: { t: Dictionary; member: TeamRow }) {
   }, [toggleState, deleteState, router]);
 
   return (
-    <div className="flex flex-wrap items-center justify-end gap-1.5">
+    <div className="flex flex-nowrap items-center justify-end gap-1.5 whitespace-nowrap max-sm:flex-wrap">
       <form action={toggle}>
         <input type="hidden" name="memberId" value={member.id} />
         <SubmitButton className="btn-ghost btn-sm">

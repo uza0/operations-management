@@ -60,24 +60,39 @@ function StatusButtons({
 
   return (
     <div className="flex flex-col gap-1 sm:items-end">
-      {/* Two columns of full-width buttons on a phone, one row on desktop. */}
-      <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:justify-end sm:gap-1">
-        {QUICK.map((status) => (
-          <form key={status} action={action} className="contents sm:block">
+      {/*
+        One control with four positions, not four buttons.
+
+        They were four separate ghost buttons that wrapped onto a second line
+        in the space a table cell gives them, with the row's other actions on
+        a third — a hundred and forty pixels a person, two people to a
+        screen, on the one table that is worked through top to bottom at a
+        gate. Joined into a single segmented control they cannot wrap, the
+        chosen one reads as a position rather than as a fifth thing to look
+        at, and a row is one line tall.
+      */}
+      <div
+        role="group"
+        className="flex w-full overflow-hidden rounded-control border border-ink-600 sm:inline-flex sm:w-auto"
+      >
+        {QUICK.map((status, index) => (
+          <form key={status} action={action} className="flex-1 sm:flex-none">
             <input type="hidden" name="eventId" value={eventId} />
             <input type="hidden" name="eventMemberId" value={row.eventMemberId} />
             <input type="hidden" name="status" value={status} />
             <SubmitButton
-              className={`btn-sm w-full sm:w-auto ${
+              className={`w-full whitespace-nowrap px-2.5 py-1.5 text-[12.5px] font-semibold transition-colors disabled:opacity-60 ${
+                index > 0 ? 'border-s border-ink-600' : ''
+              } ${
                 row.status === status
                   ? status === 'PRESENT'
-                    ? 'bg-ok/20 text-ok-text border border-ok/50'
+                    ? 'bg-ok/20 text-ok-text'
                     : status === 'LATE'
-                      ? 'bg-warn/20 text-warn-text border border-warn/50'
+                      ? 'bg-warn/20 text-warn-text'
                       : status === 'ABSENT'
-                        ? 'bg-crit/20 text-crit-text border border-crit/50'
-                        : 'bg-info/20 text-info-text border border-info/50'
-                  : 'btn-ghost'
+                        ? 'bg-crit/20 text-crit-text'
+                        : 'bg-info/20 text-info-text'
+                  : 'text-ink-300 hover:bg-ink-800 hover:text-ink-100'
               }`}
             >
               {t.enums.attendanceStatus[status]}
@@ -563,9 +578,8 @@ export function AttendanceTable({
                       ) : null}
                     </td>
                     <td data-label={t.attendance.checkIn} className="nums text-ink-300">
-                      {row.checkInTime
-                        ? formatTime(row.checkInTime, locale)
-                        : t.attendance.notCheckedIn}
+                      {/* A dash, not a sentence: the status beside it already says so. */}
+                      {row.checkInTime ? formatTime(row.checkInTime, locale) : '—'}
                     </td>
                     <td data-label={t.attendance.checkOut} className="nums text-ink-300">
                       {row.checkOutTime ? formatTime(row.checkOutTime, locale) : '—'}
@@ -589,9 +603,9 @@ export function AttendanceTable({
                     </td> : null}
                     {canRecord ? (
                       <td data-label="">
-                        <div className="flex flex-col gap-1 sm:items-end">
+                        <div className="flex flex-col gap-1.5 sm:flex-row sm:flex-nowrap sm:items-center sm:justify-end">
                           <StatusButtons t={t} eventId={eventId} row={row} />
-                          <div className="flex flex-wrap gap-1 sm:justify-end">
+                          <div className="flex flex-nowrap gap-1 whitespace-nowrap sm:justify-end">
                             <CheckOut t={t} eventId={eventId} row={row} />
                             {canManage ? (
                               <EditRecord

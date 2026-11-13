@@ -60,7 +60,47 @@ export function PageHeader({
   );
 }
 
-/** Compact metric tile used across dashboards. */
+/**
+ * The figures of a page, on one band.
+ *
+ * These used to be a row of separate boxes, each with a number set very large
+ * in the middle of it — five of them across the top of every screen, most of
+ * them reading "0". A zero at that size says the same thing as an alarm, and
+ * five boxes of equal weight say that nothing on the page matters more than
+ * anything else.
+ *
+ * One band instead, parted by hairlines. The figures are still the first
+ * thing read, but they read as a line of facts rather than as five
+ * announcements, and the page below them gets to be the page.
+ *
+ * The hairlines are the band's own background showing through a one-pixel
+ * gap, which is the only way to rule a wrapping grid without drawing a line
+ * on the outside edge of whichever cell happens to end a row.
+ */
+const STRIP_COLS: Record<number, string> = {
+  3: 'lg:grid-cols-3',
+  4: 'lg:grid-cols-4',
+  5: 'lg:grid-cols-5',
+};
+
+export function StatStrip({
+  children,
+  cols = 4,
+  className = '',
+}: {
+  children: ReactNode;
+  cols?: 3 | 4 | 5;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`grid grid-cols-2 gap-px overflow-hidden rounded-card border border-ink-700 bg-ink-700 shadow-panel max-lg:[&>*:last-child:nth-child(odd)]:col-span-2 ${STRIP_COLS[cols]} ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
 export function StatTile({
   label,
   value,
@@ -76,22 +116,31 @@ export function StatTile({
   icon?: ReactNode;
   className?: string;
 }) {
-  const accent = {
-    neutral: 'text-ink-100',
-    ok: 'text-ok-text',
-    warn: 'text-warn-text',
-    crit: 'text-crit-text',
-    info: 'text-info-text',
-  }[tone];
+  /*
+   * Nothing is not news. A zero keeps its place in the band so the figures
+   * do not shuffle from one visit to the next, but it is set in the muted
+   * ink whatever its tone: "0 open problems" in alarm red was the loudest
+   * thing on a quiet night.
+   */
+  const nothing = value === 0 || value === '0';
+  const accent = nothing
+    ? 'text-ink-500'
+    : {
+        neutral: 'text-ink-100',
+        ok: 'text-ok-text',
+        warn: 'text-warn-text',
+        crit: 'text-crit-text',
+        info: 'text-info-text',
+      }[tone];
 
   return (
-    <div className={`panel p-4 ${className}`}>
-      <div className="flex items-start justify-between gap-2">
-      <p className="text-[13px] font-medium text-ink-400">{label}</p>
+    <div className={`bg-ink-900 px-4 py-3.5 ${className}`}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[12.5px] font-medium text-ink-400">{label}</p>
         {icon ? <span className="text-ink-500">{icon}</span> : null}
       </div>
-      <p className={`nums mt-2 text-[28px] font-bold leading-none ${accent}`}>{value}</p>
-      {hint ? <p className="mt-1.5 text-[12.5px] text-ink-400">{hint}</p> : null}
+      <p className={`display nums mt-1.5 text-[22px] font-bold leading-none ${accent}`}>{value}</p>
+      {hint ? <p className="mt-1.5 truncate text-[12px] text-ink-400">{hint}</p> : null}
     </div>
   );
 }

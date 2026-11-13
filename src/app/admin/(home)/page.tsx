@@ -7,7 +7,7 @@ import { requireRole } from '@/server/auth/rbac';
 import { getT } from '@/lib/i18n/server';
 import { listEventsForUser } from '@/server/services/events';
 import { listRecentAudit } from '@/server/services/audit';
-import { PageHeader, Panel, StatTile } from '@/components/ui/panel';
+import { PageHeader, Panel, StatTile, StatStrip } from '@/components/ui/panel';
 import { EmptyState, Notice } from '@/components/ui/states';
 import { EventCard } from '@/components/event/EventCard';
 import {
@@ -157,9 +157,8 @@ export default async function AdminDashboard() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+      <StatStrip cols={5}>
         <StatTile
-          className="col-span-2 sm:col-span-1"
           label={t.dashboard.activeEvents}
           value={live.length}
           tone={live.length ? 'ok' : 'neutral'}
@@ -187,7 +186,7 @@ export default async function AdminDashboard() {
           tone={openIssues ? 'crit' : 'ok'}
           icon={<IconAlert width={16} height={16} />}
         />
-      </div>
+      </StatStrip>
 
       <div className="mt-5">
         <Panel
@@ -258,23 +257,13 @@ export default async function AdminDashboard() {
         </div>
 
         <div className="space-y-4">
-          <Panel title={t.dashboard.quickActions} bodyClassName="p-3 sm:p-4">
-            <div className="grid gap-2">
-              <Link href="/admin/events/new" className="btn-secondary justify-start">
-                <IconCalendar width={16} height={16} />
-                {t.dashboard.createEvent}
-              </Link>
-              <Link href="/admin/venues" className="btn-secondary justify-start">
-                <IconPin width={16} height={16} />
-                {t.dashboard.createVenue}
-              </Link>
-              <Link href="/admin/team" className="btn-secondary justify-start">
-                <IconUsers width={16} height={16} />
-                {t.dashboard.addMember}
-              </Link>
-            </div>
-          </Panel>
-
+          {/*
+            The "quick actions" box that stood here offered three links: one
+            to the button already at the top of this page, and two to pages
+            that are one tap away in the menu beside it. Three ways to the
+            same place is not speed, it is a page that has not decided where
+            things live.
+          */}
           <Panel title={t.dashboard.recentActivity} bodyClassName="p-0">
             {recentActivity.length === 0 ? (
               <EmptyState title={t.audit.empty} hint={t.audit.emptyHint} />

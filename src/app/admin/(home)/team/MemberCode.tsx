@@ -157,7 +157,7 @@ export function MemberCode({
       <div className="flex flex-wrap gap-2">
         <form action={issue}>
           <input type="hidden" name="memberId" value={memberId} />
-          <SubmitButton className="btn-ghost btn-sm" pendingLabel={t.common.saving}>
+          <SubmitButton className="btn-ghost btn-sm whitespace-nowrap" pendingLabel={t.common.saving}>
             {hasCode ? t.memberAuth.reissueCode : t.memberAuth.issueCode}
           </SubmitButton>
         </form>
@@ -165,7 +165,7 @@ export function MemberCode({
         {hasCode ? (
           <form action={revoke}>
             <input type="hidden" name="memberId" value={memberId} />
-            <SubmitButton className="btn-ghost btn-sm" pendingLabel={t.common.saving}>
+            <SubmitButton className="btn-ghost btn-sm whitespace-nowrap" pendingLabel={t.common.saving}>
               {t.memberAuth.revokeCode}
             </SubmitButton>
           </form>

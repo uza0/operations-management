@@ -8,7 +8,7 @@ import { getEventSnapshot } from '@/server/services/events';
 import { getStaffedLocations, summarizeStaffing } from '@/server/services/staffing';
 import { listEventAudit } from '@/server/services/audit';
 import { eventTeamLeaderId } from '@/server/services/access';
-import { PageHeader, Panel, StatTile, KeyValue } from '@/components/ui/panel';
+import { PageHeader, Panel, StatTile, KeyValue, StatStrip } from '@/components/ui/panel';
 import { EmptyState, Notice } from '@/components/ui/states';
 import {
   Badge,
@@ -117,7 +117,13 @@ export async function EventOverviewPage({
         </div>
       ) : null}
 
-      {staffing.understaffed.length > 0 ? (
+      {/*
+        Only while it can still be acted on. On an evening that has finished,
+        "this event is not ready" in alarm red is a warning about a decision
+        that was made weeks ago, and it trains whoever opens old events to
+        read past red banners.
+      */}
+      {staffing.understaffed.length > 0 && event.status !== 'COMPLETED' && event.status !== 'ARCHIVED' ? (
         <div className="mb-4">
           <Notice tone="crit">
             <span className="font-semibold">{t.event.notReady}</span> —{' '}
@@ -142,9 +148,8 @@ export async function EventOverviewPage({
         </div>
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+      <StatStrip cols={5}>
         <StatTile
-          className="col-span-2 sm:col-span-1"
           label={t.event.teamSize}
           value={snapshot.teamSize}
           hint={`${t.eventTeam.reserve}: ${snapshot.reserveCount}`}
@@ -174,7 +179,7 @@ export async function EventOverviewPage({
           value={snapshot.announcementCount}
           icon={<IconMegaphone width={16} height={16} />}
         />
-      </div>
+      </StatStrip>
 
       {/*
         Said on the evening itself, because whoever opens it is the person

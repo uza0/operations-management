@@ -7,7 +7,7 @@ import { db } from '@/db';
 import { memberRates, teamMembers } from '@/db/schema';
 import { getT } from '@/lib/i18n/server';
 import { memberLedger } from '@/server/services/credit';
-import { PageHeader, StatTile } from '@/components/ui/panel';
+import { PageHeader, StatTile, StatStrip } from '@/components/ui/panel';
 import { EmptyState } from '@/components/ui/states';
 import { Badge, attendanceTone } from '@/components/ui/status';
 import { IconCheckCircle } from '@/components/ui/icons';
@@ -79,7 +79,7 @@ export async function MemberLedgerPage({
         </div>
       ) : null}
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      <StatStrip cols={4} className="mb-4">
         <StatTile
           label={t.credit.totalAmount}
           value={formatMoney(ledger.totalAmount, locale)}
@@ -97,7 +97,7 @@ export async function MemberLedgerPage({
           label={t.common.status}
           value={ledger.active ? t.team.active : t.team.inactive}
         />
-      </div>
+      </StatStrip>
 
       <div className="panel">
         {ledger.lines.length === 0 ? (

@@ -11,7 +11,7 @@ import {
   workingPoints,
 } from '@/db/schema';
 import { loadEventPage } from '@/features/event/workspace';
-import { PageHeader, StatTile } from '@/components/ui/panel';
+import { PageHeader, StatTile, StatStrip } from '@/components/ui/panel';
 import type { AttendanceStatus } from '@/lib/constants';
 import { creditFor } from '@/server/services/credit';
 
@@ -124,9 +124,8 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
         dueAt={arrivals.dueAt}
       />
 
-      <div className="mb-4 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-5">
+      <StatStrip cols={5} className="mb-4">
         <StatTile
-          className="col-span-2 sm:col-span-1"
           label={t.attendance.totalTeam}
           value={data.length}
           hint={`${t.attendance.rate}: ${rate}%`}
@@ -151,7 +150,7 @@ export async function EventAttendancePage({ eventId }: { eventId: string }) {
           value={counts.EXCUSED ?? 0}
           tone={counts.EXCUSED ? 'info' : 'neutral'}
         />
-      </div>
+      </StatStrip>
 
       {/*
         The days this event is worth, and what that adds up to across the team.
