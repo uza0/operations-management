@@ -862,6 +862,9 @@ export const ar = {
     checkOutBody: '{event} · قبل ما تطلع، افتح التطبيق واضغط «خروج»',
     paidTitle: 'انطلعت مستحقاتك',
     paidBody: '{amount} د.ع — شوف صفحتك',
+    placedTitle: 'نزل التوزيع — هذا مكانك',
+    movedTitle: 'تغيّر مكانك',
+    placeBody: '{event} · {place} · {task} · الوصول {time}',
     announceTitle: 'إعلان — {event}',
   },
   payment: {

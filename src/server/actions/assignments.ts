@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -21,6 +22,7 @@ import { formatTime, toMinutes } from '@/lib/time';
 import type { Task } from '@/lib/constants';
 import { assertEventManager } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
+import { pushPlaces } from '@/server/services/push';
 import {
   findScheduleConflict,
   locationLabel,
@@ -241,6 +243,11 @@ export async function saveAssignmentAction(
           ? `${member.name}: ${oldLocation} → ${newLocation}`
           : `${member.name} — ${t.enums.auditAction.UPDATE}`,
       });
+
+      /* After the response: a drag on the board must not wait on a phone. */
+      after(() =>
+        pushPlaces(t, eventId, [data.eventMemberId], 'MOVED').catch(() => {}),
+      );
     }
 
     // Keep the gate's own leader pointer in step with the assignment flag.
@@ -282,6 +289,9 @@ export async function saveAssignmentAction(
     },
     summary: `${member.name} → ${newLocation}`,
   });
+
+  /* Placed on a board people can already see: tell him where. */
+  after(() => pushPlaces(t, eventId, [data.eventMemberId], 'PLACED').catch(() => {}));
 
   await syncGateLeader(eventId, data.gateId ?? null, data.eventMemberId, data.isGateLeader ?? false);
 

@@ -1,5 +1,6 @@
 'use server';
 
+import { after } from 'next/server';
 import { revalidatePath } from 'next/cache';
 import { and, eq } from 'drizzle-orm';
 
@@ -18,6 +19,7 @@ import {
 import { str } from '@/lib/validation';
 import { assertEventManager } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
+import { pushPlaces } from '@/server/services/push';
 import { plural } from '@/lib/plural';
 import { parseLanes } from '@/server/services/board';
 
@@ -94,6 +96,15 @@ export async function setBoardPublishedAction(
     newValues: { boardPublished: publish },
     summary: publish ? t.board.publishedSummary : t.board.draftSummary,
   });
+
+  /*
+   * Publishing is the moment the board becomes theirs, so it is the moment
+   * every phone on it hears where to stand. Only on the way out of draft:
+   * re-publishing an already public board says nothing new.
+   */
+  if (publish && !event.boardPublishedAt) {
+    after(() => pushPlaces(t, eventId, 'ALL', 'PLACED').catch(() => {}));
+  }
 
   revalidateBoard(eventId);
   revalidatePath(`/member`, 'layout');

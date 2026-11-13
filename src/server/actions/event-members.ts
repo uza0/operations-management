@@ -1,6 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
+import { after } from 'next/server';
 import { and, eq, inArray, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
@@ -10,6 +11,7 @@ import {
   attendance,
   eventFeedback,
   eventMembers,
+  events,
   issues,
   mainGateMembers,
   mapMarkers,
@@ -20,6 +22,9 @@ import { newId, newMemberToken } from '@/lib/ids';
 import { bool, str } from '@/lib/validation';
 import { assertEventManager } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
+import { pushOnce } from '@/server/services/push';
+import { format } from '@/lib/i18n';
+import { formatDate } from '@/lib/time';
 
 import { fail, ok, type ActionState } from './types';
 
@@ -144,6 +149,48 @@ export async function addMembersToEventAction(
       reserve: asReserve,
     },
     summary: `${t.eventTeam.addToEvent}: ${toAdd.length + toReinstate.length}`,
+  });
+
+  /*
+   * Added to an evening that is already settled. Leaving DRAFT-to-READY is
+   * where the crew hears about it, and anybody added after that moment used
+   * to hear nothing until somebody remembered the invitations page. Now he
+   * hears it now — once, keyed per membership, so the invitations page
+   * sending later does not buzz him a second time.
+   */
+  after(async () => {
+    try {
+      const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
+      if (!event || !['READY', 'LIVE'].includes(event.status)) return;
+      const rows = await db
+        .select({ id: eventMembers.id, teamMemberId: eventMembers.teamMemberId })
+        .from(eventMembers)
+        .where(
+          and(
+            eq(eventMembers.eventId, eventId),
+            inArray(eventMembers.teamMemberId, [...toAdd, ...toReinstate].map((p) => p.id)),
+          ),
+        );
+      const { locale } = await getT();
+      const body = format(t.push.invitedBody, {
+        event: event.name,
+        date: formatDate(event.date, locale),
+        time: event.teamArrivalTime ?? '',
+      });
+      const back = new Set(toReinstate.map((p) => p.id));
+      await Promise.all(
+        rows.map((row) =>
+          pushOnce(
+            /* A man taken off and put back is told again: it is news again. */
+            back.has(row.teamMemberId) ? `invited:${row.id}:${Date.now()}` : `invited:${row.id}`,
+            [row.teamMemberId],
+            { title: t.push.invitedTitle, body, url: '/me', tag: `event:${eventId}` },
+          ),
+        ),
+      );
+    } catch {
+      /* The people are on the event; telling them is best effort. */
+    }
   });
 
   revalidateEvent(eventId);

@@ -1,7 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useState } from 'react';
-import { subscribeToPushAction, unsubscribeFromPushAction } from '@/server/actions/push';
+import { subscribeToPushAction, syncPushAction, unsubscribeFromPushAction } from '@/server/actions/push';
 import { idle } from '@/server/actions/types';
 import { IconBell, IconBellOff } from '@/components/ui/icons';
 import { FormError, Notice } from '@/components/ui/states';
@@ -29,7 +29,17 @@ export function NotificationToggle({ t, publicKey }: { t: Dictionary; publicKey:
     navigator.serviceWorker.ready
       .then((registration) => registration.pushManager.getSubscription())
       .then((subscription) => {
-        if (alive) setOn(Boolean(subscription) && Notification.permission === 'granted');
+        const granted = Boolean(subscription) && Notification.permission === 'granted';
+        if (alive) setOn(granted);
+        /* Hand the server what this phone holds, in case it lost it. */
+        if (granted && subscription) {
+          const json = subscription.toJSON();
+          syncPushAction({
+            endpoint: subscription.endpoint,
+            p256dh: json.keys?.p256dh ?? '',
+            auth: json.keys?.auth ?? '',
+          }).catch(() => {});
+        }
       })
       .catch(() => {
         if (alive) setOn(false);

@@ -104,6 +104,17 @@ export async function removeMemberSubscriptions(teamMemberId: string) {
     .where(eq(pushSubscriptions.teamMemberId, teamMemberId));
 }
 
+/** True when this exact endpoint is already filed against this person. */
+export async function hasSubscription(teamMemberId: string, endpoint: string) {
+  const row = await db.query.pushSubscriptions.findFirst({
+    where: and(
+      eq(pushSubscriptions.endpoint, endpoint),
+      eq(pushSubscriptions.teamMemberId, teamMemberId),
+    ),
+  });
+  return Boolean(row);
+}
+
 export async function subscriptionCount(teamMemberId: string) {
   const rows = await db
     .select({ id: pushSubscriptions.id })
@@ -158,7 +169,13 @@ export async function pushToMembers(
             keys: { p256dh: row.p256dh, auth: row.auth },
           },
           payload,
-          { TTL: 12 * 60 * 60 },
+          /*
+           * High urgency, or an Android phone in its pocket sleep holds the
+           * message until the screen next comes on — which at a stadium can
+           * be after the thing it was about. Everything this system sends is
+           * about tonight, so all of it is high.
+           */
+          { TTL: 12 * 60 * 60, urgency: 'high' },
         );
         sent += 1;
       } catch (error) {
@@ -495,3 +512,69 @@ export async function announcementAudience(input: {
 /* -------------------------------------------------------------------------- */
 /* making sure something calls it                                             */
 /* -------------------------------------------------------------------------- */
+
+/* -------------------------------------------------------------------------- */
+/* where he is standing                                                       */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Tells people their post, once the board is something they can see.
+ *
+ * Nothing goes out while the board is a draft: the supervisor dragging a name
+ * from gate 3 to gate 5 and back is arranging, not deciding. Publishing tells
+ * everybody on it where they stand; after that, every move tells the one
+ * person it moved. Same tag per person and event, so a man moved twice in a
+ * minute has one line in his shade saying where he is now.
+ */
+export async function pushPlaces(
+  t: Dictionary,
+  eventId: string,
+  eventMemberIds: string[] | 'ALL',
+  kind: 'PLACED' | 'MOVED',
+): Promise<number> {
+  if (!pushConfigured()) return 0;
+
+  const rows = await db
+    .select({
+      eventMemberId: eventMembers.id,
+      teamMemberId: eventMembers.teamMemberId,
+      eventName: events.name,
+      eventArrival: events.teamArrivalTime,
+      published: events.boardPublishedAt,
+      task: assignments.task,
+      arrival: assignments.arrivalTime,
+      gateName: gates.name,
+      pointName: workingPoints.name,
+    })
+    .from(assignments)
+    .innerJoin(eventMembers, eq(assignments.eventMemberId, eventMembers.id))
+    .innerJoin(events, eq(assignments.eventId, events.id))
+    .leftJoin(gates, eq(assignments.gateId, gates.id))
+    .leftJoin(workingPoints, eq(assignments.workingPointId, workingPoints.id))
+    .where(
+      and(
+        eq(assignments.eventId, eventId),
+        ne(eventMembers.status, 'CANCELLED'),
+        ...(eventMemberIds === 'ALL' ? [] : [inArray(assignments.eventMemberId, eventMemberIds)]),
+      ),
+    );
+
+  let sent = 0;
+  for (const row of rows) {
+    if (!row.published) continue;
+    const tasks = t.enums.task as Record<string, string>;
+    const result = await pushToMembers([row.teamMemberId], {
+      title: kind === 'MOVED' ? t.push.movedTitle : t.push.placedTitle,
+      body: format(t.push.placeBody, {
+        event: row.eventName,
+        place: row.gateName ?? row.pointName ?? '',
+        task: tasks[row.task] ?? row.task,
+        time: row.arrival ?? row.eventArrival ?? '',
+      }),
+      url: '/me',
+      tag: `place:${row.eventMemberId}`,
+    });
+    sent += result.sent;
+  }
+  return sent;
+}

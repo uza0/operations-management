@@ -3,6 +3,7 @@
 import { getT } from '@/lib/i18n/server';
 import { currentMember } from '@/server/services/member-auth';
 import {
+  hasSubscription,
   pushConfigured,
   removeSubscription,
   saveSubscription,
@@ -61,4 +62,33 @@ export async function unsubscribeFromPushAction(
   const endpoint = String(form.get('endpoint') ?? '');
   if (endpoint) await removeSubscription(endpoint);
   return ok(t.push.off);
+}
+
+/**
+ * The phone saying, on every visit, which subscription it holds.
+ *
+ * The switch on his page reads the browser, and the browser can be sure it is
+ * subscribed while the server has no row for it at all: the endpoint was
+ * rotated by the push service, a different promoter signed in on that phone
+ * and took it over, or a delivery failed for good and the row was dropped.
+ * Every one of those looked like "notifications on" to him and like silence
+ * to everybody sending him things. So the page hands the server what it holds
+ * each time it opens, and the server files it again if it had lost it —
+ * quietly, without the welcome buzz.
+ */
+export async function syncPushAction(keys: {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}): Promise<boolean> {
+  if (!pushConfigured()) return false;
+  const member = await currentMember();
+  if (!member) return false;
+  const endpoint = String(keys?.endpoint ?? '');
+  const p256dh = String(keys?.p256dh ?? '');
+  const auth = String(keys?.auth ?? '');
+  if (!endpoint.startsWith('https://') || !p256dh || !auth) return false;
+  if (await hasSubscription(member.teamMemberId, endpoint)) return true;
+  await saveSubscription(member.teamMemberId, { endpoint, p256dh, auth }, null);
+  return true;
 }
