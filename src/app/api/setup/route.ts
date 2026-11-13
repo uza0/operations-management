@@ -1,10 +1,10 @@
 import { timingSafeEqual } from 'node:crypto';
 import { NextResponse } from 'next/server';
-import { sql } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 
 import { db, rawClient } from '@/db';
 import { SCHEMA_STATEMENTS } from '@/db/schema-sql';
-import { users } from '@/db/schema';
+import { auditLogs, users } from '@/db/schema';
 import { accountsAwaitingPassword, ensureStandingAccounts } from '@/db/accounts';
 import { teamMembers } from '@/db/schema';
 import { seedDemoData } from '@/db/seed-core';
@@ -112,8 +112,22 @@ export async function GET(request: Request) {
        * able to reach a database full of real work. Adding the missing ones is
        * safe in a way that reseeding is not: nothing already there is touched.
        */
+      /* Every account somebody deleted, read back from the audit trail. */
+      const deleted = await db
+        .select({ old: auditLogs.oldValues })
+        .from(auditLogs)
+        .where(and(eq(auditLogs.entity, 'USER'), eq(auditLogs.action, 'DELETE')));
+      const retired = new Set(
+        deleted
+          .map((row) => {
+            const old = typeof row.old === 'string' ? safeJson(row.old) : row.old;
+            return String((old as { username?: string } | null)?.username ?? '').toLowerCase();
+          })
+          .filter(Boolean),
+      );
       const addedAccounts = await ensureStandingAccounts(
         db as unknown as Parameters<typeof ensureStandingAccounts>[0],
+        retired,
       );
       /*
        * And the ones it could not create, by name and by the variable each is
@@ -135,6 +149,7 @@ export async function GET(request: Request) {
         .from(users);
       const awaiting = accountsAwaitingPassword(
         new Set(haveUsers.map((row) => row.username.toLowerCase())),
+        retired,
       );
       return NextResponse.json({
         status: 'already-set-up',
@@ -195,5 +210,13 @@ export async function GET(request: Request) {
       { status: 'failed', error: error instanceof Error ? error.message : String(error) },
       { status: 500 },
     );
+  }
+}
+
+function safeJson(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
   }
 }

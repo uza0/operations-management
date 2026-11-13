@@ -105,7 +105,15 @@ export const STANDING_ACCOUNTS: StandingAccount[] = [
 
 /** The password to create this account with, or null if there is none to use. */
 export function passwordFor(account: StandingAccount): string | null {
-  return process.env[account.envVar] ?? account.fallbackPassword ?? null;
+  const configured = process.env[account.envVar];
+  if (configured) return configured;
+  /*
+   * The fallbacks are printed in this repository, so they are for a laptop
+   * only. On a deployed site an account with no configured password is not
+   * created at all — "Admin@12345" on the internet is a door left open.
+   */
+  if (process.env.VERCEL || process.env.NODE_ENV === 'production') return null;
+  return account.fallbackPassword ?? null;
 }
 
 export function rowFor(account: StandingAccount) {
@@ -133,12 +141,20 @@ export function rowFor(account: StandingAccount) {
  * that exist and inserts only the ones that do not, so it adds a new colleague
  * without disturbing anybody already working.
  */
-export async function ensureStandingAccounts(db: {
+export async function ensureStandingAccounts(
+  db: {
   select: (fields: Record<string, unknown>) => {
     from: (table: unknown) => Promise<{ username: string }[]>;
   };
   insert: (table: unknown) => { values: (rows: unknown[]) => Promise<unknown> };
-}): Promise<string[]> {
+},
+  /**
+   * Usernames somebody deleted on purpose. An account the developer removed
+   * must stay removed: setup bringing it back on the next release is how a
+   * deleted login quietly returns.
+   */
+  retired: Set<string> = new Set(),
+): Promise<string[]> {
   const { users } = schema;
   const existing = await db
     .select({ username: users.username })
@@ -153,7 +169,9 @@ export async function ensureStandingAccounts(db: {
    */
   const missing = STANDING_ACCOUNTS.filter(
     (account) =>
-      !taken.has(account.username.toLowerCase()) && passwordFor(account) !== null,
+      !taken.has(account.username.toLowerCase()) &&
+      !retired.has(account.username.toLowerCase()) &&
+      passwordFor(account) !== null,
   );
   if (missing.length === 0) return [];
 
@@ -165,9 +183,14 @@ export async function ensureStandingAccounts(db: {
  * Accounts this system is waiting on a password for, so setup can say so
  * rather than silently doing nothing.
  */
-export function accountsAwaitingPassword(taken: Set<string>): string[] {
+export function accountsAwaitingPassword(
+  taken: Set<string>,
+  retired: Set<string> = new Set(),
+): string[] {
   return STANDING_ACCOUNTS.filter(
     (account) =>
-      !taken.has(account.username.toLowerCase()) && passwordFor(account) === null,
+      !taken.has(account.username.toLowerCase()) &&
+      !retired.has(account.username.toLowerCase()) &&
+      passwordFor(account) === null,
   ).map((account) => `${account.username} (${account.envVar})`);
 }
