@@ -1564,6 +1564,38 @@ export const memberLoginAttempts = sqliteTable(
   (t) => [index('member_login_attempts_phone_idx').on(t.phoneKey, t.attemptedAt)],
 );
 
+/**
+ * A one-time link that lets an office account choose a new password.
+ *
+ * Issued by the system's developer for a colleague who has forgotten theirs,
+ * and sent to them by whatever means the two already trust — there is no
+ * "forgot my password" button, because a button anybody can press for
+ * anybody's username is a way to ask for somebody else's account.
+ *
+ * Only a hash of the link is kept. The row is a record that one was issued,
+ * not a copy of it: somebody who could read this table should not thereby be
+ * able to open the link.
+ */
+export const passwordResets = sqliteTable(
+  'password_resets',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    tokenHash: text('token_hash').notNull(),
+    issuedById: text('issued_by_id').references(() => users.id, { onDelete: 'set null' }),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull(),
+    expiresAt: integer('expires_at', { mode: 'timestamp_ms' }).notNull(),
+    /** Set when it is used, or when a newer link replaces it. */
+    usedAt: integer('used_at', { mode: 'timestamp_ms' }),
+  },
+  (t) => [
+    uniqueIndex('password_resets_token_unique').on(t.tokenHash),
+    index('password_resets_user_idx').on(t.userId),
+  ],
+);
+
 export type PaymentTemplate = typeof paymentTemplates.$inferSelect;
 export type MemberSession = typeof memberSessions.$inferSelect;
 export type MemberLoginAttempt = typeof memberLoginAttempts.$inferSelect;

@@ -10,6 +10,7 @@ import { idle } from '@/server/actions/types';
 import { FormError, Notice } from '@/components/ui/states';
 import { ConfirmSubmit, SubmitButton } from '@/components/ui/client';
 import { Badge } from '@/components/ui/status';
+import { ResetLinkButton } from './ResetLinkButton';
 import { format } from '@/lib/i18n';
 
 const roles: Role[] = ['ADMIN', 'TEAM_LEADER', 'GATE_LEADER'];
@@ -97,6 +98,7 @@ export function AccountManager({
                         </label>
                         <button type="submit" className="btn-secondary btn-sm">{t.common.save}</button>
                       </form>
+                      {account.active ? <ResetLinkButton t={t} userId={account.id} /> : null}
                       <form action={deleteAccountAction}>
                         <input type="hidden" name="userId" value={account.id} />
                         <ConfirmSubmit message={format(t.auth.deleteAccountConfirm, { name: account.name })} className="btn-danger btn-sm">

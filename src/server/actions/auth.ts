@@ -17,6 +17,7 @@ import type { Role } from '@/lib/constants';
 
 import { fail, ok, type ActionState } from './types';
 import { isLockedOut, recordAttempt } from '@/server/services/member-auth';
+import { issueReset, openReset, spendReset } from '@/server/services/password-reset';
 
 export async function loginAction(
   _prev: ActionState,
@@ -290,4 +291,90 @@ export async function deleteAccountAction(formData: FormData): Promise<void> {
   });
   await db.delete(users).where(eq(users.id, userId));
   revalidatePath('/admin/settings');
+}
+
+/**
+ * A one-time link for a colleague who has forgotten their password.
+ *
+ * Only the system's developer, the same person who creates and removes the
+ * accounts. He is told on the phone, issues the link, and sends it himself —
+ * which is the check: the link reaches whoever he sends it to, and he knows
+ * who that is. The link is shown once, here, and never stored in the clear.
+ *
+ * Not for one's own account. Somebody signed in can change their password
+ * with the old one, and somebody who cannot sign in cannot reach this.
+ */
+export async function issuePasswordResetAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const actor = await currentUser();
+  if (!actor?.systemDeveloper) return fail(t.errors.forbidden);
+
+  const userId = String(formData.get('userId') ?? '');
+  if (!userId || userId === actor.id) return fail(t.errors.forbidden);
+  const target = await db.query.users.findFirst({ where: eq(users.id, userId) });
+  if (!target || !target.active) return fail(t.errors.notFound);
+
+  const token = await issueReset(target.id, actor.id);
+
+  await recordAudit({
+    actorId: actor.id,
+    actorName: actor.name,
+    action: 'UPDATE',
+    entity: 'USER',
+    entityId: target.id,
+    entityLabel: target.name,
+    summary: `${target.name} — ${t.auth.resetLinkIssued}`,
+  });
+
+  /* The path only; the screen that shows it knows which site it is on. */
+  return ok(`/reset/${token}`);
+}
+
+/**
+ * Choosing the new password, by whoever holds the link.
+ *
+ * Nobody is signed in here, so the link is checked again at the moment it is
+ * used rather than trusted from the page that showed the form: an hour may
+ * have passed on an open tab. It is spent before the password is written, so
+ * a link can never set two passwords.
+ */
+export async function completePasswordResetAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const token = String(formData.get('token') ?? '');
+  const next = String(formData.get('newPassword') ?? '');
+  const confirm = String(formData.get('confirmPassword') ?? '');
+
+  if (!next || !confirm) return fail(t.errors.required);
+  if (next !== confirm) return fail(t.auth.passwordsDiffer);
+  if (next.length < 8) return fail(t.auth.passwordTooShort);
+
+  const reset = await openReset(token);
+  if (!reset) return fail(t.auth.resetLinkDead);
+  if (!(await spendReset(reset.id))) return fail(t.auth.resetLinkDead);
+
+  await db
+    .update(users)
+    .set({ passwordHash: bcrypt.hashSync(next, 10), updatedAt: new Date() })
+    .where(eq(users.id, reset.userId));
+
+  /* A forgotten password usually arrives with a locked account behind it. */
+  await recordAttempt(`staff:${reset.username.toLowerCase().slice(0, 64)}`, true);
+
+  await recordAudit({
+    actorId: reset.userId,
+    actorName: reset.name,
+    action: 'UPDATE',
+    entity: 'USER',
+    entityId: reset.userId,
+    entityLabel: reset.name,
+    summary: `${reset.name} — ${t.auth.resetLinkUsed}`,
+  });
+
+  return ok(t.auth.resetDone);
 }
