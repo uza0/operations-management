@@ -289,7 +289,22 @@ export async function deleteAccountAction(formData: FormData): Promise<void> {
     oldValues: { username: target.username, role: target.role, systemDeveloper: target.systemDeveloper },
     summary: `${target.name} — ${t.auth.accountDeleted}`,
   });
-  await db.delete(users).where(eq(users.id, userId));
+  /*
+   * Five references to a user were added to existing tables with ALTER TABLE,
+   * and SQLite drops the ON DELETE clause on that path: the schema says
+   * "set null", the live database says "no action", and the delete failed
+   * on any account that had ever published a board, approved an arrival or
+   * been handed an issue. Let go of them by hand, then delete — together, so
+   * a failure leaves the account and its records exactly as they were.
+   */
+  await db.batch([
+    db.run(sql`update events set board_published_by_id = null where board_published_by_id = ${userId}`),
+    db.run(sql`update event_members set notified_by_id = null where notified_by_id = ${userId}`),
+    db.run(sql`update attendance set approved_by_id = null where approved_by_id = ${userId}`),
+    db.run(sql`update seat_setup_members set approved_by_id = null where approved_by_id = ${userId}`),
+    db.run(sql`update issues set assignee_user_id = null where assignee_user_id = ${userId}`),
+    db.delete(users).where(eq(users.id, userId)),
+  ]);
   revalidatePath('/admin/settings');
 }
 
