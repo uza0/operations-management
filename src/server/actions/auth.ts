@@ -146,7 +146,7 @@ export async function changePasswordAction(
   return ok(t.auth.passwordChanged);
 }
 
-const ACCOUNT_ROLES: Role[] = ['ADMIN', 'TEAM_LEADER', 'GATE_LEADER'];
+const ACCOUNT_ROLES: Role[] = ['ADMIN', 'TEAM_LEADER', 'GATE_LEADER', 'MAP_EDITOR'];
 
 /** Admin-created accounts receive a one-time random password, shown only here. */
 export async function createAccountAction(

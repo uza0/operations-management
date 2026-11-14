@@ -35,6 +35,7 @@ export function EventForm({
   values,
   mode,
   onDone,
+  requestId,
 }: {
   t: Dictionary;
   venues: { id: string; name: string }[];
@@ -44,6 +45,8 @@ export function EventForm({
   values?: EventFormValues;
   mode: 'create' | 'edit';
   onDone?: () => void;
+  /** Creating from an evening the map editor filed. */
+  requestId?: string;
 }) {
   const [state, action] = useActionState(
     mode === 'create' ? createEventAction : updateEventAction,
@@ -61,6 +64,7 @@ export function EventForm({
   return (
     <form action={action} className="space-y-4">
       {values?.id ? <input type="hidden" name="eventId" value={values.id} /> : null}
+      {requestId ? <input type="hidden" name="requestId" value={requestId} /> : null}
 
       {/*
         Most events at a venue are last month's event again. Choosing one here

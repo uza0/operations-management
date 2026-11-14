@@ -38,6 +38,16 @@ export function globalNav(t: Dictionary, role: Role): NavSection[] {
       },
     ];
   }
+  if (role === 'MAP_EDITOR') {
+    return [
+      {
+        items: [
+          { href: '/maps', label: t.mapDesk.nav, icon: 'map', exact: true },
+          { href: '/maps/settings', label: t.nav.settings, icon: 'settings' },
+        ],
+      },
+    ];
+  }
   const items: NavItem[] = [
     { href: '/leader', label: t.nav.dashboard, icon: 'dashboard', exact: true },
     { href: '/leader/events', label: t.nav.myEvents, icon: 'calendar' },

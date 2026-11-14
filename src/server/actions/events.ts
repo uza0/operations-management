@@ -13,8 +13,7 @@ import {
   events,
   gates,
   users,
-  venues,
-} from '@/db/schema';
+  venues, eventRequests } from '@/db/schema';
 import { format } from '@/lib/i18n';
 import { formatDate } from '@/lib/time';
 import { getT } from '@/lib/i18n/server';
@@ -104,6 +103,13 @@ export async function createEventAction(
   });
   if (!venue) return fail(t.errors.notFound);
 
+  /* An evening the map editor filed: its seats.io link becomes the map. */
+  const requestId = str(form, 'requestId');
+  const request = requestId
+    ? await db.query.eventRequests.findFirst({ where: eq(eventRequests.id, requestId) })
+    : null;
+  if (requestId && (!request || request.status !== 'PENDING')) return fail(t.errors.notFound);
+
   const id = newId();
   await db.insert(events).values({
     id,
@@ -119,7 +125,15 @@ export async function createEventAction(
     partners: parsed.data.partners || null,
     status: 'DRAFT',
     createdById: user.id,
+    mapLinkUrl: request?.seatsUrl ?? null,
   });
+
+  if (request) {
+    await db
+      .update(eventRequests)
+      .set({ status: 'CREATED', eventId: id, updatedAt: new Date() })
+      .where(and(eq(eventRequests.id, request.id), eq(eventRequests.status, 'PENDING')));
+  }
 
   /*
    * Built from a previous event: copy its plan across before anything else
@@ -147,6 +161,14 @@ export async function createEventAction(
    * copying a source that never had a gate leaves this one a draft, which is
    * the right answer.
    */
+  // A template's own map must not replace the one the map editor drew for this evening.
+  if (cloned && request) {
+    await db
+      .update(events)
+      .set({ mapLinkUrl: request.seatsUrl, mapImageUrl: null, mapDocumentUrl: null })
+      .where(eq(events.id, id));
+  }
+
   if (cloned) await promoteIfBuilt(id);
 
   // Selected team leaders get an explicit event grant as soon as it is created.

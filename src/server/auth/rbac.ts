@@ -139,6 +139,7 @@ export async function canAccessEventMember(
 
 /** Where a signed-in user's own home is. */
 export function homeFor(role: Role): string {
+  if (role === 'MAP_EDITOR') return '/maps';
   return role === 'ADMIN' ? '/admin' : '/leader';
 }
 

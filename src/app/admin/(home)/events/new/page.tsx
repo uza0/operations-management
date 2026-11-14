@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { desc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { events, venues } from '@/db/schema';
+import { eventRequests, events, venues } from '@/db/schema';
 import { requireRole } from '@/server/auth/rbac';
 import { leadershipCandidates } from '@/server/services/access';
 import { getT } from '@/lib/i18n/server';
@@ -12,9 +12,20 @@ import { IconArrowRight, IconPin } from '@/components/ui/icons';
 
 import { EventForm } from './EventForm';
 
-export default async function NewEventPage() {
+export default async function NewEventPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ request?: string }>;
+}) {
   await requireRole('ADMIN');
   const { t } = await getT();
+  const { request: requestId } = await searchParams;
+
+  /* Completing an evening the map editor filed: start from what he gave. */
+  const filed = requestId
+    ? await db.query.eventRequests.findFirst({ where: eq(eventRequests.id, requestId) })
+    : null;
+  const request = filed && filed.status === 'PENDING' ? filed : null;
 
   const [venueRows, leaderRows, templateRows] = await Promise.all([
     db.select({ id: venues.id, name: venues.name }).from(venues).orderBy(venues.name),
@@ -74,7 +85,7 @@ export default async function NewEventPage() {
           </Panel>
         ) : (
           <Panel bodyClassName="p-5">
-            <Notice tone="info">{t.event.emptyHint}</Notice>
+            <Notice tone="info">{request ? t.mapDesk.fromRequest : t.event.emptyHint}</Notice>
             <div className="mt-4">
               <EventForm
                 t={t}
@@ -82,6 +93,16 @@ export default async function NewEventPage() {
                 leaders={leaderRows}
                 templates={templateRows}
                 mode="create"
+                requestId={request?.id}
+                values={
+                  request
+                    ? {
+                        name: request.name,
+                        venueId: request.venueId ?? undefined,
+                        date: request.date ?? undefined,
+                      }
+                    : undefined
+                }
               />
             </div>
           </Panel>

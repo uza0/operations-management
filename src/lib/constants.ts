@@ -6,7 +6,12 @@ import { MARKER_COLORS } from './brand';
  * the data honest. Labels live in the translation dictionaries, never here.
  */
 
-export const ROLES = ['ADMIN', 'TEAM_LEADER', 'GATE_LEADER'] as const;
+/**
+ * MAP_EDITOR is the person who draws the seat maps. He can only file an
+ * evening and its seats.io link for an admin to finish; he never sees an
+ * event, a person or a dinar.
+ */
+export const ROLES = ['ADMIN', 'TEAM_LEADER', 'GATE_LEADER', 'MAP_EDITOR'] as const;
 export type Role = (typeof ROLES)[number];
 
 /**
@@ -296,6 +301,7 @@ export const AUDIT_ENTITIES = [
   'MAP_MARKER',
   'TIMELINE',
   'USER',
+  'EVENT_REQUEST',
 ] as const;
 export type AuditEntity = (typeof AUDIT_ENTITIES)[number];
 

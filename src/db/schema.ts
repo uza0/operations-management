@@ -1700,6 +1700,25 @@ export const pushSent = sqliteTable(
  * bolted onto something unrelated, is how a settings screen becomes a
  * migration every time somebody asks a question.
  */
+/**
+ * An evening filed by the map editor: a name and a seats.io link, and if he
+ * knows them a date and a venue. Not an event yet — an admin opens it, fills
+ * in the rest and creates the event from it, which carries the link across.
+ */
+export const eventRequests = sqliteTable('event_requests', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  seatsUrl: text('seats_url').notNull(),
+  date: text('date'),
+  venueId: text('venue_id').references(() => venues.id, { onDelete: 'set null' }),
+  /** PENDING until an admin creates the event from it, or sets it aside. */
+  status: text('status').notNull().default('PENDING'),
+  eventId: text('event_id').references(() => events.id, { onDelete: 'set null' }),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByName: text('created_by_name').notNull(),
+  ...timestamps,
+});
+
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),
   value: text('value'),

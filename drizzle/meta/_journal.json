@@ -246,6 +246,13 @@
       "when": 1794665256286,
       "tag": "0034_tough_doomsday",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "6",
+      "when": 1794675169676,
+      "tag": "0035_wooden_sinister_six",
+      "breakpoints": true
     }
   ]
 }

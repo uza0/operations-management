@@ -13,7 +13,7 @@ import { Badge } from '@/components/ui/status';
 import { ResetLinkButton } from './ResetLinkButton';
 import { format } from '@/lib/i18n';
 
-const roles: Role[] = ['ADMIN', 'TEAM_LEADER', 'GATE_LEADER'];
+const roles: Role[] = ['ADMIN', 'TEAM_LEADER', 'GATE_LEADER', 'MAP_EDITOR'];
 
 export function AccountManager({
   t,

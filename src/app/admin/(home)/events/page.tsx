@@ -1,6 +1,7 @@
 import Link from 'next/link';
 
 import { requireRole } from '@/server/auth/rbac';
+import { PendingRequests } from '@/features/event/PendingRequests';
 import { getT } from '@/lib/i18n/server';
 import { listEventsForUser } from '@/server/services/events';
 import { PageHeader, Panel } from '@/components/ui/panel';
@@ -42,6 +43,8 @@ export default async function AdminEventsPage({
           </Link>
         }
       />
+
+      <PendingRequests t={t} locale={locale} />
 
       <form className="mb-4 flex flex-wrap items-end gap-2" action="/admin/events">
         <div className="min-w-[200px] flex-1">
