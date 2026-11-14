@@ -14,6 +14,7 @@ import { CrewHandbookCard } from '@/app/me/CrewHandbookCard';
 import { InstallGuide } from '@/app/me/InstallGuide';
 import { ProfilePhotoUpload } from '@/app/me/ProfilePhotoUpload';
 import { MemberShell } from '@/app/member/[token]/MemberShell';
+import { OfflineStatus } from '@/components/pwa/MemberOfflineSync';
 
 export const dynamic = 'force-dynamic';
 
@@ -49,6 +50,7 @@ export default async function MemberAccountPage() {
     <CrewHandbookCard t={t} />
     <InstallGuide t={t} />
     {staff ? <Link href={homeFor(staff.role)} className="btn-ghost btn-sm w-full text-center">{t.memberAuth.backToStaff}</Link> : null}
+    <OfflineStatus labels={{ title: t.pwa.offlineTitle, ready: t.pwa.offlineReady, none: t.pwa.offlineNone }} />
     <form action={memberSignOutAction} className="pt-1"><ConfirmSubmit className="btn-ghost btn-sm w-full" message={t.memberAuth.signOutConfirm}>{t.memberAuth.signOut}</ConfirmSubmit></form>
   </MemberShell>;
 }
