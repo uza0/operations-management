@@ -55,9 +55,9 @@ export async function MemberShell({
   const member = await currentMember();
 
   /*
-   * Everything of his worth having with the network off: his own tabs, and
-   * the page of every evening that is on now or still ahead. Past evenings
-   * are left out — there is nothing to press on them.
+   * Everything of his worth having with the network off: his own tabs, the
+   * page of every evening that is on now or still ahead, and the last few
+   * that are over.
    */
   let offline: { owner: string; urls: string[] } | null = null;
   if (member) {
@@ -71,6 +71,14 @@ export async function MemberShell({
           '/me/attendance',
           '/me/account',
           ...[...home.live, ...home.upcoming].map((row) => `/member/${row.token}`),
+          /*
+           * And the recent past: he opens a finished evening to check what he
+           * was paid or where he stood, and that is a tap like any other.
+           */
+          ...[...home.past]
+            .sort((a, b) => b.date.localeCompare(a.date))
+            .slice(0, 12)
+            .map((row) => `/member/${row.token}`),
           ...home.seatInvitations
             .filter((row) => !row.declinedAt)
             .map((row) => `/setup/${row.token}`),
