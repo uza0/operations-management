@@ -32,6 +32,7 @@ import type {
 
 import { InvitationScreen } from './InvitationScreen';
 import { ArrivalButton, DepartureButton } from './ArrivalActions';
+import { AnnouncementImage } from '@/components/ui/AnnouncementImage';
 import { PanicButton } from './PanicButton';
 import { MapImagePreview } from './MapImagePreview';
 import { SeatSetupCard } from './SeatSetupCard';
@@ -392,6 +393,37 @@ export default async function MemberPortalPage({
           ? 'DURING'
           : 'BEFORE';
 
+  /*
+   * The ordinary announcements, as one list used wherever they belong. An
+   * announcement is written to be read: one sent the afternoon before used
+   * to reach him only as a notification, and tapping it opened a page with
+   * no trace of it until the evening began.
+   */
+  const announcementList = (rows: typeof rest) => (
+    <section>
+      <h2 className="mb-2 flex items-center gap-2 px-1 text-[15px] font-bold text-ink-100">
+        <IconMegaphone width={17} height={17} className="text-ink-500" />
+        {t.member.announcements}
+      </h2>
+      <ul className="space-y-2">
+        {rows.map((row) => (
+          <li key={row.id} className="panel p-4">
+            <div className="mb-1 flex items-start justify-between gap-2">
+              <p className="text-[14.5px] font-semibold text-ink-100">{row.title}</p>
+              <Badge tone={priorityTone[row.priority as Priority]}>
+                {t.enums.priority[row.priority as Priority]}
+              </Badge>
+            </div>
+            <p className="whitespace-pre-line text-[13.5px] leading-6 text-ink-300">
+              {row.message}
+            </p>
+            <AnnouncementImage url={row.imageUrl} alt={row.title} />
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+
   const identity = (
     <section className="flex items-center gap-3 rounded-card border border-ink-700 bg-ink-850 px-4 py-3.5">
       <span
@@ -420,7 +452,8 @@ export default async function MemberPortalPage({
       <div className="stagger space-y-4">
         <MemberOfflineReady t={t} />
         <PendingAttendanceSync t={t} token={token} />
-        {data.mapSource?.kind === 'image' ? (
+        {/* The map is for finding a gate; once the evening is over there is none to find. */}
+        {phase === 'AFTER' || phase === 'CLOSED' ? null : data.mapSource?.kind === 'image' ? (
           <MapImagePreview title={t.map.mapPreviewTitle} url={data.mapSource.url} />
         ) : data.mapSource ? (
           <MapSourcePreview
@@ -497,11 +530,10 @@ export default async function MemberPortalPage({
             {identity}
 
             {/*
-              Urgent announcements reach him here too, and only urgent ones.
-              The ordinary instructions are about the evening and wait for it;
-              an urgent one is by definition something that changes what he
-              does now — "come at four, not five" is useless on a screen he
-              only reaches after he has arrived.
+              Urgent announcements first and loud, because they change what he
+              does now — "come at four, not five". The rest follow as a plain
+              list: whatever was sent to him has to be on the page the
+              notification opens, not only in the notification.
             */}
             {urgent.length > 0 ? (
               <section className="space-y-2" aria-label={t.member.announcements}>
@@ -526,10 +558,13 @@ export default async function MemberPortalPage({
                     <p className="mt-1 whitespace-pre-line text-[14px] leading-6 text-ink-200">
                       {row.message}
                     </p>
+                    <AnnouncementImage url={row.imageUrl} alt={row.title} />
                   </div>
                 ))}
               </section>
             ) : null}
+
+            {rest.length > 0 ? announcementList(rest) : null}
 
             {/* Anything that changed since he last looked. */}
             {data.lastChange?.fromLocation && data.lastChange.toLocation ? (
@@ -733,6 +768,7 @@ export default async function MemberPortalPage({
                     <p className="mt-1 whitespace-pre-line text-[14px] leading-6 text-ink-200">
                       {row.message}
                     </p>
+                    <AnnouncementImage url={row.imageUrl} alt={row.title} />
                   </div>
                 ))}
               </section>
@@ -807,6 +843,7 @@ export default async function MemberPortalPage({
                       <p className="whitespace-pre-line text-[13.5px] leading-6 text-ink-300">
                         {row.message}
                       </p>
+                      <AnnouncementImage url={row.imageUrl} alt={row.title} />
                     </li>
                   ))}
                 </ul>
@@ -866,6 +903,8 @@ export default async function MemberPortalPage({
             membership.eventStatus === 'ARCHIVED' ? (
               <FeedbackForm t={t} token={token} answered={data.answeredFeedback} />
             ) : null}
+
+            {urgent.length + rest.length > 0 ? announcementList([...urgent, ...rest]) : null}
 
             {/*
               His own reports stay readable for as long as the link lives: a

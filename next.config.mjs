@@ -18,6 +18,11 @@ const nextConfig = {
   reactStrictMode: true,
   env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
   serverExternalPackages: ['bcryptjs', 'sharp'],
+  /*
+   * An announcement can carry a photo. The form shrinks it on the phone
+   * first, so this is headroom for a browser that cannot, not the norm.
+   */
+  experimental: { serverActions: { bodySizeLimit: '7mb' } },
   eslint: { ignoreDuringBuilds: true },
 
   /**

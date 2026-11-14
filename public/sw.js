@@ -366,10 +366,10 @@ async function forgetMemberPages() {
   await caches.delete(PAGE_CACHE);
 }
 
-/** The scripts, styles and fonts a saved page will ask for with no network. */
+/** The scripts, styles, fonts and pictures a saved page will ask for with no network. */
 function assetsIn(html) {
   const found = new Set();
-  const pattern = /(?:src|href)=["'](\/(?:_next\/static|fonts)\/[^"'?#]+)/g;
+  const pattern = /(?:src|href)=["'](\/(?:_next\/static|fonts|uploads)\/[^"'?#]+)/g;
   let match;
   while ((match = pattern.exec(html))) found.add(match[1]);
   return [...found];

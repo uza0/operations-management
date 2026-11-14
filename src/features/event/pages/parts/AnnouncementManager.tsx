@@ -1,5 +1,7 @@
 'use client';
 
+import { AnnouncementImage } from '@/components/ui/AnnouncementImage';
+import { AnnouncementImagePicker } from './AnnouncementImagePicker';
 import { useActionState, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -14,7 +16,7 @@ import { ConfirmSubmit, Dialog, SubmitButton } from '@/components/ui/client';
 import { IconMegaphone, IconPlus } from '@/components/ui/icons';
 import { AUDIENCES, PRIORITIES, type Audience, type Priority } from '@/lib/constants';
 import { formatDateTime } from '@/lib/time';
-import type { Dictionary } from '@/lib/i18n';
+import { format, type Dictionary } from '@/lib/i18n';
 
 export type AnnouncementRow = {
   id: string;
@@ -26,6 +28,8 @@ export type AnnouncementRow = {
   createdByName: string;
   createdAt: Date;
   expiresAt: Date | null;
+  imageUrl?: string | null;
+  imageExpiresAt?: Date | null;
 };
 
 type Option = { id: string; name: string };
@@ -168,6 +172,8 @@ function AnnouncementForm({
         />
       </div>
 
+      <AnnouncementImagePicker t={t} />
+
       <p className="text-[12px] text-ink-500">{t.announcement.audienceHint}</p>
 
       {state.status === 'error' ? <FormError message={state.message} /> : null}
@@ -295,6 +301,14 @@ export function AnnouncementManager({
                 <p className="whitespace-pre-line text-[13.5px] leading-6 text-ink-300">
                   {row.message}
                 </p>
+                <AnnouncementImage url={row.imageUrl} alt={row.title} />
+                {row.imageUrl && row.imageExpiresAt ? (
+                  <p className="mt-1 text-[12px] text-ink-500">
+                    {format(t.announcement.imageGoneOn, {
+                      date: formatDateTime(row.imageExpiresAt, locale),
+                    })}
+                  </p>
+                ) : null}
                 {canManage ? (
                   <div className="mt-3 flex justify-end border-t border-ink-800 pt-2">
                     <DeleteAnnouncement t={t} eventId={eventId} id={row.id} />

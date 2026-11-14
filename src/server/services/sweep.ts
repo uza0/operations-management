@@ -1,3 +1,4 @@
+import { expireAnnouncementImages } from '@/server/services/announcement-image';
 import 'server-only';
 
 import { after } from 'next/server';
@@ -34,7 +35,8 @@ export async function runSweep() {
           }),
   }));
   const reminders = await sendDueReminders(reminderText(t));
-  return { ...reminders, moved: moved.length, nagged: nagged.length };
+  const imagesCleared = await expireAnnouncementImages().catch(() => 0);
+  return { ...reminders, moved: moved.length, nagged: nagged.length, imagesCleared };
 }
 
 let lastSweep = 0;

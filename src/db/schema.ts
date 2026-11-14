@@ -702,6 +702,14 @@ export const announcements = sqliteTable(
     createdById: text('created_by_id').references(() => users.id, {
       onDelete: 'set null',
     }),
+    /** An optional picture under the text, served from /uploads. */
+    imageUrl: text('image_url'),
+    /**
+     * When the picture is cleared to free the space, if the person posting
+     * chose a lifetime for it. The announcement itself stays; only the
+     * picture goes. Null keeps it.
+     */
+    imageExpiresAt: integer('image_expires_at', { mode: 'timestamp_ms' }),
     createdByName: text('created_by_name').notNull(),
     expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
     createdAt: timestamps.createdAt,

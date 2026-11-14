@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, inArray, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -42,6 +42,7 @@ import {
   resolveEventScope,
 } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
+import { dropAnnouncementImage, saveAnnouncementImage } from '@/server/services/announcement-image';
 import { announcementAudience, pushToMembers } from '@/server/services/push';
 import { routeNewIssue } from '@/server/services/issue-routing';
 
@@ -562,10 +563,37 @@ export async function createAnnouncementAction(
   const expires = data.expiresAt ? new Date(data.expiresAt) : null;
   if (expires && Number.isNaN(expires.getTime())) return fail(t.errors.invalidDate);
 
+  /*
+   * The optional picture, and how long to keep it. A failure here stops the
+   * announcement before anything is written: an announcement that went out
+   * without the picture its text refers to is worse than one sent a minute
+   * later.
+   */
+  let imageUrl: string | null = null;
+  let imageExpiresAt: Date | null = null;
+  const picture = form.get('image');
+  if (picture instanceof File && picture.size > 0) {
+    const saved = await saveAnnouncementImage(picture, user.id);
+    if (!saved.ok) {
+      return fail(
+        saved.reason === 'TOO_LARGE'
+          ? t.announcement.imageTooLarge
+          : t.announcement.imageBad,
+      );
+    }
+    imageUrl = saved.url;
+    const days = Number(str(form, 'imageDays') ?? '');
+    if (Number.isFinite(days) && days > 0 && days <= 365) {
+      imageExpiresAt = new Date(Date.now() + days * 24 * 3_600_000);
+    }
+  }
+
   const id = newId();
   await db.insert(announcements).values({
     id,
     eventId,
+    imageUrl,
+    imageExpiresAt,
     title: data.title,
     message: data.message,
     priority: data.priority,
@@ -608,12 +636,29 @@ export async function createAnnouncementAction(
       eventMemberId: data.eventMemberId,
     });
     const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
-    await pushToMembers(audience, {
-      title: format(t.push.announceTitle, { event: event?.name ?? '' }),
-      body: data.title,
-      url: '/me',
-      tag: `ann:${id}`,
-    });
+    /*
+     * Tapping it opens this evening's own page, where the announcement now
+     * is — not his home screen, which never showed it.
+     */
+    const tokens = audience.length
+      ? await db
+          .select({ teamMemberId: eventMembers.teamMemberId, token: eventMembers.token })
+          .from(eventMembers)
+          .where(
+            and(eq(eventMembers.eventId, eventId), inArray(eventMembers.teamMemberId, audience)),
+          )
+      : [];
+    const pageOf = new Map(tokens.map((row) => [row.teamMemberId, `/member/${row.token}`]));
+    await Promise.all(
+      audience.map((teamMemberId) =>
+        pushToMembers([teamMemberId], {
+          title: format(t.push.announceTitle, { event: event?.name ?? '' }),
+          body: data.title,
+          url: pageOf.get(teamMemberId) ?? '/me',
+          tag: `ann:${id}`,
+        }),
+      ),
+    );
   } catch {
     /* Delivery is best effort; the announcement is already recorded. */
   }
@@ -643,6 +688,7 @@ export async function deleteAnnouncementAction(
   if (!row || row.eventId !== eventId) return fail(t.errors.notFound);
 
   await db.delete(announcements).where(eq(announcements.id, id));
+  await dropAnnouncementImage(row.imageUrl).catch(() => {});
   await recordAudit({
     eventId,
     actorId: user.id,

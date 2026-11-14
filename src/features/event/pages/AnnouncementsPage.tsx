@@ -31,6 +31,8 @@ export async function EventAnnouncementsPage({ eventId }: { eventId: string }) {
         createdByName: announcements.createdByName,
         createdAt: announcements.createdAt,
         expiresAt: announcements.expiresAt,
+        imageUrl: announcements.imageUrl,
+        imageExpiresAt: announcements.imageExpiresAt,
       })
       .from(announcements)
       .leftJoin(gates, eq(announcements.gateId, gates.id))

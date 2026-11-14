@@ -239,6 +239,13 @@
       "when": 1794599453200,
       "tag": "0033_reflective_liz_osborn",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "6",
+      "when": 1794665256286,
+      "tag": "0034_tough_doomsday",
+      "breakpoints": true
     }
   ]
 }
