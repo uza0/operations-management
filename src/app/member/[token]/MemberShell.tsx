@@ -14,6 +14,9 @@ import { currentMember } from '@/server/services/member-auth';
 import { MemberBottomNav } from '@/app/me/MemberBottomNav';
 import { NotificationToggle } from '@/app/me/NotificationToggle';
 import { pushPublicKey } from '@/server/services/push';
+import { createHash } from 'node:crypto';
+import { getMemberHome } from '@/server/services/member-home';
+import { MemberOfflineSync } from '@/components/pwa/MemberOfflineSync';
 
 /**
  * A deliberately separate shell from the admin app: single column, large
@@ -51,9 +54,35 @@ export async function MemberShell({
   const { t } = await getT();
   const member = await currentMember();
 
+  /*
+   * Everything of his worth having with the network off: his own tabs, and
+   * the page of every evening that is on now or still ahead. Past evenings
+   * are left out — there is nothing to press on them.
+   */
+  let offline: { owner: string; urls: string[] } | null = null;
+  if (member) {
+    const home = await getMemberHome(member.teamMemberId).catch(() => null);
+    if (home) {
+      offline = {
+        owner: createHash('sha256').update(`offline:${member.teamMemberId}`).digest('hex').slice(0, 24),
+        urls: [
+          '/me',
+          '/me/events',
+          '/me/attendance',
+          '/me/account',
+          ...[...home.live, ...home.upcoming].map((row) => `/member/${row.token}`),
+          ...home.seatInvitations
+            .filter((row) => !row.declinedAt)
+            .map((row) => `/setup/${row.token}`),
+        ],
+      };
+    }
+  }
+
   return (
     <div className="min-h-screen bg-ink-950">
-      <OfflineBanner t={t} />
+      <OfflineBanner t={t} renderedAt={Date.now()} />
+      {offline ? <MemberOfflineSync owner={offline.owner} urls={offline.urls} /> : null}
 
       <header className="sticky top-0 z-30 border-b border-ink-700 bg-ink-950/95 backdrop-blur pt-[env(safe-area-inset-top)]">
         <div className="mx-auto flex w-full max-w-[560px] items-center justify-between gap-3 px-4 py-2.5">

@@ -1677,6 +1677,7 @@ Any questions, message me.`,
     date: 'Date',
   },
   pwa: {
+    savedAt: 'last updated',
     installTitle: 'Install the app on your phone',
     installBody: 'Opens straight from the home screen, with no browser bar, and loads faster on weak connections.',
     installAction: 'Install',

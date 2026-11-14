@@ -8,6 +8,7 @@ import { IconInfo } from '@/components/ui/icons';
 import { BrandMark } from '@/components/ui/BrandMark';
 
 import { SignInTabs } from './SignInTabs';
+import { ForgetOfflinePages } from '@/components/pwa/MemberOfflineSync';
 
 export default async function LoginPage({
   searchParams,
@@ -63,6 +64,8 @@ export default async function LoginPage({
 
   return (
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
+      {/* Whoever signs in next starts from an empty offline store. */}
+      <ForgetOfflinePages />
       {/*
         A plain page with the brand's own rule across the top of it.
 

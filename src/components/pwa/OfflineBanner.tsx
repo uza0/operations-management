@@ -9,7 +9,18 @@ import type { Dictionary } from '@/lib/i18n';
  * they are looking at may be a cached copy — silence would be worse than a
  * small banner.
  */
-export function OfflineBanner({ t }: { t: Dictionary }) {
+export function OfflineBanner({
+  t,
+  renderedAt,
+}: {
+  t: Dictionary;
+  /**
+   * When the server made this page. Offline, that is the age of what he is
+   * reading, and he is told it: an assignment from this morning may not be
+   * tonight's.
+   */
+  renderedAt?: number;
+}) {
   const [offline, setOffline] = useState(false);
 
   useEffect(() => {
@@ -30,7 +41,14 @@ export function OfflineBanner({ t }: { t: Dictionary }) {
       role="status"
       className="sticky top-0 z-[65] bg-warn/20 px-4 py-1.5 text-center text-[12.5px] font-medium text-warn-text"
     >
-      {t.pwa.offline}
+      {renderedAt
+        ? `${t.pwa.offline} · ${t.pwa.savedAt} ${new Intl.DateTimeFormat('ar-IQ-u-nu-latn', {
+            timeZone: 'Asia/Baghdad',
+            weekday: 'short',
+            hour: 'numeric',
+            minute: '2-digit',
+          }).format(new Date(renderedAt))}`
+        : t.pwa.offline}
     </div>
   );
 }

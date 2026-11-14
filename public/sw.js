@@ -20,7 +20,7 @@
  * would otherwise keep showing them for as long as the app stays installed —
  * which is why a new mark needs a new version here, not only new files.
  */
-const VERSION = 'ops-v5';
+const VERSION = 'ops-v6';
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 const OFFLINE_URL = '/offline.html';
@@ -72,6 +72,14 @@ function isStaticAsset(url) {
   );
 }
 
+/** The promoter's own screens: his tabs, and his evenings' pages. */
+function isMemberOfflinePath(pathname) {
+  return (
+    /^\/me(?:\/(?:events|attendance|account))?\/?$/.test(pathname) ||
+    /^\/(?:member|setup)\/[^/]+\/?$/.test(pathname)
+  );
+}
+
 function isPrivatePage(pathname) {
   return /^\/(?:admin|leader|me|settings|login)(?:\/|$)/.test(pathname) ||
     /^\/(?:member|setup)\/[^/]+\/?$/.test(pathname);
@@ -107,9 +115,10 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     const privatePage = isPrivatePage(url.pathname);
-    const offlineMemberPage = /^\/(?:member|setup)\/[^/]+\/?$/.test(url.pathname);
-    // Account and event workspaces must never fall back to cached private data.
-    // Member token pages are an explicit offline feature, cached only on request.
+    const offlineMemberPage = isMemberOfflinePath(url.pathname);
+    // Staff workspaces must never fall back to cached private data. A
+    // promoter's own screens are the offline feature: saved by the sync
+    // below, for the person signed in on this phone, and nobody else.
     if (privatePage && !offlineMemberPage) return;
 
     event.respondWith(
@@ -122,7 +131,7 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(async () => {
-          const cached = await caches.match(request);
+          const cached = await caches.match(request, { ignoreVary: true, ignoreSearch: false });
           if (cached) return cached;
           const offline = await caches.match(OFFLINE_URL);
           return (
@@ -152,11 +161,26 @@ self.addEventListener('fetch', (event) => {
  * filled for, the cache goes — pages and chunks both, since the chunk names
  * are what went stale.
  */
-let buildId = null;
+const META_CACHE = `${VERSION}-meta`;
+/** The latest build check, so a sync never fills a cache that is about to go. */
+let buildCheck = Promise.resolve();
+const BUILD_KEY = '/__build__';
 
 async function dropStaleCaches(incoming) {
-  if (!incoming || incoming === buildId) return;
-  buildId = incoming;
+  if (!incoming) return;
+  /*
+   * Remembered in a cache, not a variable: the browser stops an idle worker
+   * whenever it likes, and a variable that comes back empty read as "a new
+   * build" on the next page load — which wiped every saved page, including
+   * the one being read offline at a gate.
+   */
+  const meta = await caches.open(META_CACHE);
+  const stored = await meta.match(BUILD_KEY);
+  const previous = stored ? await stored.text() : null;
+  if (previous === incoming) return;
+  await meta.put(BUILD_KEY, new Response(incoming));
+  // The very first build this worker hears about has nothing stale to clear.
+  if (previous === null) return;
   await Promise.all([
     caches.delete(PAGE_CACHE),
     /*
@@ -176,7 +200,16 @@ self.addEventListener('message', (event) => {
     return;
   }
   if (event.data && event.data.type === 'BUILD') {
-    event.waitUntil(dropStaleCaches(event.data.id));
+    buildCheck = dropStaleCaches(event.data.id).catch(() => {});
+    event.waitUntil(buildCheck);
+    return;
+  }
+  if (event.data && event.data.type === 'FORGET_MEMBER_PAGES') {
+    event.waitUntil(forgetMemberPages());
+    return;
+  }
+  if (event.data && event.data.type === 'SYNC_MEMBER_PAGES') {
+    event.waitUntil(syncMemberPages(event.data.owner, event.data.urls));
     return;
   }
   if (event.data && event.data.type === 'CACHE_MEMBER_PAGE') {
@@ -318,3 +351,98 @@ self.addEventListener('notificationclick', (event) => {
     }),
   );
 });
+
+/* -------------------------------------------------------------------------- */
+/* A promoter's screens, kept for when the network is gone                    */
+/* -------------------------------------------------------------------------- */
+
+/*
+ * Whose pages these are. Kept in the cache itself, because a worker's
+ * variables do not survive it being stopped, and the cache does.
+ */
+const OWNER_KEY = '/__offline-owner__';
+
+async function forgetMemberPages() {
+  await caches.delete(PAGE_CACHE);
+}
+
+/** The scripts, styles and fonts a saved page will ask for with no network. */
+function assetsIn(html) {
+  const found = new Set();
+  const pattern = /(?:src|href)=["'](\/(?:_next\/static|fonts)\/[^"'?#]+)/g;
+  let match;
+  while ((match = pattern.exec(html))) found.add(match[1]);
+  return [...found];
+}
+
+let syncing = null;
+
+async function syncMemberPages(owner, urls) {
+  // One at a time: two tabs opening together must not race each other.
+  if (syncing) await syncing.catch(() => {});
+  await buildCheck;
+  syncing = (async () => {
+    if (typeof owner !== 'string' || !owner || !Array.isArray(urls)) return;
+
+    const cache = await caches.open(PAGE_CACHE);
+    const stamp = await cache.match(OWNER_KEY);
+    const previous = stamp ? await stamp.text() : null;
+    if (previous !== owner) {
+      // Somebody else's pages, or none yet: start clean, then claim it.
+      await caches.delete(PAGE_CACHE);
+    }
+    const pages = await caches.open(PAGE_CACHE);
+    await pages.put(OWNER_KEY, new Response(owner));
+
+    const wanted = urls
+      .map((raw) => {
+        try {
+          const url = new URL(raw);
+          return url.origin === self.location.origin && isMemberOfflinePath(url.pathname)
+            ? url
+            : null;
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean)
+      .slice(0, 40);
+
+    const assets = new Set();
+    for (const url of wanted) {
+      try {
+        const response = await fetch(
+          new Request(url.href, {
+            credentials: 'include',
+            cache: 'no-store',
+            headers: { accept: 'text/html' },
+          }),
+        );
+        // A sign-in page in place of his page means the session went: keep nothing.
+        if (response.redirected || !response.ok) continue;
+        if (!response.headers.get('content-type')?.includes('text/html')) continue;
+        const html = await response.clone().text();
+        await pages.put(url.href, response);
+        for (const asset of assetsIn(html)) assets.add(asset);
+      } catch {
+        /* One page that failed is not a reason to stop the rest. */
+      }
+    }
+
+    // Static files are content-hashed: fetch only what is not already here.
+    const statics = await caches.open(STATIC_CACHE);
+    await Promise.all(
+      [...assets].map(async (path) => {
+        const href = new URL(path, self.location.origin).href;
+        if (await statics.match(href)) return;
+        try {
+          const response = await fetch(href, { credentials: 'include' });
+          if (response.ok) await statics.put(href, response);
+        } catch {
+          /* ignore */
+        }
+      }),
+    );
+  })();
+  return syncing;
+}
