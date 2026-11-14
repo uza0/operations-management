@@ -1730,6 +1730,8 @@ export const ar = {
     statusPENDING: 'بانتظار المشرف',
     statusCREATED: 'فعالية تم اعتمادها',
     statusDISMISSED: 'فعالية لم يتم اعتمادها',
+    delete: 'حذف',
+    deleteConfirm: 'تحذف هذي الفعالية من قائمتك؟',
     withdraw: 'سحب',
     withdrawConfirm: 'تسحب هذي الفعالية؟',
     openMap: 'افتح الخريطة',

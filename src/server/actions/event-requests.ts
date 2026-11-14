@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { and, eq } from 'drizzle-orm';
+import { and, eq, inArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { eventRequests, venues } from '@/db/schema';
@@ -89,7 +89,7 @@ export async function submitEventRequestAction(
   return ok(t.mapDesk.sent);
 }
 
-/** Takes back one of his own, while nobody has acted on it yet. */
+/** Takes back one of his own that is still waiting, or clears one the admin set aside. */
 export async function withdrawEventRequestAction(form: FormData): Promise<void> {
   let user;
   try {
@@ -100,12 +100,16 @@ export async function withdrawEventRequestAction(form: FormData): Promise<void> 
   const id = str(form, 'requestId');
   if (!id) return;
   const row = await db.query.eventRequests.findFirst({ where: eq(eventRequests.id, id) });
-  if (!row || row.status !== 'PENDING') return;
-  // His own only; an admin may take back anybody's.
+  /*
+   * Waiting, or set aside by the admin: both are his to clear away. One the
+   * admin approved is an event now and stays as the record of it.
+   */
+  if (!row || (row.status !== 'PENDING' && row.status !== 'DISMISSED')) return;
+  // His own only; an admin may clear anybody's.
   if (user.role !== 'ADMIN' && row.createdById !== user.id) return;
   await db
     .delete(eventRequests)
-    .where(and(eq(eventRequests.id, id), eq(eventRequests.status, 'PENDING')));
+    .where(and(eq(eventRequests.id, id), inArray(eventRequests.status, ['PENDING', 'DISMISSED'])));
   refresh();
 }
 

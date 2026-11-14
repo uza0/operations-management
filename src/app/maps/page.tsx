@@ -75,11 +75,14 @@ export default async function MapDeskPage() {
                     <Badge tone={tone[row.status as keyof typeof tone] ?? 'neutral'}>
                       {t.mapDesk[`status${row.status}` as 'statusPENDING'] ?? row.status}
                     </Badge>
-                    {row.status === 'PENDING' ? (
+                    {row.status === 'PENDING' || row.status === 'DISMISSED' ? (
                       <form action={withdrawEventRequestAction}>
                         <input type="hidden" name="requestId" value={row.id} />
-                        <ConfirmSubmit className="btn-ghost btn-sm" message={t.mapDesk.withdrawConfirm}>
-                          {t.mapDesk.withdraw}
+                        <ConfirmSubmit
+                          className={`btn-ghost btn-sm ${row.status === 'DISMISSED' ? 'text-crit-text' : ''}`}
+                          message={row.status === 'DISMISSED' ? t.mapDesk.deleteConfirm : t.mapDesk.withdrawConfirm}
+                        >
+                          {row.status === 'DISMISSED' ? t.mapDesk.delete : t.mapDesk.withdraw}
                         </ConfirmSubmit>
                       </form>
                     ) : null}
