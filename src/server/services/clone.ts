@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { eq } from 'drizzle-orm';
+import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -42,6 +42,8 @@ export type CloneResult = {
   markers: number;
   /** True when the source had a map of its own that came across. */
   mapImage: boolean;
+  /** People left behind because another event that day already has them. */
+  skippedBusy: number;
 };
 
 export async function cloneEventPlan(
@@ -127,6 +129,7 @@ export async function cloneEventPlan(
 
   const memberMap = new Map<string, string>();
   let assignmentCount = 0;
+  let skippedBusy = 0;
 
   if (options.withTeam) {
     /*
@@ -152,7 +155,33 @@ export async function cloneEventPlan(
       .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
       .where(eq(eventMembers.eventId, sourceEventId));
 
-    const carried = sourceMembers.filter((m) => m.status !== 'CANCELLED');
+    /*
+     * Two events on one day are two separate crews. Whoever is already on
+     * another event that date stays there; the copy brings everybody else.
+     * Their places in the plan are dropped with them, since an assignment
+     * only comes across for a member who did.
+     */
+    const target = await db.query.events.findFirst({ where: eq(events.id, targetEventId) });
+    const busy = new Set(
+      target
+        ? (
+            await db
+              .select({ teamMemberId: eventMembers.teamMemberId })
+              .from(eventMembers)
+              .innerJoin(events, eq(eventMembers.eventId, events.id))
+              .where(
+                and(
+                  eq(events.date, target.date),
+                  ne(events.id, targetEventId),
+                  ne(eventMembers.status, 'CANCELLED'),
+                ),
+              )
+          ).map((r) => r.teamMemberId)
+        : [],
+    );
+    const active = sourceMembers.filter((m) => m.status !== 'CANCELLED');
+    const carried = active.filter((m) => !busy.has(m.teamMemberId));
+    skippedBusy = active.length - carried.length;
     if (carried.length > 0) {
       await db.insert(eventMembers).values(
         carried.map((member) => {
@@ -308,5 +337,6 @@ export async function cloneEventPlan(
     timeline: timelineCount,
     markers: markerRows.length,
     mapImage: Boolean(sourceEvent?.mapImageUrl),
+    skippedBusy,
   };
 }
