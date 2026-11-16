@@ -3,7 +3,7 @@ import type { EventType } from '@/lib/constants';
 /**
  * The colour each kind of evening wears.
  *
- * One place, because the same eight colours appear on the events list, on a
+ * One place, because the same ten colours appear on the events list, on a
  * promoter's own page and in the bars of the numbers screen, and three copies
  * of a palette is three palettes within a month.
  *
@@ -20,6 +20,8 @@ import type { EventType } from '@/lib/constants';
 export const TYPE_VAR: Record<EventType, string> = {
   FOOTBALL_MATCH: '--type-football',
   CONCERT: '--type-concert',
+  THEATER: '--type-theater',
+  COMEDY: '--type-comedy',
   FESTIVAL: '--type-festival',
   EXHIBITION: '--type-exhibition',
   CONFERENCE: '--type-conference',

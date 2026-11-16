@@ -236,6 +236,8 @@
    */
   --type-football: 32 134 86;
   --type-concert: 178 58 140;
+  --type-theater: 84 92 176;
+  --type-comedy: 166 130 30;
   --type-festival: 124 78 200;
   --type-exhibition: 20 134 128;
   --type-conference: 42 108 176;
@@ -297,6 +299,8 @@
   /* The same kinds, lifted to stay legible against a near-black page. */
   --type-football: 61 183 123;
   --type-concert: 224 110 184;
+  --type-theater: 140 148 232;
+  --type-comedy: 218 184 82;
   --type-festival: 167 123 232;
   --type-exhibition: 63 183 176;
   --type-conference: 107 163 226;
@@ -355,6 +359,8 @@
     /* The kinds, lifted for a near-black page — see the dark block above. */
     --type-football: 61 183 123;
     --type-concert: 224 110 184;
+    --type-theater: 140 148 232;
+    --type-comedy: 218 184 82;
     --type-festival: 167 123 232;
     --type-exhibition: 63 183 176;
     --type-conference: 107 163 226;

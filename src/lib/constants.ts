@@ -45,6 +45,8 @@ export const EVENT_ROLE_SCOPE: Record<EventRole, 'EVENT' | 'GATE' | 'LANE'> = {
 export const EVENT_TYPES = [
   'FOOTBALL_MATCH',
   'CONCERT',
+  'THEATER',
+  'COMEDY',
   'FESTIVAL',
   'EXHIBITION',
   'CONFERENCE',

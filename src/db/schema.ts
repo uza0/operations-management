@@ -203,7 +203,7 @@ export const events = sqliteTable(
   {
     id: text('id').primaryKey(),
     name: text('name').notNull(),
-    /** FOOTBALL_MATCH | CONCERT | FESTIVAL | EXHIBITION | CONFERENCE | PROMOTIONAL | OTHER */
+    /** FOOTBALL_MATCH | CONCERT | THEATER | COMEDY | FESTIVAL | EXHIBITION | CONFERENCE | PROMOTIONAL | OTHER */
     type: text('type').notNull(),
     venueId: text('venue_id')
       .notNull()

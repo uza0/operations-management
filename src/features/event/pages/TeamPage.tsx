@@ -6,6 +6,7 @@ import { db } from '@/db';
 import {
   assignments,
   eventMembers,
+  events,
   gates,
   teamMembers,
   workingPoints,
@@ -29,7 +30,7 @@ async function resolveBaseUrl(): Promise<string> {
 }
 
 export async function EventTeamPage({ eventId }: { eventId: string }) {
-  const { scope, locale, t } = await loadEventPage(eventId);
+  const { scope, event, locale, t } = await loadEventPage(eventId);
   const baseUrl = await resolveBaseUrl();
   const invitations = await buildInvitationBoard(eventId);
 
@@ -99,6 +100,29 @@ export async function EventTeamPage({ eventId }: { eventId: string }) {
     ).map((r) => r.teamMemberId),
   );
 
+  /*
+   * Promoters already working another event on the same day. Two events on
+   * one evening are two separate crews: offering someone who is due at the
+   * other venue would put one person in two places, so the picker hides them.
+   * Taken off that other event (cancelled), they become available again.
+   */
+  const busyElsewhere = new Set(
+    (
+      await db
+        .select({ teamMemberId: eventMembers.teamMemberId })
+        .from(eventMembers)
+        .innerJoin(events, eq(eventMembers.eventId, events.id))
+        .where(
+          and(
+            eq(events.date, event.date),
+            ne(events.id, eventId),
+            ne(eventMembers.status, 'CANCELLED'),
+          ),
+        )
+    ).map((r) => r.teamMemberId),
+  );
+  let hiddenBusy = 0;
+
   const available = scope.canManage
     ? (
         await db
@@ -112,6 +136,11 @@ export async function EventTeamPage({ eventId }: { eventId: string }) {
           .where(eq(teamMembers.active, true))
       )
           .filter((p) => !inEvent.has(p.id))
+          .filter((p) => {
+            if (!busyElsewhere.has(p.id)) return true;
+            hiddenBusy += 1;
+            return false;
+          })
           /*
            * The shortlist is the admin's own note. A team leader adding
            * people sees the plain roster, with no hint of who is starred.
@@ -141,6 +170,7 @@ export async function EventTeamPage({ eventId }: { eventId: string }) {
         eventId={eventId}
         members={members}
         available={available}
+        hiddenBusy={hiddenBusy}
         baseUrl={baseUrl}
         canManage={scope.canManage}
       />

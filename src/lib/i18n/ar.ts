@@ -410,6 +410,7 @@ export const ar = {
     addToEvent: 'إضافة أعضاء للفعالية',
     addSelected: 'إضافة المحدّدين',
     availableMembers: 'أعضاء متاحون',
+    hiddenBusy: 'تم إخفاء {n} لأنهم بفعالية ثانية بنفس اليوم',
     inEvent: 'في الفعالية',
     reserve: 'احتياط',
     reserveTeam: 'الفريق الاحتياطي',
@@ -1992,6 +1993,8 @@ export const ar = {
     eventType: {
       FOOTBALL_MATCH: 'مباراة كرة قدم',
       CONCERT: 'حفل موسيقي',
+      THEATER: 'مسرحية',
+      COMEDY: 'عرض كوميدي',
       FESTIVAL: 'مهرجان',
       EXHIBITION: 'معرض',
       CONFERENCE: 'مؤتمر',

@@ -365,6 +365,7 @@ export function EventTeamManager({
   eventId,
   members,
   available,
+  hiddenBusy = 0,
   baseUrl,
   canManage,
 }: {
@@ -372,6 +373,8 @@ export function EventTeamManager({
   eventId: string;
   members: EventTeamRow[];
   available: AvailablePerson[];
+  /** How many were left out for working another event the same day. */
+  hiddenBusy?: number;
   baseUrl: string;
   canManage: boolean;
 }) {
@@ -543,7 +546,11 @@ export function EventTeamManager({
         open={adding}
         onClose={() => setAdding(false)}
         title={t.eventTeam.addToEvent}
-        description={t.eventTeam.availableMembers}
+        description={
+          hiddenBusy > 0
+            ? `${t.eventTeam.availableMembers} · ${t.eventTeam.hiddenBusy.replace('{n}', String(hiddenBusy))}`
+            : t.eventTeam.availableMembers
+        }
       >
         <AddMembers
           t={t}
