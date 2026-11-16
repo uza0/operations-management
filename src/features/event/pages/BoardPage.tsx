@@ -8,6 +8,7 @@ import {
   suggestedHours,
 } from '@/server/services/main-gate';
 import { PageHeader } from '@/components/ui/panel';
+import { PrintLink } from '@/components/ui/print';
 import { EmptyState } from '@/components/ui/states';
 import { IconGate, IconPrint } from '@/components/ui/icons';
 import { notFound } from 'next/navigation';
@@ -44,16 +45,14 @@ export async function EventBoardPage({
              * "Save as PDF" is one click away — the same one-button export the
              * previous tool had, rather than a link somebody else has to open.
              */}
-            <Link
+            <PrintLink
               href={`${base}/events/${eventId}/board/sheet?print=1`}
-              target="_blank"
-              rel="noreferrer"
               className="btn-secondary btn-sm"
               title={t.board.exportHint}
             >
               <IconPrint width={15} height={15} />
               {t.board.exportPdf}
-            </Link>
+            </PrintLink>
             <Link href={`${base}/events/${eventId}/board/sheet`} className="btn-ghost btn-sm">
               {t.board.openSheet}
             </Link>

@@ -9,6 +9,7 @@ import { FormError } from '@/components/ui/states';
 import { SubmitButton } from '@/components/ui/client';
 import { IconPrint } from '@/components/ui/icons';
 import type { Dictionary } from '@/lib/i18n';
+import { printPage, useAutoPrint } from '@/lib/print';
 
 export function PrintButton({ label, auto = false }: { label: string; auto?: boolean }) {
   /*
@@ -18,15 +19,10 @@ export function PrintButton({ label, auto = false }: { label: string; auto?: boo
    * "Save as PDF" writes the file — which is also what produces correct Arabic,
    * something no PDF we could assemble ourselves would manage as well.
    */
-  useEffect(() => {
-    if (!auto) return;
-    // One frame after paint: printing a half-laid-out page prints a half page.
-    const timer = window.setTimeout(() => window.print(), 400);
-    return () => window.clearTimeout(timer);
-  }, [auto]);
+  useAutoPrint(auto);
 
   return (
-    <button type="button" className="btn-secondary no-print" onClick={() => window.print()}>
+    <button type="button" className="btn-secondary no-print" onClick={() => printPage()}>
       <IconPrint width={16} height={16} />
       {label}
     </button>

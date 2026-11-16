@@ -1,6 +1,7 @@
 'use client';
 
 import type { Dictionary } from '@/lib/i18n';
+import { printPage, useAutoPrint } from '@/lib/print';
 
 /**
  * Saving the report.
@@ -11,8 +12,9 @@ import type { Dictionary } from '@/lib/i18n';
  * without this system carrying a PDF library it would otherwise never use.
  */
 export function PrintButton({ t }: { t: Dictionary }) {
+  useAutoPrint();
   return (
-    <button type="button" className="btn-primary btn-sm" onClick={() => window.print()}>
+    <button type="button" className="btn-primary btn-sm" onClick={() => printPage()}>
       {t.insights.print}
     </button>
   );

@@ -4,6 +4,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 
 import type { Dictionary } from '@/lib/i18n';
+import { printPage, useAutoPrint } from '@/lib/print';
 
 /**
  * The period the report covers, and the two ways out of it: print, or hand the
@@ -24,6 +25,7 @@ export function RangeForm({
   exportHref: string;
 }) {
   const router = useRouter();
+  useAutoPrint();
   const params = useSearchParams();
   const [start, setStart] = useState(from ?? '');
   const [end, setEnd] = useState(to ?? '');
@@ -79,7 +81,7 @@ export function RangeForm({
         <button
           type="button"
           className="btn-ghost btn-sm"
-          onClick={() => window.print()}
+          onClick={() => printPage()}
         >
           {t.report.printReport}
         </button>

@@ -29,6 +29,7 @@ export type BriefingRow = {
   assigned: boolean;
   stale: boolean;
   notifiedAtLabel: string | null;
+  response: 'confirmed' | 'declined' | 'none';
   memberUrl: string;
   message: string;
   qrDataUrl: string | null;
@@ -88,6 +89,16 @@ export function BriefingBoard({
     [rows],
   );
   const next = pending[0] ?? null;
+  /*
+   * The follow-up list: everyone who has not answered yet, whether or not
+   * they were already sent the message. The ones who said yes need nothing,
+   * and the ones who said no are not chased — the team page handles them.
+   */
+  const unconfirmed = useMemo(
+    () => rows.filter((r) => r.whatsapp && r.response === 'none'),
+    [rows],
+  );
+  const confirmedCount = rows.filter((r) => r.response === 'confirmed').length;
   const withoutPhone = rows.filter((r) => !r.whatsapp);
 
   /**
@@ -107,8 +118,8 @@ export function BriefingBoard({
   }
 
   /** Starts a run through everyone still waiting, in the order shown. */
-  function startRun() {
-    const queue = pending.filter((row) => row.whatsapp);
+  function startRun(list: BriefingRow[] = pending) {
+    const queue = list.filter((row) => row.whatsapp);
     if (queue.length === 0) return;
     setRun(queue);
     setCursor(0);
@@ -165,7 +176,7 @@ export function BriefingBoard({
 
             {next ? (
               <div className="flex flex-wrap gap-2">
-                <button type="button" className="btn-primary" onClick={startRun}>
+                <button type="button" className="btn-primary" onClick={() => startRun()}>
                   {t.notify.sendAll}
                 </button>
                 <button type="button" className="btn-secondary" onClick={() => send(next)}>
@@ -179,6 +190,31 @@ export function BriefingBoard({
               </span>
             )}
           </div>
+
+          {/*
+            * Chasing the ones who have not answered. Shown once at least one
+            * person was told, since before that nobody could have answered.
+            */}
+          {rows.some((r) => r.notifiedAtLabel) ? (
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-ink-800 pt-3">
+              <p className="text-[13px] text-ink-400">
+                {t.notify.confirmedSummary}:{' '}
+                <span className="nums font-bold text-ok-text">{confirmedCount}</span>
+                <span className="text-ink-500"> / {rows.length}</span>
+                {' · '}
+                {t.notify.noAnswer}:{' '}
+                <span className="nums font-bold text-ink-100">{unconfirmed.length}</span>
+              </p>
+              <button
+                type="button"
+                className="btn-secondary btn-sm"
+                disabled={unconfirmed.length === 0}
+                onClick={() => startRun(unconfirmed)}
+              >
+                {t.notify.sendUnconfirmed}
+              </button>
+            </div>
+          ) : null}
 
           {/*
             * The run bar. It stays put while the supervisor flicks between
@@ -301,6 +337,7 @@ export function BriefingBoard({
                 <th>{t.assignment.location}</th>
                 <th>{t.assignment.task}</th>
                 <th>{t.common.status}</th>
+                <th>{t.notify.responseCol}</th>
                 <th />
               </tr>
             </thead>
@@ -338,6 +375,15 @@ export function BriefingBoard({
                       </span>
                     ) : (
                       <Badge tone="neutral">{t.notify.notNotified}</Badge>
+                    )}
+                  </td>
+                  <td data-label={t.notify.responseCol}>
+                    {row.response === 'confirmed' ? (
+                      <Badge tone="ok">{t.notify.responseConfirmed}</Badge>
+                    ) : row.response === 'declined' ? (
+                      <Badge tone="crit">{t.notify.responseDeclined}</Badge>
+                    ) : (
+                      <Badge tone="neutral">{t.notify.noAnswer}</Badge>
                     )}
                   </td>
                   <td data-label="">

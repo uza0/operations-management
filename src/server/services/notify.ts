@@ -40,6 +40,8 @@ export type Briefing = {
   isReserve: boolean;
   assigned: boolean;
   notifiedAt: Date | null;
+  /** Their answer on their own page: said yes, said no, or nothing yet. */
+  response: 'confirmed' | 'declined' | 'none';
   /** The assignment changed after they were told. Telling them nothing is better. */
   stale: boolean;
   memberUrl: string;
@@ -252,6 +254,8 @@ export async function buildBriefings({
       token: eventMembers.token,
       isReserve: eventMembers.isReserve,
       notifiedAt: eventMembers.notifiedAt,
+      confirmedAt: eventMembers.confirmedAt,
+      declinedAt: eventMembers.declinedAt,
       name: teamMembers.fullName,
       phone: teamMembers.phone,
       assignmentId: assignments.id,
@@ -356,6 +360,8 @@ export async function buildBriefings({
       isReserve: row.isReserve || !active,
       assigned: active,
       notifiedAt: row.notifiedAt,
+      // A "no" outranks an older "yes", as on the invitation board.
+      response: row.declinedAt ? 'declined' : row.confirmedAt ? 'confirmed' : 'none',
       stale: Boolean(
         row.notifiedAt &&
           row.assignmentUpdatedAt &&
