@@ -3,13 +3,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
-import {
-  reportArrivalAction,
-  reportDepartureAction,
-  reportSeatArrivalAction,
-  reportSeatDepartureAction,
-} from '@/server/actions/journey';
-import { idle } from '@/server/actions/types';
 import type { Dictionary } from '@/lib/i18n';
 import {
   enqueueAttendanceAction,
@@ -36,16 +29,32 @@ export function useOfflineAttendance(token: string, t: Dictionary) {
     body.set('token', item.token);
     if (item.preferCapturedAt) body.set('clientCapturedAt', item.capturedAt);
     if (item.seatMemberId) body.set('seatMemberId', item.seatMemberId);
+    body.set('kind', item.kind);
 
-    const action =
-      item.kind === 'EVENT_ARRIVAL'
-        ? reportArrivalAction
-        : item.kind === 'EVENT_DEPARTURE'
-          ? reportDepartureAction
-          : item.kind === 'SEAT_ARRIVAL'
-            ? reportSeatArrivalAction
-            : reportSeatDepartureAction;
-    const result = await action(idle, body);
+    /*
+     * A plain address rather than the server action: an action's id changes
+     * with every deploy, and a page saved for offline use keeps the old one
+     * (see app/api/member/attendance). And a deadline, because one request
+     * started on a dying signal can hang for minutes and hold the whole queue
+     * behind it.
+     */
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => controller.abort(), 20_000);
+    let result: { status: string; message?: string };
+    try {
+      const response = await fetch('/api/member/attendance', {
+        method: 'POST',
+        body,
+        signal: controller.signal,
+        cache: 'no-store',
+      });
+      // No JSON means the network or the server failed, not the request:
+      // throwing keeps it queued for the next try instead of blocking it.
+      result = await response.json();
+      if (response.status >= 500) throw new Error(`HTTP ${response.status}`);
+    } finally {
+      window.clearTimeout(timer);
+    }
     return {
       ok: result.status === 'success',
       message: result.status === 'error' ? result.message : undefined,
@@ -66,10 +75,33 @@ export function useOfflineAttendance(token: string, t: Dictionary) {
   useEffect(() => {
     void refreshQueue();
     void drain();
-    const onOnline = () => void drain();
-    window.addEventListener('online', onOnline);
-    return () => window.removeEventListener('online', onOnline);
+    /*
+     * Every chance to send. "online" alone is not enough: an iPhone often
+     * never fires it, and a phone put back in a pocket and taken out again
+     * comes back through visibility, not through the network event.
+     */
+    const onWake = () => {
+      if (document.visibilityState === 'visible') void drain();
+    };
+    window.addEventListener('online', onWake);
+    window.addEventListener('focus', onWake);
+    window.addEventListener('pageshow', onWake);
+    document.addEventListener('visibilitychange', onWake);
+    return () => {
+      window.removeEventListener('online', onWake);
+      window.removeEventListener('focus', onWake);
+      window.removeEventListener('pageshow', onWake);
+      document.removeEventListener('visibilitychange', onWake);
+    };
   }, [drain, refreshQueue]);
+
+  /* While something is waiting, keep trying quietly every twenty seconds. */
+  const waiting = queued.some((action) => !action.blocked);
+  useEffect(() => {
+    if (!waiting) return;
+    const id = window.setInterval(() => void drain(), 20_000);
+    return () => window.clearInterval(id);
+  }, [waiting, drain]);
 
   const record = useCallback(
     async (kind: AttendanceActionKind, seatMemberId?: string) => {

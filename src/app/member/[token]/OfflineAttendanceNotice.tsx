@@ -24,14 +24,14 @@ export function OfflineAttendanceNotice({
         <span>
           {action.blocked ? t.pwa.attendanceSyncBlocked : t.member.offlineSaved}
         </span>
-        {action.blocked ? (
+        {action ? (
           <button
             type="button"
             className="btn-ghost btn-sm"
             disabled={busy}
             onClick={onRetry}
           >
-            {busy ? t.common.saving : t.pwa.retrySync}
+            {busy ? t.common.saving : action.blocked ? t.pwa.retrySync : t.pwa.sendNow}
           </button>
         ) : null}
       </div>
@@ -57,14 +57,14 @@ export function PendingAttendanceSync({
           {format(t.member.pendingSend, { n: offline.queued.length })} ·{' '}
           {blocked ? t.pwa.attendanceSyncBlocked : t.member.offlineSaved}
         </span>
-        {blocked ? (
+        {offline.queued.length > 0 ? (
           <button
             type="button"
             className="btn-ghost btn-sm"
             disabled={offline.busy}
             onClick={() => void offline.retry()}
           >
-            {offline.busy ? t.common.saving : t.pwa.retrySync}
+            {offline.busy ? t.common.saving : blocked ? t.pwa.retrySync : t.pwa.sendNow}
           </button>
         ) : null}
       </div>

@@ -1611,7 +1611,7 @@ export const ar = {
     resolutionNote: 'شنو الي تم',
     reopenedBefore: 'أُعيد فتحه {n} مرة',
     pendingSend: '{n} بانتظار الإرسال',
-    offlineSaved: 'محفوظ على جهازك — راح يترسل أول ما ترجع الشبكة',
+    offlineSaved: 'محفوظ على جهازك — راح نرسله أول ما ترجع الشبكة',
     online: 'متصل',
     offline: 'بدون اتصال',
     /* يُختار الشكل حسب العدد — انظر src/lib/plural.ts */
@@ -1774,6 +1774,7 @@ export const ar = {
     attendanceSyncBlocked: 'التسجيل محفوظ على الجهاز، لكن يحتاج إعادة محاولة بعد اتصال أو موافقة المشرف.',
     offlineDepartureHint: 'إذا خلص دوامك والنت مقطوع، سجّل الانصراف؛ يبقى بالجهاز لحد ما ترجع الشبكة أو يوافق المشرف.',
     retrySync: 'إعادة المحاولة',
+    sendNow: 'أرسل هسه',
   },
   accountCheck: {
     nav: 'فحص الحسابات',

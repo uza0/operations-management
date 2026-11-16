@@ -1751,6 +1751,7 @@ Any questions, message me.`,
     attendanceSyncBlocked: 'Saved on this device, but it needs another try after reconnecting or supervisor approval.',
     offlineDepartureHint: 'If your shift ends without internet, record your departure; it stays on this device until the connection returns or the supervisor approves.',
     retrySync: 'Retry sync',
+    sendNow: 'Send now',
   },
   accountCheck: {
     nav: 'Account check',
