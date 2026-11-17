@@ -12,6 +12,9 @@ import { ConfirmSubmit } from '@/components/ui/client';
 import { deleteSurveyAction } from '@/server/actions/surveys';
 
 import { SurveyForm } from './SurveyForm';
+import { SurveyChase } from './SurveyChase';
+import { notOpenedBySurvey } from '@/server/services/surveys';
+import { resolveBaseUrl, toWhatsAppNumber } from '@/server/services/notify';
 
 /** One page for admins and team leaders: post a questionnaire, see who opened it. */
 export async function SurveysPage({ user }: { user: SessionUser }) {
@@ -33,6 +36,21 @@ export async function SurveysPage({ user }: { user: SessionUser }) {
     .orderBy(desc(surveys.createdAt))
     .limit(50);
   const now = Date.now();
+  const [missing, baseUrl] = await Promise.all([
+    notOpenedBySurvey(rows.map((row) => row.id)),
+    resolveBaseUrl(),
+  ]);
+  const chaseList = (row: (typeof rows)[number]) =>
+    (missing.get(row.id) ?? []).map((person) => ({
+      id: person.id,
+      name: person.name,
+      whatsapp: toWhatsAppNumber(person.phone),
+      message: format(t.surveys.chaseMessage, {
+        name: person.name,
+        title: row.title,
+        url: `${baseUrl}/me/survey/${row.id}`,
+      }),
+    }));
 
   return (
     <>
@@ -64,6 +82,7 @@ export async function SurveysPage({ user }: { user: SessionUser }) {
                         ? ` · ${expired ? t.surveys.expired : format(t.surveys.expires, { date: formatDateTime(row.expiresAt, locale) })}`
                         : ''}
                     </p>
+                    {!expired ? <SurveyChase t={t} people={chaseList(row)} /> : null}
                     <div className="flex items-center gap-2">
                       <a href={row.url} target="_blank" rel="noopener noreferrer" className="btn-ghost btn-sm">
                         {t.surveys.open}

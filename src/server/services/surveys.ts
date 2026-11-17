@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, desc, eq, gt, isNotNull, isNull, or } from 'drizzle-orm';
+import { and, desc, eq, gt, inArray, isNotNull, isNull, or } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { surveyOpens, surveys, teamMembers } from '@/db/schema';
@@ -40,4 +40,42 @@ export async function surveysFor(teamMemberId: string) {
     .orderBy(desc(surveys.createdAt))
     .limit(10);
   return rows;
+}
+
+/**
+ * Who has not opened each questionnaire yet, with a number to chase them on.
+ *
+ * Measured against the promoters who can sign in today — the same rule the
+ * questionnaire was sent by. "Opened" means opened from the app; whether he
+ * then filled the form in is the form site's business, not ours.
+ */
+export async function notOpenedBySurvey(surveyIds: string[]) {
+  const out = new Map<string, { id: string; name: string; phone: string | null }[]>();
+  if (surveyIds.length === 0) return out;
+  const [people, opens] = await Promise.all([
+    db
+      .select({ id: teamMembers.id, name: teamMembers.fullName, phone: teamMembers.phone })
+      .from(teamMembers)
+      .where(
+        and(
+          eq(teamMembers.active, true),
+          isNotNull(teamMembers.accessCodeHash),
+          isNull(teamMembers.accessCodeRevokedAt),
+        ),
+      ),
+    db
+      .select({ surveyId: surveyOpens.surveyId, teamMemberId: surveyOpens.teamMemberId })
+      .from(surveyOpens)
+      .where(inArray(surveyOpens.surveyId, surveyIds)),
+  ]);
+  const opened = new Set(opens.map((o) => `${o.surveyId}:${o.teamMemberId}`));
+  for (const id of surveyIds) {
+    out.set(
+      id,
+      people
+        .filter((p) => !opened.has(`${id}:${p.id}`))
+        .sort((a, b) => a.name.localeCompare(b.name, 'ar')),
+    );
+  }
+  return out;
 }
