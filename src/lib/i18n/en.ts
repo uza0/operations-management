@@ -1970,7 +1970,7 @@ Any questions, message me.`,
       SECTION_SUPERVISOR: 'SS',
     },
     dressCode: {
-      CASUAL: 'Casual — anything comfortable, like a match',
+      CASUAL: 'Casual — anything comfortable',
       TZ_SHIRT: 'Ticket Zone t-shirt',
       FORMAL: 'Formal — white shirt, black jacket, black trousers',
     },

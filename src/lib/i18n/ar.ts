@@ -1994,7 +1994,7 @@ export const ar = {
       SECTION_SUPERVISOR: 'م.ق.س',
     },
     dressCode: {
-      CASUAL: 'كاجوال — أي لبس مريح، مثل الملعب',
+      CASUAL: 'كاجوال — أي لبس مريح',
       TZ_SHIRT: 'تيشيرت تكت زون',
       FORMAL: 'رسمي — قميص أبيض، سترة سوداء، وبنطرون أسود',
     },
