@@ -50,6 +50,7 @@ export async function getMemberHome(teamMemberId: string) {
       startTime: events.startTime,
       teamArrivalTime: events.teamArrivalTime,
       eventStatus: events.status,
+      notifiedAt: eventMembers.notifiedAt,
       venue: venues.name,
       /*
        * Whether this night's wage has already gone out in a handover.
@@ -121,6 +122,12 @@ export async function getMemberHome(teamMemberId: string) {
    * So it becomes his business at READY, not before — which is the moment a
    * person deliberately says the evening is settled, and the moment his phone
    * is told about it.
+   *
+   * The one exception is a man who was already briefed. The supervisor often
+   * gathers the crew first and builds the gates afterwards; whoever got that
+   * message has been told the evening is happening, and must find it in the
+   * app as well as behind the link he was sent. Everyone else still waits
+   * for READY.
    */
   const live = [];
   const upcoming = [];
@@ -128,9 +135,9 @@ export async function getMemberHome(teamMemberId: string) {
 
   for (const raw of rows) {
     if (raw.status === 'CANCELLED') continue;
-    if (HIDDEN_FROM_CREW.includes(raw.eventStatus)) continue;
+    if (HIDDEN_FROM_CREW.includes(raw.eventStatus) && !raw.notifiedAt) continue;
     /* The id itself is the office's business; he only needs the fact. */
-    const { payoutId, ...rest } = raw;
+    const { payoutId, notifiedAt: _notifiedAt, ...rest } = raw;
     const row = { ...rest, paid: payoutId !== null };
     if (row.eventStatus === 'LIVE') live.push(row);
     else if (row.eventStatus === 'COMPLETED' || row.eventStatus === 'ARCHIVED') past.push(row);
