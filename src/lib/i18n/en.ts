@@ -335,6 +335,12 @@ export const en: Dictionary = {
     codeTaken: 'That employee code is already in use',
     minimalDataNote: 'Only the minimum information needed for field operations is stored.',
   },
+  settings: {
+    account: 'My account',
+    payments: 'Payments',
+    users: 'Staff accounts',
+    deleted: 'Deleted events',
+  },
   restore: {
     title: 'Deleted events',
     trashHint: 'Every deleted event is kept here whole (team, gates, distribution, attendance) and can be put back as it was.',
