@@ -91,7 +91,7 @@ export function AppRuntime() {
   if (!waiting) return null;
 
   return (
-    <div className="fixed inset-x-3 bottom-3 z-[70] mx-auto max-w-sm rounded-xl border border-brand-500/45 bg-ink-850 p-3 shadow-panel">
+    <div className="no-print fixed inset-x-3 bottom-3 z-[70] mx-auto max-w-sm rounded-xl border border-brand-500/45 bg-ink-850 p-3 shadow-panel">
       <p className="text-[13.5px] text-ink-200">يتوفر إصدار جديد من التطبيق.</p>
       <button
         type="button"

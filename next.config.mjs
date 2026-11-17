@@ -17,7 +17,15 @@ const BUILD_ID =
 const nextConfig = {
   reactStrictMode: true,
   env: { NEXT_PUBLIC_BUILD_ID: BUILD_ID },
-  serverExternalPackages: ['bcryptjs', 'sharp'],
+  serverExternalPackages: ['bcryptjs', 'sharp', '@sparticuz/chromium', 'puppeteer-core'],
+  /*
+   * The headless Chrome behind /api/pdf is read from disk at run time, which
+   * the bundler cannot see on its own; without this the deployed function
+   * would ship without the browser.
+   */
+  outputFileTracingIncludes: {
+    '/api/pdf': ['./node_modules/@sparticuz/chromium/bin/**'],
+  },
   /*
    * An announcement can carry a photo. The form shrinks it on the phone
    * first, so this is headroom for a browser that cannot, not the norm.

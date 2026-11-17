@@ -13,6 +13,7 @@ import {
   AUDIENCES,
   EVENT_STATUSES,
   EVENT_TYPES,
+  DRESS_CODES,
   GATE_TYPES,
   ISSUE_PRIORITIES,
   ISSUE_STATUSES,
@@ -64,6 +65,7 @@ export const eventSchema = z.object({
   externalId: z.string().trim().max(60).optional().nullable(),
   /* Sponsors and co-organisers, as the company writes them. */
   partners: z.string().trim().max(160).optional().nullable(),
+  dressCode: z.enum(DRESS_CODES).optional().nullable(),
   status: z.enum(EVENT_STATUSES).optional(),
 });
 

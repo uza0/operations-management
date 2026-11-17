@@ -83,10 +83,11 @@ export type SendResult = {
 /**
  * The template's variables, in order.
  *
- * Kept to six because a template's body is fixed at approval time and every
- * variable has to appear in it; these are the six facts a member needs and
- * the ones that change per person. The personal link is last so the template
- * can end with it.
+ * A template's body is fixed at approval time and every variable has to
+ * appear in it, in this order: {{1}} name, {{2}} event, {{3}} date,
+ * {{4}} place, {{5}} arrival time, {{6}} personal link, {{7}} dress code.
+ * The dress came last so a template approved with six could be extended
+ * without renumbering the others.
  */
 export type BriefingVariables = [
   name: string,
@@ -95,6 +96,7 @@ export type BriefingVariables = [
   place: string,
   time: string,
   link: string,
+  dress: string,
 ];
 
 /**

@@ -29,6 +29,7 @@ export async function EventNotifyPage({ eventId }: { eventId: string }) {
       date: event.date,
       teamArrivalTime: event.teamArrivalTime,
       type: event.type as EventType,
+      dressCode: event.dressCode,
       boardToken: event.boardToken,
       // An event's own photo, or the venue's — the member's map page falls
       // back the same way, so the link is offered on the same condition.

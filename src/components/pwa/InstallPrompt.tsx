@@ -90,7 +90,7 @@ export function InstallPrompt({ t }: { t: Dictionary }) {
   if (!deferred && !showIosHint) return null;
 
   return (
-    <div className="fixed inset-x-3 bottom-3 z-[70] mx-auto max-w-sm rounded-xl border border-ink-600 bg-ink-850 p-4 shadow-panel pb-[max(1rem,env(safe-area-inset-bottom))]">
+    <div className="no-print fixed inset-x-3 bottom-3 z-[70] mx-auto max-w-sm rounded-xl border border-ink-600 bg-ink-850 p-4 shadow-panel pb-[max(1rem,env(safe-area-inset-bottom))]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[14.5px] font-semibold text-ink-100">

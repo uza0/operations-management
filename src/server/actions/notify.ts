@@ -18,7 +18,7 @@ import type { EventType } from '@/lib/constants';
 import { RESPONSE_WINDOW_HOURS, responseDeadline } from '@/lib/journey';
 import { assertEventManager } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
-import { buildBriefings, resolveBaseUrl } from '@/server/services/notify';
+import { buildBriefings, dressCodeFor, resolveBaseUrl } from '@/server/services/notify';
 import { pushOnce } from '@/server/services/push';
 import { readConfig, sendTemplate } from '@/server/services/whatsapp';
 
@@ -258,6 +258,7 @@ export async function sendBriefingsViaApiAction(
       date: event.date,
       teamArrivalTime: event.teamArrivalTime,
       type: event.type as EventType,
+      dressCode: event.dressCode,
       boardToken: event.boardToken,
       hasMap: Boolean(event.mapImageUrl ?? venue?.mapImageUrl),
       venue: { name: venue?.name ?? '', locationUrl: venue?.locationUrl ?? null },
@@ -285,6 +286,7 @@ export async function sendBriefingsViaApiAction(
       row.place ?? t.notify.reserveShort,
       formatTime(row.arrivalTime ?? event.teamArrivalTime, locale),
       row.memberUrl,
+      dressCodeFor(event.type as EventType, t, event.dressCode),
     ]);
     if (result.ok) sent.push(row.eventMemberId);
     else failures.push(`${row.name}: ${result.error ?? ''}`.trim());

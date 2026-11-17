@@ -6,7 +6,7 @@ import { createEventAction, updateEventAction } from '@/server/actions/events';
 import { idle } from '@/server/actions/types';
 import { FormError } from '@/components/ui/states';
 import { SubmitButton } from '@/components/ui/client';
-import { EVENT_TYPES, type EventType, type Role } from '@/lib/constants';
+import { DRESS_CODES, EVENT_TYPES, type EventType, type Role } from '@/lib/constants';
 import type { Dictionary } from '@/lib/i18n';
 
 export type EventFormValues = {
@@ -21,6 +21,7 @@ export type EventFormValues = {
   description?: string | null;
   externalId?: string | null;
   partners?: string | null;
+  dressCode?: string | null;
   /** The account put in charge of this event, if one already is. */
   leaderId?: string | null;
   primaryLeaderId?: string | null;
@@ -153,6 +154,32 @@ export function EventForm({
             {EVENT_TYPES.map((type) => (
               <option key={type} value={type}>
                 {t.enums.eventType[type as EventType]}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div>
+          <label className="field-label" htmlFor="dressCode">
+            {t.event.dressCode}
+          </label>
+          {/*
+            * Chosen per event rather than guessed from its type: the same
+            * kind of night can be a shirt one week and a suit the next. An
+            * older event with nothing chosen opens on what its type implied.
+            */}
+          <select
+            id="dressCode"
+            name="dressCode"
+            className="field"
+            defaultValue={
+              values?.dressCode ??
+              (values?.type === 'FOOTBALL_MATCH' ? 'CASUAL' : 'TZ_SHIRT')
+            }
+          >
+            {DRESS_CODES.map((code) => (
+              <option key={code} value={code}>
+                {t.enums.dressCode[code]}
               </option>
             ))}
           </select>

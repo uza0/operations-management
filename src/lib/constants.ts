@@ -56,6 +56,10 @@ export const EVENT_TYPES = [
 ] as const;
 export type EventType = (typeof EVENT_TYPES)[number];
 
+/** What the team wears on the night, chosen per event. */
+export const DRESS_CODES = ['CASUAL', 'TZ_SHIRT', 'FORMAL'] as const;
+export type DressCode = (typeof DRESS_CODES)[number];
+
 export const EVENT_STATUSES = [
   'DRAFT',
   'PLANNING',

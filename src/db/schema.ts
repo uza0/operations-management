@@ -272,6 +272,11 @@ export const events = sqliteTable(
      * with every booking.
      */
     partners: text('partners'),
+    /**
+     * CASUAL | TZ_SHIRT | FORMAL — what the team wears. Empty on events made
+     * before the choice existed; those fall back to the rule by event type.
+     */
+    dressCode: text('dress_code'),
     /** DRAFT | PLANNING | READY | LIVE | COMPLETED | ARCHIVED */
     status: text('status').notNull().default('DRAFT'),
     /** Per-event map override; falls back to the venue map. */

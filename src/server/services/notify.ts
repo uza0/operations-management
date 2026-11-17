@@ -14,7 +14,7 @@ import {
   teamMembers,
   workingPoints,
 } from '@/db/schema';
-import type { EventType, Task } from '@/lib/constants';
+import { DRESS_CODES, type DressCode, type EventType, type Task } from '@/lib/constants';
 import { format, type Dictionary } from '@/lib/i18n';
 import { formatDate, formatTime, formatWeekday } from '@/lib/time';
 import { compareNames } from '@/lib/sort';
@@ -90,8 +90,12 @@ export function whatsappLink(number: string, message: string): string {
  * one. Two rules, because two is what the company actually has, and a list
  * of seven would be six of them saying the same thing.
  */
-export function dressCodeFor(type: EventType, t: Dictionary): string {
-  return type === 'FOOTBALL_MATCH' ? t.notify.message.dressCasual : t.notify.message.dressShirt;
+export function dressCodeFor(type: EventType, t: Dictionary, chosen?: string | null): string {
+  // The event's own choice wins; the rule by type is for events made before it.
+  if (chosen && (DRESS_CODES as readonly string[]).includes(chosen)) {
+    return t.enums.dressCode[chosen as DressCode];
+  }
+  return type === 'FOOTBALL_MATCH' ? t.enums.dressCode.CASUAL : t.enums.dressCode.TZ_SHIRT;
 }
 
 function buildMessage({
@@ -113,6 +117,7 @@ function buildMessage({
   sheetUrl,
   mainGate,
   eventType,
+  dressCode,
 }: {
   t: Dictionary;
   locale: 'ar' | 'en';
@@ -133,6 +138,8 @@ function buildMessage({
   sheetUrl: string | null;
   /** What the night is, which is what decides what to wear. */
   eventType: EventType;
+  /** The dress chosen for this event, when one was. */
+  dressCode: string | null;
   mainGate: { place: string; start: string; end: string; task: string } | null;
 }): string {
   const m = t.notify.message;
@@ -177,7 +184,7 @@ function buildMessage({
    * black t-shirt for a Tuesday afternoon match is how instructions stop
    * being read.
    */
-  lines.push(format(m.dress, { dress: dressCodeFor(eventType, t) }), '');
+  lines.push(format(m.dress, { dress: dressCodeFor(eventType, t, dressCode) }), '');
 
   if (isReserve) {
     lines.push(m.reserve);
@@ -241,6 +248,7 @@ export async function buildBriefings({
     hasMap?: boolean;
     /** What the night is: it decides the dress line. */
     type: EventType;
+    dressCode?: string | null;
     venue: { name: string; locationUrl: string | null };
   };
   baseUrl: string;
@@ -386,6 +394,7 @@ export async function buildBriefings({
         sheetUrl: event.boardToken ? `${baseUrl}/sheet/${event.boardToken}` : null,
         mainGate,
         eventType: event.type,
+        dressCode: event.dressCode ?? null,
         isReserve: row.isReserve || !active,
       }),
     };

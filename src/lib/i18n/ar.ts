@@ -187,6 +187,7 @@ export const ar = {
     needsClosing: 'تحتاج إغلاق',
     externalId: 'رقم الفعالية عند الشركة',
     partners: 'الشركات الشريكة / الراعية',
+    dressCode: 'الزي',
     partnersPlaceholder: 'مثال: OA — أو أكثر من شركة مفصولة بفاصلة',
     partnersHint: 'الشركة أو الشركات اللي رعت الحفل أو نظّمته ويانا. تطلع بملاحظة سطور الكراسي بملف الدفعات.',
     externalIdHint: 'الرقم الي تجي بيه الشركة للفعالية — تكدر تحطه أول ما تسوي الفعالية أو بعدها بفترة، حتى لو خلصت وانأرشفت.',
@@ -1990,6 +1991,11 @@ export const ar = {
       ASSISTANT_TEAM_LEADER: 'م.ق',
       GATE_LEADER: 'ق.ب',
       SECTION_SUPERVISOR: 'م.ق.س',
+    },
+    dressCode: {
+      CASUAL: 'كاجوال — أي لبس مريح، مثل الملعب',
+      TZ_SHIRT: 'تيشيرت تكت زون',
+      FORMAL: 'رسمي — قميص أبيض، سترة سوداء، وبنطرون أسود',
     },
     eventType: {
       FOOTBALL_MATCH: 'مباراة كرة قدم',

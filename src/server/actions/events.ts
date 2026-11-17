@@ -73,6 +73,7 @@ export async function createEventAction(
     description: str(form, 'description'),
     externalId: str(form, 'externalId'),
     partners: str(form, 'partners'),
+    dressCode: str(form, 'dressCode') || null,
   });
   if (!parsed.success) return fail(message(t, firstIssueKey(parsed.error)));
 
@@ -123,6 +124,7 @@ export async function createEventAction(
     description: parsed.data.description ?? null,
     externalId: parsed.data.externalId || null,
     partners: parsed.data.partners || null,
+    dressCode: parsed.data.dressCode ?? null,
     status: 'DRAFT',
     createdById: user.id,
     mapLinkUrl: request?.seatsUrl ?? null,
@@ -235,6 +237,7 @@ export async function updateEventAction(
     description: str(form, 'description'),
     externalId: str(form, 'externalId'),
     partners: str(form, 'partners'),
+    dressCode: str(form, 'dressCode') || null,
   });
   if (!parsed.success) return fail(message(t, firstIssueKey(parsed.error)));
 
@@ -288,6 +291,7 @@ export async function updateEventAction(
       description: parsed.data.description ?? null,
       externalId: parsed.data.externalId || null,
       partners: parsed.data.partners || null,
+      dressCode: parsed.data.dressCode ?? null,
       updatedAt: new Date(),
     })
     .where(eq(events.id, eventId));
