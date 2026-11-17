@@ -27,6 +27,7 @@ export function globalNav(t: Dictionary, role: Role): NavSection[] {
           { href: '/admin/credits', label: t.nav.credits, icon: 'wallet' },
           { href: '/admin/payments', label: t.payment.nav, icon: 'fileOut' },
           { href: '/admin/insights', label: t.insights.nav, icon: 'chart' },
+          { href: '/admin/surveys', label: t.surveys.nav, icon: 'clipboard' },
           { href: '/admin/settings', label: t.nav.settings, icon: 'settings' },
           /*
            * Some of the people who run events also work them. Their promoter
@@ -52,6 +53,11 @@ export function globalNav(t: Dictionary, role: Role): NavSection[] {
     { href: '/leader', label: t.nav.dashboard, icon: 'dashboard', exact: true },
     { href: '/leader/events', label: t.nav.myEvents, icon: 'calendar' },
   ];
+
+  // A leader passes the company's questionnaires on to the team.
+  if (role === 'TEAM_LEADER') {
+    items.push({ href: '/leader/surveys', label: t.surveys.nav, icon: 'clipboard' });
+  }
 
   // Payroll, payment files, member ledgers and event costs are admin-only.
   items.push({ href: '/me', label: t.memberAuth.openAsMember, icon: 'user' });

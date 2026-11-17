@@ -10,6 +10,7 @@ import { currentUser, homeFor } from '@/server/auth/rbac';
 import { getMemberHome } from '@/server/services/member-home';
 import { getMemberAttendanceScore } from '@/server/services/member';
 import { sweepInBackground } from '@/server/services/sweep';
+import { surveysFor } from '@/server/services/surveys';
 
 import { MemberShell } from '../member/[token]/MemberShell';
 import { AttendanceScoreCard } from './AttendanceScoreCard';
@@ -49,11 +50,12 @@ export default async function MemberHomePage() {
    */
   sweepInBackground();
 
-  const [{ locale, t }, home, staff, attendanceScore] = await Promise.all([
+  const [{ locale, t }, home, staff, attendanceScore, openSurveys] = await Promise.all([
     getT(),
     getMemberHome(session.teamMemberId),
     currentUser(),
     getMemberAttendanceScore(session.teamMemberId),
+    surveysFor(session.teamMemberId).catch(() => []),
   ]);
 
   if (!home) redirect('/login');
@@ -98,6 +100,33 @@ export default async function MemberHomePage() {
           </p>
         ) : null}
       </section>
+
+      {/*
+        A questionnaire somebody sent the whole team. Above everything else
+        until he has opened it; after that it steps down to a quiet line.
+      */}
+      {openSurveys.map((survey) => (
+        <section
+          key={survey.id}
+          className={`rounded-card border p-4 ${survey.openedAt ? 'border-ink-700 bg-ink-850' : 'border-info/50 bg-info/10'}`}
+        >
+          <p className="text-[12.5px] font-semibold text-info-text">{t.surveys.cardTitle}</p>
+          <h2 className="mt-1 text-[15.5px] font-bold leading-6 text-ink-100">{survey.title}</h2>
+          {survey.note ? (
+            <p className="mt-1 whitespace-pre-line text-[13px] leading-5 text-ink-300">{survey.note}</p>
+          ) : null}
+          <div className="mt-3 flex items-center justify-between gap-3">
+            {survey.openedAt ? (
+              <span className="text-[12.5px] text-ok-text">✓ {t.surveys.cardDone}</span>
+            ) : (
+              <span />
+            )}
+            <a href={`/me/survey/${survey.id}`} className={survey.openedAt ? 'btn-ghost btn-sm' : 'btn-primary btn-sm'}>
+              {t.surveys.cardOpen}
+            </a>
+          </div>
+        </section>
+      ))}
 
       <AttendanceScoreCard score={attendanceScore} t={t} compact />
       <Link href="/me/events" className="btn-ghost btn-sm w-full text-center">{t.memberAuth.myEvents}</Link>

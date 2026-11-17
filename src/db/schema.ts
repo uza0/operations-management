@@ -23,6 +23,7 @@ import {
   blob,
   index,
   uniqueIndex,
+  primaryKey,
 } from 'drizzle-orm/sqlite-core';
 
 const now = sql`(unixepoch() * 1000)`;
@@ -1723,6 +1724,39 @@ export const eventRequests = sqliteTable('event_requests', {
   createdByName: text('created_by_name').notNull(),
   ...timestamps,
 });
+
+/**
+ * A questionnaire link handed to the whole team — the company's own, or one
+ * of ours. Posted by an admin or a team leader; every promoter with a sign-in
+ * code is told, and sees it on his home screen until it expires.
+ */
+export const surveys = sqliteTable('surveys', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  url: text('url').notNull(),
+  note: text('note'),
+  expiresAt: integer('expires_at', { mode: 'timestamp_ms' }),
+  /** How many promoters were told when it went out. */
+  sentTo: integer('sent_to').notNull().default(0),
+  createdById: text('created_by_id').references(() => users.id, { onDelete: 'set null' }),
+  createdByName: text('created_by_name').notNull(),
+  createdAt: timestamps.createdAt,
+});
+
+/** Who opened which questionnaire from the app — one row per person. */
+export const surveyOpens = sqliteTable(
+  'survey_opens',
+  {
+    surveyId: text('survey_id')
+      .notNull()
+      .references(() => surveys.id, { onDelete: 'cascade' }),
+    teamMemberId: text('team_member_id')
+      .notNull()
+      .references(() => teamMembers.id, { onDelete: 'cascade' }),
+    openedAt: integer('opened_at', { mode: 'timestamp_ms' }).notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.surveyId, t.teamMemberId] })],
+);
 
 export const settings = sqliteTable('settings', {
   key: text('key').primaryKey(),

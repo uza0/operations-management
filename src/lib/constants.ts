@@ -308,6 +308,7 @@ export const AUDIT_ENTITIES = [
   'TIMELINE',
   'USER',
   'EVENT_REQUEST',
+  'SURVEY',
 ] as const;
 export type AuditEntity = (typeof AUDIT_ENTITIES)[number];
 
