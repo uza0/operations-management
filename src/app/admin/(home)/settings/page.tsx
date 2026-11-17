@@ -1,7 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { desc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { users } from '@/db/schema';
+import { deletedEvents, users } from '@/db/schema';
 import { requireRole } from '@/server/auth/rbac';
 import { getT } from '@/lib/i18n/server';
 import { PageHeader, Panel, KeyValue } from '@/components/ui/panel';
@@ -16,6 +16,10 @@ import { EXPENSE_ACCOUNT, readSetting } from '@/server/services/settings';
 
 import { PasswordForm } from './PasswordForm';
 import { AccountManager } from './AccountManager';
+import { DeletedEvents } from './DeletedEvents';
+
+/* Restoring from a backup copy can take a while: Turso builds the copy first. */
+export const maxDuration = 60;
 import { LogoutPanel } from '@/components/shell/LogoutPanel';
 
 /** Account access and operational settings. */
@@ -48,6 +52,19 @@ export default async function SettingsPage() {
         })
         .from(users)
         .orderBy(users.role, users.name)
+    : [];
+
+  const deleted = me.systemDeveloper
+    ? await db
+        .select({
+          id: deletedEvents.id,
+          name: deletedEvents.name,
+          date: deletedEvents.date,
+          deletedAt: deletedEvents.deletedAt,
+          deletedByName: deletedEvents.deletedByName,
+        })
+        .from(deletedEvents)
+        .orderBy(desc(deletedEvents.deletedAt))
     : [];
 
   return (
@@ -86,6 +103,12 @@ export default async function SettingsPage() {
         {me.systemDeveloper ? (
           <Panel title={t.auth.accountManage} className="lg:col-span-3" bodyClassName="p-4">
             <AccountManager t={t} accounts={accounts} currentUserId={me.id} />
+          </Panel>
+        ) : null}
+
+        {me.systemDeveloper ? (
+          <Panel title={t.restore.title} className="lg:col-span-3" bodyClassName="p-4">
+            <DeletedEvents t={t} locale={locale} rows={deleted} />
           </Panel>
         ) : null}
       </div>

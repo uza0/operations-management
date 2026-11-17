@@ -1732,3 +1732,25 @@ export const settings = sqliteTable('settings', {
   }),
   ...timestamps,
 });
+
+/**
+ * Events that were deleted, kept whole so they can be put back.
+ *
+ * Deleting an event takes its team, gates, distribution, attendance and the
+ * rest with it, and one wrong tap did exactly that to a real match. So before
+ * the rows go, every one of them is written here as JSON — the event and
+ * everything that hangs off it — and the system's developer can restore the
+ * lot from the settings page. Nothing here is referenced by anything else:
+ * the event it describes no longer exists.
+ */
+export const deletedEvents = sqliteTable('deleted_events', {
+  id: text('id').primaryKey(),
+  eventId: text('event_id').notNull(),
+  name: text('name').notNull(),
+  date: text('date'),
+  deletedAt: integer('deleted_at', { mode: 'timestamp_ms' }).notNull().default(now),
+  deletedById: text('deleted_by_id').references(() => users.id, { onDelete: 'set null' }),
+  deletedByName: text('deleted_by_name'),
+  /** { tables: { [table]: rows[] } } — every row that the delete removed. */
+  payload: text('payload').notNull(),
+});

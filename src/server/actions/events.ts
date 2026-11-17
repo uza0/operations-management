@@ -4,8 +4,9 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
 
-import { db } from '@/db';
+import { db, rawClient } from '@/db';
 import {
+  deletedEvents,
   assignments,
   attendance,
   eventAccess,
@@ -36,6 +37,7 @@ import { recordAudit } from '@/server/services/audit';
 import { unmarkedAttendance } from '@/server/services/seat-setup';
 import { pushOnce } from '@/server/services/push';
 import { cloneEventPlan } from '@/server/services/clone';
+import { collectEventTree } from '@/server/services/event-tree';
 import { promoteIfBuilt } from '@/server/services/lifecycle';
 import { eventTeamLeaderId, eventTeamLeaderIds, setEventTeamLeader, setEventTeamLeaders, setGateLeader } from '@/server/services/access';
 import { hrefForStep } from '@/features/event/setup-steps';
@@ -699,9 +701,29 @@ export async function deleteEventAction(form: FormData): Promise<void> {
    * to object to. Everything else hanging off the event — members, attendance,
    * announcements, reports, markers, the questionnaire — already cascades.
    */
+  /*
+   * Everything the delete is about to remove, kept first. A real match was
+   * deleted by one wrong tap; from here on the system's developer can put an
+   * event back whole from the settings page. If the copy cannot be made the
+   * event stays: a delete with no way back is the thing being prevented.
+   */
+  const tree = await collectEventTree(rawClient(), eventId);
+  if (tree) {
+    await db.insert(deletedEvents).values({
+      id: newId(),
+      eventId,
+      name: event.name,
+      date: event.date,
+      deletedById: user.id,
+      deletedByName: user.name,
+      payload: JSON.stringify(tree),
+    });
+  }
+
   await db.delete(assignments).where(eq(assignments.eventId, eventId));
   await db.delete(events).where(eq(events.id, eventId));
   revalidatePath('/admin/events');
+  revalidatePath('/admin/settings');
   redirect('/admin/events');
 }
 

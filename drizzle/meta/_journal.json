@@ -260,6 +260,13 @@
       "when": 1794886096380,
       "tag": "0036_giant_peter_quill",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "6",
+      "when": 1794905419418,
+      "tag": "0037_boring_ego",
+      "breakpoints": true
     }
   ]
 }
