@@ -211,6 +211,8 @@ function buildMessage({
   // page, so it carries nothing anyone else's link would not already show.
 
   lines.push('', m.linkIntro, memberUrl);
+  // The link is not only for reading: his place is held on his answer.
+  lines.push('', m.confirm);
 
   /*
    * The full sheet, when the supervisor has opened it: a member who wants to

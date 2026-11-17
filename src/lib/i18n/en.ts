@@ -398,6 +398,7 @@ export const en: Dictionary = {
       guide: '🧭 Your spot on the venue map: {url}',
       sheet: '📄 Full distribution sheet: {url}',
       linkIntro: 'Your personal link — your post, your task, and any change:',
+      confirm: '✅ Important: open the link and confirm you are coming in the app, or decline if you cannot make it.',
       private: '🔒 This link is yours alone. Do not share it.',
     },
   },
