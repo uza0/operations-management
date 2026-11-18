@@ -306,7 +306,7 @@ export const en: Dictionary = {
     defaultPayHint:
       "Their rate for any event they are invited to. Changing it here applies to every event of theirs that has not been paid out yet, and to new ones — an event already settled keeps the figure it was paid at. Chair setting is outside this figure: 30,000 for everyone.",
     inactive: 'Inactive',
-    eventsWorked: 'Events',
+    eventsWorked: 'Events attended',
     attendanceLeaders: 'Most frequent attendees',
     attendanceLeadersHint: 'Members who attended at least half of the completed or archived events. Present and late both count.',
     attendanceLeadersEmpty: 'No members have reached the attendance threshold yet.',

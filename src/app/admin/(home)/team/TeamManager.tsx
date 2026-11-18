@@ -49,6 +49,8 @@ export type TeamRow = {
   defaultPay: number | null;
   notes: string | null;
   eventCount: number;
+  /** Finished events he was marked present or late at. */
+  attendedCount?: number;
 };
 
 type AttendanceLeader = {
@@ -475,7 +477,7 @@ export function TeamManager({
                         href={`/admin/team/${member.id}`}
                         className="-my-2.5 inline-flex min-h-[44px] items-center gap-1.5 py-2.5 hover:text-brand-300"
                       >
-                        {member.eventCount}
+                        {member.attendedCount ?? member.eventCount}
                         <span className="text-[12px] text-ink-500">
                           {t.credit.memberLedger}
                         </span>
