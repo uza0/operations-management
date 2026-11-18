@@ -420,7 +420,7 @@ export const en: Dictionary = {
       task: '🛠 Your task: {task}',
       shift: '⏳ Your shift: {from} to {to}',
       leader: '👤 Your gate leader: {name}',
-      reserve: '🔁 You are on the reserve team — stay reachable.',
+      reserve: '🕓 Your placement is not final yet.',
       mainGate: '🏁 Before the show: {place} — {from} to {to} ({task}), then on to your own post.',
       guide: '🧭 Your spot on the venue map: {url}',
       sheet: '📄 Full distribution sheet: {url}',
