@@ -280,6 +280,9 @@ export const en: Dictionary = {
     uploadHint: 'PNG, JPG or SVG up to 8 MB. 1600px wide or more works best.',
   },
   team: {
+    needsCode: 'No code',
+    needsCodeHint: 'On a current or upcoming event with no sign-in code issued',
+    needsCodeSummary: '{n} people are on current or upcoming events without a sign-in code — marked in yellow by their names.',
     favorite: 'Favourite',
     favoriteAdd: 'Add to favourites',
     favoriteRemove: 'Remove from favourites',

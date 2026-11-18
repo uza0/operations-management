@@ -5,6 +5,8 @@ import { attendance, eventMembers, events, memberSessions, teamMembers } from '@
 import { requireRole } from '@/server/auth/rbac';
 import { getT } from '@/lib/i18n/server';
 import { PageHeader } from '@/components/ui/panel';
+import { Notice } from '@/components/ui/states';
+import { format } from '@/lib/i18n';
 import { resolveBaseUrl, toWhatsAppNumber } from '@/server/services/notify';
 
 import { TeamManager } from './TeamManager';
@@ -38,6 +40,12 @@ export default async function TeamPage() {
       /* Whether a code exists — never the code, which nothing can read back. */
       hasCode: sql<number>`(case when ${teamMembers.accessCodeHash} is not null and ${teamMembers.accessCodeRevokedAt} is null then 1 else 0 end)`,
       sessions: sql<number>`(select count(*) from ${memberSessions} where ${memberSessions.teamMemberId} = ${teamMembers.id} and ${memberSessions.revokedAt} is null)`,
+      /*
+       * On an event that is still ahead or under way (draft, planning, ready
+       * or live) and still on it. Paired with having no code, this is the
+       * person who will get a briefing link but cannot sign into the app.
+       */
+      onOpenEvent: sql<number>`(select count(*) from "event_members" em inner join "events" ev on ev."id" = em."event_id" where em."team_member_id" = "team_members"."id" and em."status" <> 'CANCELLED' and ev."status" in ('DRAFT', 'PLANNING', 'READY', 'LIVE'))`,
     })
     .from(teamMembers)
     .orderBy(teamMembers.fullName);
@@ -72,14 +80,21 @@ export default async function TeamPage() {
   );
 
   /* Dialling happens on the server, where the country code lives. */
-  const members = rows.map((row) => ({
+  const members = rows.map(({ onOpenEvent, ...row }) => ({
     ...row,
     whatsapp: toWhatsAppNumber(row.phone),
+    needsCode: Number(row.hasCode) !== 1 && Number(onOpenEvent) > 0,
   }));
+  const needingCode = members.filter((m) => m.needsCode).length;
 
   return (
     <>
       <PageHeader title={t.team.title} subtitle={t.team.subtitle} />
+      {needingCode > 0 ? (
+        <div className="mb-4">
+          <Notice tone="warn">{format(t.team.needsCodeSummary, { n: needingCode })}</Notice>
+        </div>
+      ) : null}
       <TeamManager
         t={t}
         members={members}

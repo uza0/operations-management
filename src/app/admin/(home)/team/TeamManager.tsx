@@ -40,6 +40,8 @@ export type TeamRow = {
   photoUrl: string | null;
   pendingPhotoUrl: string | null;
   hasCode?: number;
+  /** On a current or coming event with no sign-in code yet. */
+  needsCode?: boolean;
   sessions?: number;
   active: boolean;
   salaried: boolean;
@@ -450,6 +452,11 @@ export function TeamManager({
                           <IconEdit width={14} height={14} className="text-ink-500" />
                           {member.fullName}
                         </button>
+                        {member.needsCode ? (
+                          <span title={t.team.needsCodeHint}>
+                            <Badge tone="warn">{t.team.needsCode}</Badge>
+                          </span>
+                        ) : null}
                       </div>
                     </td>
                     <td data-label={t.team.employeeCode} className="nums text-ink-300">
