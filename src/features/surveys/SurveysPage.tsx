@@ -30,7 +30,7 @@ export async function SurveysPage({ user }: { user: SessionUser }) {
       createdAt: surveys.createdAt,
       createdById: surveys.createdById,
       createdByName: surveys.createdByName,
-      opened: sql<number>`(select count(*) from ${surveyOpens} where ${surveyOpens.surveyId} = ${surveys.id})`,
+      opened: sql<number>`(select count(*) from "survey_opens" so where so."survey_id" = "surveys"."id")`,
     })
     .from(surveys)
     .orderBy(desc(surveys.createdAt))

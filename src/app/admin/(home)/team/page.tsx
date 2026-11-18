@@ -36,7 +36,7 @@ export default async function TeamPage() {
       favorite: teamMembers.favorite,
       defaultPay: teamMembers.defaultPay,
       notes: teamMembers.notes,
-      eventCount: sql<number>`(select count(*) from ${eventMembers} where ${eventMembers.teamMemberId} = ${teamMembers.id})`,
+      eventCount: sql<number>`(select count(*) from "event_members" em where em."team_member_id" = "team_members"."id")`,
       /*
        * What the column shows: finished events he actually worked — marked
        * present or late on an event that is completed or archived. The plain
@@ -45,7 +45,7 @@ export default async function TeamPage() {
       attendedCount: sql<number>`(select count(distinct em."event_id") from "event_members" em inner join "events" ev on ev."id" = em."event_id" inner join "attendance" at on at."event_member_id" = em."id" where em."team_member_id" = "team_members"."id" and ev."status" in ('COMPLETED', 'ARCHIVED') and at."status" in ('PRESENT', 'LATE'))`,
       /* Whether a code exists — never the code, which nothing can read back. */
       hasCode: sql<number>`(case when ${teamMembers.accessCodeHash} is not null and ${teamMembers.accessCodeRevokedAt} is null then 1 else 0 end)`,
-      sessions: sql<number>`(select count(*) from ${memberSessions} where ${memberSessions.teamMemberId} = ${teamMembers.id} and ${memberSessions.revokedAt} is null)`,
+      sessions: sql<number>`(select count(*) from "member_sessions" ms where ms."team_member_id" = "team_members"."id" and ms."revoked_at" is null)`,
       /*
        * On an event that is still ahead or under way (draft, planning, ready
        * or live) and still on it. Paired with having no code, this is the

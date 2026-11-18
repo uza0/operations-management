@@ -55,9 +55,9 @@ export async function listEventsForUser(user: SessionUser): Promise<EventListRow
       /* For the badge that tells an unfinished night from a running one. */
       teamDepartureTime: events.teamDepartureTime,
       venueName: venues.name,
-      teamSize: sql<number>`(select count(*) from ${eventMembers} where ${eventMembers.eventId} = ${events.id})`,
-      gateCount: sql<number>`(select count(*) from ${gates} where ${gates.eventId} = ${events.id})`,
-      openIssues: sql<number>`(select count(*) from ${issues} where ${issues.eventId} = ${events.id} and ${issues.status} in ('OPEN','ACKNOWLEDGED','IN_PROGRESS'))`,
+      teamSize: sql<number>`(select count(*) from "event_members" em where em."event_id" = "events"."id")`,
+      gateCount: sql<number>`(select count(*) from "gates" g where g."event_id" = "events"."id")`,
+      openIssues: sql<number>`(select count(*) from "issues" i where i."event_id" = "events"."id" and i."status" in ('OPEN','ACKNOWLEDGED','IN_PROGRESS'))`,
     })
     .from(events)
     .innerJoin(venues, eq(events.venueId, venues.id))

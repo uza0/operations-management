@@ -33,7 +33,7 @@ export async function GET() {
       cardNumber: teamMembers.cardNumber,
       active: teamMembers.active,
       notes: teamMembers.notes,
-      eventCount: sql<number>`(select count(*) from ${eventMembers} where ${eventMembers.teamMemberId} = ${teamMembers.id})`,
+      eventCount: sql<number>`(select count(*) from "event_members" em where em."team_member_id" = "team_members"."id")`,
     })
     .from(teamMembers)
     .orderBy(teamMembers.fullName);

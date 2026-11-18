@@ -22,7 +22,7 @@ export default async function VenuesPage() {
       locationUrl: venues.locationUrl,
       latitude: venues.latitude,
       longitude: venues.longitude,
-      eventCount: sql<number>`(select count(*) from ${events} where ${events.venueId} = ${venues.id})`,
+      eventCount: sql<number>`(select count(*) from "events" e where e."venue_id" = "venues"."id")`,
     })
     .from(venues)
     .orderBy(venues.name);
