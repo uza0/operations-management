@@ -445,6 +445,7 @@ export const ar = {
     bulkRevokeConfirm: 'تلغي مشاركة {n} شخص؟ راح يتم إلغاء توزيعهم، وروابطهم الشخصية راح توگف.',
     bulkRemoveConfirm: 'تحذف {n} شخص من الفعالية؟',
     bulkDone: 'تم التنفيذ على {n} شخص.',
+    seatBadge: 'كراسي',
     bulkPartial: 'تم التنفيذ على {done}، وما تم على {failed}:',
     title: 'فريق الفعالية',
     subtitle: 'من يشارك في هذه الفعالية، ورابطه الشخصي الآمن',

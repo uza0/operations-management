@@ -8,6 +8,7 @@ import {
   eventMembers,
   events,
   gates,
+  seatSetupMembers,
   teamMembers,
   workingPoints,
 } from '@/db/schema';
@@ -65,8 +66,23 @@ export async function EventTeamPage({ eventId }: { eventId: string }) {
     ? rows.filter((r) => r.assignmentGateId === scope.gateId)
     : rows;
 
+  // Who is on the chair crew, and for how many days — shown as a mark by the name.
+  const seatRows = await db
+    .select({
+      eventMemberId: seatSetupMembers.eventMemberId,
+      declinedAt: seatSetupMembers.declinedAt,
+    })
+    .from(seatSetupMembers)
+    .where(eq(seatSetupMembers.eventId, eventId));
+  const seatDays = new Map<string, number>();
+  for (const r of seatRows) {
+    if (r.declinedAt) continue;
+    seatDays.set(r.eventMemberId, (seatDays.get(r.eventMemberId) ?? 0) + 1);
+  }
+
   const members = await Promise.all(
     scoped.map(async (row) => ({
+      seatDays: seatDays.get(row.id) ?? 0,
       id: row.id,
       name: row.name,
       employeeCode: row.employeeCode,

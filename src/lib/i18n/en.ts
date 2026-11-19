@@ -441,6 +441,7 @@ export const en: Dictionary = {
     bulkRevokeConfirm: 'Cancel participation for {n} people? Their placements are cancelled and their personal links stop working.',
     bulkRemoveConfirm: 'Remove {n} people from the event?',
     bulkDone: 'Done for {n} people.',
+    seatBadge: 'Chairs',
     bulkPartial: 'Done for {done}, not for {failed}:',
     title: 'Event team',
     subtitle: 'Who takes part in this event, and their secure personal link',

@@ -41,6 +41,8 @@ export type EventTeamRow = {
   phone: string | null;
   status: string;
   isReserve: boolean;
+  /** Days on the chair crew he has not declined; 0 when not on it. */
+  seatDays: number;
   token: string;
   locationName: string | null;
   qrDataUrl: string | null;
@@ -487,7 +489,15 @@ export function EventTeamManager({
                   </td>
                 ) : null}
                 <td data-label="" className="font-medium text-ink-100">
-                  {member.name}
+                  <span className="inline-flex flex-wrap items-center gap-1.5">
+                    {member.name}
+                    {member.seatDays > 0 ? (
+                      <Badge tone="info">
+                        🪑 {t.eventTeam.seatBadge}
+                        {member.seatDays > 1 ? ` ×${member.seatDays}` : ''}
+                      </Badge>
+                    ) : null}
+                  </span>
                 </td>
                 <td data-label={t.team.employeeCode} className="nums text-ink-400">
                   {member.employeeCode}
