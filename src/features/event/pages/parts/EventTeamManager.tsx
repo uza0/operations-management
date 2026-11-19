@@ -1,10 +1,11 @@
 'use client';
 
-import { useActionState, useEffect, useMemo, useState } from 'react';
+import { useActionState, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
   addMembersToEventAction,
+  bulkEventMembersAction,
   deleteEventMemberAction,
   reinstateEventMemberAction,
   revokeEventMemberAction,
@@ -381,6 +382,43 @@ export function EventTeamManager({
   const [adding, setAdding] = useState(false);
   const [qrMember, setQrMember] = useState<EventTeamRow | null>(null);
   const [query, setQuery] = useState('');
+  /*
+   * Selecting many at once. Null is the ordinary page; a set means the page
+   * is choosing — a long press on any row starts it, as on a phone's own
+   * lists, and so does the "select" button for whoever never thinks to hold.
+   */
+  const [selected, setSelected] = useState<Set<string> | null>(null);
+  const router = useRouter();
+  const [bulkState, bulk] = useActionState(bulkEventMembersAction, idle);
+  useEffect(() => {
+    if (bulkState.status === 'success') {
+      setSelected(null);
+      router.refresh();
+    } else if (bulkState.status === 'error') {
+      router.refresh();
+    }
+  }, [bulkState, router]);
+  const pressTimer = useRef<number | null>(null);
+
+  function toggle(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev ?? []);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+  function pressStart(id: string) {
+    if (!canManage || selected) return;
+    pressTimer.current = window.setTimeout(() => {
+      setSelected(new Set([id]));
+      if ('vibrate' in navigator) navigator.vibrate?.(30);
+    }, 500);
+  }
+  function pressEnd() {
+    if (pressTimer.current) window.clearTimeout(pressTimer.current);
+    pressTimer.current = null;
+  }
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -408,6 +446,7 @@ export function EventTeamManager({
         <table className="op-table op-table-stack">
           <thead>
             <tr>
+              {selected ? <th className="w-10" /> : null}
               <th>{t.team.fullName}</th>
               <th>{t.team.employeeCode}</th>
               <th>{t.assignment.location}</th>
@@ -418,7 +457,35 @@ export function EventTeamManager({
           </thead>
           <tbody>
             {rows.map((member) => (
-              <tr key={member.id} className={member.status === 'CANCELLED' ? 'opacity-55' : ''}>
+              <tr
+                key={member.id}
+                className={`${member.status === 'CANCELLED' ? 'opacity-55' : ''} ${
+                  selected?.has(member.id) ? 'bg-brand-500/10' : ''
+                } ${selected ? 'cursor-pointer select-none' : ''}`}
+                onPointerDown={() => pressStart(member.id)}
+                onPointerUp={pressEnd}
+                onPointerLeave={pressEnd}
+                onPointerCancel={pressEnd}
+                onContextMenu={(e) => {
+                  if (canManage) e.preventDefault();
+                }}
+                onClick={(e) => {
+                  if (!selected) return;
+                  if ((e.target as HTMLElement).closest('button, a, input, form')) return;
+                  toggle(member.id);
+                }}
+              >
+                {selected ? (
+                  <td data-label="">
+                    <input
+                      type="checkbox"
+                      className="h-5 w-5 accent-[rgb(var(--brand-500))]"
+                      checked={selected.has(member.id)}
+                      onChange={() => toggle(member.id)}
+                      aria-label={member.name}
+                    />
+                  </td>
+                ) : null}
                 <td data-label="" className="font-medium text-ink-100">
                   {member.name}
                 </td>
@@ -461,10 +528,12 @@ export function EventTeamManager({
                     </button>
                   </div>
                 </td>
-                {canManage ? (
+                {canManage && !selected ? (
                   <td data-label="">
                     <MemberActions t={t} eventId={eventId} member={member} />
                   </td>
+                ) : canManage ? (
+                  <td data-label="" />
                 ) : null}
               </tr>
             ))}
@@ -492,12 +561,76 @@ export function EventTeamManager({
           />
         </div>
         {canManage ? (
-          <button type="button" className="btn-primary" onClick={() => setAdding(true)}>
-            <IconPlus width={16} height={16} />
-            {t.eventTeam.addToEvent}
-          </button>
+          <div className="flex flex-wrap gap-2">
+            {members.length > 0 && !selected ? (
+              <button type="button" className="btn-secondary" onClick={() => setSelected(new Set())}>
+                {t.eventTeam.select}
+              </button>
+            ) : null}
+            <button type="button" className="btn-primary" onClick={() => setAdding(true)}>
+              <IconPlus width={16} height={16} />
+              {t.eventTeam.addToEvent}
+            </button>
+          </div>
         ) : null}
       </div>
+
+      {selected ? (
+        <div className="sticky top-2 z-30 mb-4 rounded-card border border-brand-500/40 bg-ink-900/95 p-3 shadow-lg backdrop-blur">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-[13.5px] font-semibold text-ink-100">
+              {format(t.eventTeam.selectedCount, { n: selected.size })}
+            </span>
+            <button
+              type="button"
+              className="btn-ghost btn-sm"
+              onClick={() =>
+                setSelected(
+                  selected.size === filtered.length ? new Set() : new Set(filtered.map((m) => m.id)),
+                )
+              }
+            >
+              {selected.size === filtered.length ? t.eventTeam.selectNone : t.eventTeam.selectAll}
+            </button>
+            <button type="button" className="btn-ghost btn-sm" onClick={() => setSelected(null)}>
+              {t.common.cancel}
+            </button>
+          </div>
+          {selected.size > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {(
+                [
+                  ['revoke', t.eventTeam.revoke, t.eventTeam.bulkRevokeConfirm, 'btn-secondary btn-sm text-crit-text'],
+                  ['reinstate', t.eventTeam.reinstate, null, 'btn-secondary btn-sm'],
+                  ['reserve', t.eventTeam.markReserve, null, 'btn-secondary btn-sm'],
+                  ['unreserve', t.eventTeam.unmarkReserve, null, 'btn-secondary btn-sm'],
+                  ['remove', t.eventTeam.remove, t.eventTeam.bulkRemoveConfirm, 'btn-ghost btn-sm text-crit-text'],
+                ] as const
+              ).map(([op, label, confirm, cls]) => (
+                <form key={op} action={bulk}>
+                  <input type="hidden" name="eventId" value={eventId} />
+                  <input type="hidden" name="op" value={op} />
+                  {[...selected].map((id) => (
+                    <input key={id} type="hidden" name="eventMemberIds" value={id} />
+                  ))}
+                  {confirm ? (
+                    <ConfirmSubmit className={cls} message={format(confirm, { n: selected.size })}>
+                      {label}
+                    </ConfirmSubmit>
+                  ) : (
+                    <SubmitButton className={cls}>{label}</SubmitButton>
+                  )}
+                </form>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-1 text-[12.5px] text-ink-500">{t.eventTeam.selectHint}</p>
+          )}
+          {bulkState.status === 'error' ? (
+            <p className="mt-2 text-[12.5px] text-crit-text">{bulkState.message}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       <Notice tone="info">{t.eventTeam.tokenSecurityNote}</Notice>
 

@@ -520,3 +520,75 @@ export async function reinstateEventMemberAction(
   revalidateEvent(eventId);
   return ok();
 }
+
+/**
+ * One operation on many members at once — cancel, put back, reserve, or
+ * remove — from the selection on the event's team page.
+ *
+ * Each person goes through the same action a single press would call, so the
+ * rules, the notices and the history stay exactly what they are one by one:
+ * nothing here can do to forty people what it would refuse to do to one.
+ * Whoever cannot be changed is counted and named, not silently skipped.
+ */
+const BULK = {
+  revoke: revokeEventMemberAction,
+  reinstate: reinstateEventMemberAction,
+  remove: deleteEventMemberAction,
+  reserve: updateEventMemberAction,
+  unreserve: updateEventMemberAction,
+} as const;
+
+export async function bulkEventMembersAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  try {
+    await assertEventManager(eventId);
+  } catch {
+    return fail(t.errors.forbidden);
+  }
+  const op = String(form.get('op') ?? '') as keyof typeof BULK;
+  const run = BULK[op];
+  const ids = [...new Set(form.getAll('eventMemberIds').map(String).filter(Boolean))];
+  if (!run || ids.length === 0) return fail(t.errors.required);
+
+  /*
+   * Cancelling many at once is what a called-off night looks like, and those
+   * people are placed. One by one the page asks for the placement to go
+   * first; a cancellation of the whole selection takes the placements with
+   * it, and the confirmation says so before anything happens.
+   */
+  if (op === 'revoke') {
+    await db
+      .update(assignments)
+      .set({ status: 'CANCELLED', updatedAt: new Date() })
+      .where(
+        and(
+          eq(assignments.eventId, eventId),
+          inArray(assignments.eventMemberId, ids),
+          ne(assignments.status, 'CANCELLED'),
+        ),
+      );
+  }
+
+  let done = 0;
+  const failed: string[] = [];
+  for (const id of ids) {
+    const one = new FormData();
+    one.set('eventId', eventId);
+    one.set('eventMemberId', id);
+    if (op === 'reserve') one.set('isReserve', 'on');
+    if (op === 'unreserve') one.set('isReserve', '');
+    const result = await run({ status: 'idle' } as ActionState, one);
+    if (result.status === 'success') done += 1;
+    else if (result.status === 'error') failed.push(result.message);
+  }
+
+  revalidateEvent(eventId);
+  if (failed.length === 0) return ok(format(t.eventTeam.bulkDone, { n: done }));
+  return fail(
+    `${format(t.eventTeam.bulkPartial, { done, failed: failed.length })} ${[...new Set(failed)].slice(0, 3).join(' · ')}`,
+  );
+}
