@@ -34,6 +34,7 @@ export default async function TeamPage() {
       active: teamMembers.active,
       salaried: teamMembers.salaried,
       favorite: teamMembers.favorite,
+      removedAt: teamMembers.removedAt,
       defaultPay: teamMembers.defaultPay,
       notes: teamMembers.notes,
       eventCount: sql<number>`(select count(*) from "event_members" em where em."team_member_id" = "team_members"."id")`,
@@ -86,7 +87,15 @@ export default async function TeamPage() {
   );
 
   /* Dialling happens on the server, where the country code lives. */
-  const members = rows.map(({ onOpenEvent, ...row }) => ({
+  const removed = rows
+    .filter((row) => row.removedAt)
+    .map((row) => ({
+      id: row.id,
+      fullName: row.fullName,
+      employeeCode: row.employeeCode,
+      removedAt: row.removedAt as Date,
+    }));
+  const members = rows.filter((row) => !row.removedAt).map(({ onOpenEvent, removedAt: _r, ...row }) => ({
     ...row,
     whatsapp: toWhatsAppNumber(row.phone),
     needsCode: Number(row.hasCode) !== 1 && Number(onOpenEvent) > 0,
@@ -104,6 +113,7 @@ export default async function TeamPage() {
       <TeamManager
         t={t}
         members={members}
+        removed={removed}
         appUrl={appUrl}
         attendanceLeaders={attendanceLeaders}
         completedEventCount={completedEventCount}

@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { and, eq, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -10,7 +10,7 @@ import {
   revokeAccessCode,
   revokeMemberSessions,
 } from '@/server/services/member-auth';
-import { eventMembers, memberRates, teamMembers, uploads } from '@/db/schema';
+import { eventMembers, events, memberRates, teamMembers, uploads } from '@/db/schema';
 import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
@@ -274,14 +274,52 @@ export async function deleteTeamMemberAction(
   const member = await db.query.teamMembers.findFirst({ where: eq(teamMembers.id, id) });
   if (!member) return fail(t.errors.notFound);
 
-  // People who have worked an event are never deleted — that would erase the
-  // operational history of those events. Deactivate instead (spec §48).
   const participations = await db.$count(
     eventMembers,
     eq(eventMembers.teamMemberId, id),
   );
+
+  /*
+   * People who have been on an event are never erased — that would erase the
+   * attendance and pay of those events (spec §48). They are taken off the
+   * roster instead: inactive, so no picker offers them and no code signs them
+   * in, and still named on everything they already took part in.
+   */
   if (participations > 0) {
-    return fail(t.team.deactivate);
+    const open = await db
+      .select({ name: events.name })
+      .from(eventMembers)
+      .innerJoin(events, eq(events.id, eventMembers.eventId))
+      .where(
+        and(
+          eq(eventMembers.teamMemberId, id),
+          ne(eventMembers.status, 'CANCELLED'),
+          inArray(events.status, ['DRAFT', 'PLANNING', 'READY', 'LIVE']),
+        ),
+      );
+    if (open.length > 0) {
+      return fail(
+        format(t.team.removeOnOpenEvent, { events: open.map((e) => e.name).join('، ') }),
+      );
+    }
+    await db
+      .update(teamMembers)
+      .set({ removedAt: new Date(), active: false, updatedAt: new Date() })
+      .where(eq(teamMembers.id, id));
+    await revokeMemberSessions(id);
+    await recordAudit({
+      actorId: user.id,
+      actorName: user.name,
+      action: 'DELETE',
+      entity: 'TEAM_MEMBER',
+      entityId: id,
+      entityLabel: member.fullName,
+      oldValues: { active: member.active },
+      newValues: { removed: true },
+      summary: `${t.enums.auditAction.DELETE}: ${member.fullName}`,
+    });
+    revalidatePath('/admin/team');
+    return ok();
   }
 
   await db.delete(teamMembers).where(eq(teamMembers.id, id));
@@ -295,6 +333,42 @@ export async function deleteTeamMemberAction(
     summary: `${t.enums.auditAction.DELETE}: ${member.fullName}`,
   });
 
+  revalidatePath('/admin/team');
+  return ok();
+}
+
+/** Puts somebody taken off the roster back on it, active again. */
+export async function restoreTeamMemberAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  let user;
+  try {
+    user = await assertRole('ADMIN');
+  } catch {
+    return fail(t.errors.forbidden);
+  }
+  const id = str(form, 'memberId');
+  if (!id) return fail(t.errors.notFound);
+  const member = await db.query.teamMembers.findFirst({ where: eq(teamMembers.id, id) });
+  if (!member || !member.removedAt) return fail(t.errors.notFound);
+
+  await db
+    .update(teamMembers)
+    .set({ removedAt: null, active: true, updatedAt: new Date() })
+    .where(eq(teamMembers.id, id));
+  await recordAudit({
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'TEAM_MEMBER',
+    entityId: id,
+    entityLabel: member.fullName,
+    oldValues: { removed: true },
+    newValues: { removed: false, active: true },
+    summary: `${t.team.restore}: ${member.fullName}`,
+  });
   revalidatePath('/admin/team');
   return ok();
 }
@@ -474,6 +548,11 @@ export async function importTeamAction(
         .update(teamMembers)
         .set({ fullName, phone, cardNumber, notes, updatedAt: new Date() })
         .where(eq(teamMembers.id, known));
+      /* Somebody on the sheet who had been taken off the roster is back on it. */
+      await db
+        .update(teamMembers)
+        .set({ removedAt: null, active: true })
+        .where(and(eq(teamMembers.id, known), isNotNull(teamMembers.removedAt)));
       report.updated++;
     } else {
       const memberId = newId();

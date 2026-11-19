@@ -9,7 +9,11 @@ import {
   saveTeamMemberAction,
   toggleTeamMemberAction,
 } from '@/server/actions/team';
-import { importTeamAction, toggleFavoriteAction } from '@/server/actions/team';
+import {
+  importTeamAction,
+  restoreTeamMemberAction,
+  toggleFavoriteAction,
+} from '@/server/actions/team';
 import { idle } from '@/server/actions/types';
 import { format } from '@/lib/i18n';
 import { EmptyState, FormError } from '@/components/ui/states';
@@ -211,6 +215,47 @@ function MemberForm({
   );
 }
 
+type RemovedRow = { id: string; fullName: string; employeeCode: string; removedAt: Date };
+
+function RestoreButton({ t, id }: { t: Dictionary; id: string }) {
+  const router = useRouter();
+  const [state, action] = useActionState(restoreTeamMemberAction, idle);
+  useEffect(() => {
+    if (state.status === 'success') router.refresh();
+  }, [state, router]);
+  return (
+    <form action={action} className="flex items-center gap-2">
+      <input type="hidden" name="memberId" value={id} />
+      <SubmitButton className="btn-secondary btn-sm">{t.team.restore}</SubmitButton>
+      {state.status === 'error' ? (
+        <span className="text-[12px] text-crit-text">{state.message}</span>
+      ) : null}
+    </form>
+  );
+}
+
+function RemovedMembers({ t, removed }: { t: Dictionary; removed: RemovedRow[] }) {
+  if (removed.length === 0) return null;
+  return (
+    <details className="panel mt-4">
+      <summary className="cursor-pointer px-4 py-3 text-[14px] font-semibold text-ink-200">
+        {t.team.removedTitle} <span className="nums text-ink-500">({removed.length})</span>
+      </summary>
+      <p className="px-4 pb-2 text-[12.5px] text-ink-400">{t.team.removedHint}</p>
+      <ul className="divide-y divide-ink-800 px-4 pb-3">
+        {removed.map((r) => (
+          <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+            <span className="text-[14px] text-ink-100">
+              {r.fullName} <span className="nums text-[12px] text-ink-500">{r.employeeCode}</span>
+            </span>
+            <RestoreButton t={t} id={r.id} />
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 function RowActions({ t, member }: { t: Dictionary; member: TeamRow }) {
   const router = useRouter();
   const [toggleState, toggle] = useActionState(toggleTeamMemberAction, idle);
@@ -230,17 +275,19 @@ function RowActions({ t, member }: { t: Dictionary; member: TeamRow }) {
           {member.active ? t.team.deactivate : t.team.activate}
         </SubmitButton>
       </form>
-      {member.eventCount === 0 ? (
-        <form action={remove}>
-          <input type="hidden" name="memberId" value={member.id} />
-          <ConfirmSubmit
-            className="btn-ghost btn-sm text-crit-text"
-            message={`${t.common.delete} — ${member.fullName}?`}
-          >
-            {t.common.delete}
-          </ConfirmSubmit>
-        </form>
-      ) : null}
+      <form action={remove}>
+        <input type="hidden" name="memberId" value={member.id} />
+        <ConfirmSubmit
+          className="btn-ghost btn-sm text-crit-text"
+          message={
+            Number(member.eventCount) === 0
+              ? `${t.common.delete} — ${member.fullName}?`
+              : format(t.team.removeConfirm, { name: member.fullName })
+          }
+        >
+          {t.common.delete}
+        </ConfirmSubmit>
+      </form>
       {deleteState.status === 'error' ? (
         <span className="text-[12px] text-crit-text">{deleteState.message}</span>
       ) : null}
@@ -251,12 +298,15 @@ function RowActions({ t, member }: { t: Dictionary; member: TeamRow }) {
 export function TeamManager({
   t,
   members,
+  removed = [],
   appUrl,
   attendanceLeaders,
   completedEventCount,
 }: {
   t: Dictionary;
   members: TeamRow[];
+  /** Taken off the roster; kept for their history and able to come back. */
+  removed?: RemovedRow[];
   /** Where the app actually lives, for the invitation the roster writes. */
   appUrl: string;
   attendanceLeaders: AttendanceLeader[];
@@ -509,6 +559,8 @@ export function TeamManager({
           </div>
         )}
       </div>
+
+      <RemovedMembers t={t} removed={removed} />
 
       <Dialog
         open={creating}

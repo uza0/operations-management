@@ -151,6 +151,13 @@ export const teamMembers = sqliteTable(
      * the admin's "add to event" picker ever read it.
      */
     favorite: integer('favorite', { mode: 'boolean' }).notNull().default(false),
+    /*
+     * Taken off the roster by the admin. Somebody who has worked an event
+     * cannot be erased without erasing that event's attendance and pay, so he
+     * is set aside instead: inactive, gone from the roster and every picker,
+     * and still named on the history he is part of. Null for everyone else.
+     */
+    removedAt: integer('removed_at', { mode: 'timestamp_ms' }),
     notes: text('notes'),
     /*
      * How this person signs in: their phone number and a four-digit code,

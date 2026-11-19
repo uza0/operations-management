@@ -1,6 +1,6 @@
 import { db } from '@/db';
 import { eventMembers, teamMembers } from '@/db/schema';
-import { sql } from 'drizzle-orm';
+import { sql, isNull } from 'drizzle-orm';
 import { getT } from '@/lib/i18n/server';
 import { requireRole } from '@/server/auth/rbac';
 import { buildXlsx, type Cell } from '@/server/services/xlsx';
@@ -36,6 +36,7 @@ export async function GET() {
       eventCount: sql<number>`(select count(*) from "event_members" em where em."team_member_id" = "team_members"."id")`,
     })
     .from(teamMembers)
+    .where(isNull(teamMembers.removedAt))
     .orderBy(teamMembers.fullName);
 
   const rows: Cell[][] = [
