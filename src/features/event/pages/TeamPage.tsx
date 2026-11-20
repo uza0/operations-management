@@ -3,6 +3,7 @@ import { and, eq, ne } from 'drizzle-orm';
 import QRCode from 'qrcode';
 
 import { db } from '@/db';
+import { membersBusyDuring } from '@/server/services/busy';
 import {
   assignments,
   eventMembers,
@@ -117,26 +118,12 @@ export async function EventTeamPage({ eventId }: { eventId: string }) {
   );
 
   /*
-   * Promoters already working another event on the same day. Two events on
-   * one evening are two separate crews: offering someone who is due at the
-   * other venue would put one person in two places, so the picker hides them.
-   * Taken off that other event (cancelled), they become available again.
+   * Promoters already working another event at the same hours. One person
+   * cannot be at two venues at once, so the picker hides them; an event the
+   * same day at other hours (morning and evening) does not. Taken off that
+   * other event (cancelled), they become available again.
    */
-  const busyElsewhere = new Set(
-    (
-      await db
-        .select({ teamMemberId: eventMembers.teamMemberId })
-        .from(eventMembers)
-        .innerJoin(events, eq(eventMembers.eventId, events.id))
-        .where(
-          and(
-            eq(events.date, event.date),
-            ne(events.id, eventId),
-            ne(eventMembers.status, 'CANCELLED'),
-          ),
-        )
-    ).map((r) => r.teamMemberId),
-  );
+  const busyElsewhere = await membersBusyDuring(event);
   let hiddenBusy = 0;
 
   const available = scope.canManage

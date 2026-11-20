@@ -457,7 +457,7 @@ export const ar = {
     addToEvent: 'إضافة أعضاء للفعالية',
     addSelected: 'إضافة المحدّدين',
     availableMembers: 'أعضاء متاحون',
-    hiddenBusy: 'تم إخفاء {n} لأنهم بفعالية ثانية بنفس اليوم',
+    hiddenBusy: 'تم إخفاء {n} لأنهم بفعالية ثانية بنفس الوقت',
     inEvent: 'في الفعالية',
     reserve: 'احتياط',
     reserveTeam: 'الفريق الاحتياطي',

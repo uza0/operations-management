@@ -453,7 +453,7 @@ export const en: Dictionary = {
     addToEvent: 'Add members to event',
     addSelected: 'Add selected',
     availableMembers: 'Available members',
-    hiddenBusy: '{n} hidden: already on another event that day',
+    hiddenBusy: '{n} hidden: already on another event at the same hours',
     inEvent: 'In this event',
     reserve: 'Reserve',
     reserveTeam: 'Reserve team',

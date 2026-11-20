@@ -3,6 +3,7 @@ import 'server-only';
 import { and, eq, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
+import { membersBusyDuring } from '@/server/services/busy';
 import {
   assignments,
   eventMembers,
@@ -156,29 +157,13 @@ export async function cloneEventPlan(
       .where(eq(eventMembers.eventId, sourceEventId));
 
     /*
-     * Two events on one day are two separate crews. Whoever is already on
-     * another event that date stays there; the copy brings everybody else.
-     * Their places in the plan are dropped with them, since an assignment
-     * only comes across for a member who did.
+     * Whoever is already on another event at the same hours stays there; the
+     * copy brings everybody else. A different event the same day at other
+     * hours does not hold anyone back. Their places in the plan are dropped
+     * with them, since an assignment only comes across for a member who did.
      */
     const target = await db.query.events.findFirst({ where: eq(events.id, targetEventId) });
-    const busy = new Set(
-      target
-        ? (
-            await db
-              .select({ teamMemberId: eventMembers.teamMemberId })
-              .from(eventMembers)
-              .innerJoin(events, eq(eventMembers.eventId, events.id))
-              .where(
-                and(
-                  eq(events.date, target.date),
-                  ne(events.id, targetEventId),
-                  ne(eventMembers.status, 'CANCELLED'),
-                ),
-              )
-          ).map((r) => r.teamMemberId)
-        : [],
-    );
+    const busy = target ? await membersBusyDuring(target) : new Set<string>();
     const active = sourceMembers.filter((m) => m.status !== 'CANCELLED');
     const carried = active.filter((m) => !busy.has(m.teamMemberId));
     skippedBusy = active.length - carried.length;
