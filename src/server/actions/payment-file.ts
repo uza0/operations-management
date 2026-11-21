@@ -31,6 +31,7 @@ import {
   buildHandover,
   collect,
   companyRegister,
+  correctPromoterAccount,
   detachedSeatEvents,
   hasPaidChairDays,
   preparePromoterRegister,
@@ -271,6 +272,60 @@ export async function uploadTemplateAction(
       ? `${t.payment.templateUploaded} — ${t.payment.repaired.replace('{n}', String(repairs.length))}`
       : t.payment.templateUploaded,
   );
+}
+
+/** Update a promoter's account in the stored company register, never in a payout. */
+export async function correctPromoterAccountAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const user = await requireRole('ADMIN').catch(() => null);
+  if (!user) return fail('غير مسموح');
+
+  const name = (str(form, 'name') ?? '').trim();
+  const oldCard = (str(form, 'oldCard') ?? '').trim();
+  const newCard = (str(form, 'newCard') ?? '').trim();
+  if (!name || !/^\d{6,16}$/.test(oldCard) || !/^\d{6,16}$/.test(newCard) || oldCard === newCard) {
+    return fail('تحقق من الاسم ورقمي الحساب القديم والجديد.');
+  }
+
+  const template = await activeTemplate();
+  if (!template) return fail('ماكو قالب شركة فعال.');
+  try {
+    const corrected = correctPromoterAccount(
+      Buffer.from(template.bytes as Buffer),
+      name,
+      oldCard,
+      newCard,
+    );
+    if (!corrected.changed) return ok('الرقم الجديد موجود بالفعل لهذا الشخص؛ ما صار تغيير.');
+
+    await db.update(paymentTemplates)
+      .set({
+        bytes: corrected.template,
+        size: corrected.template.length,
+        updatedAt: new Date(),
+      })
+      .where(eq(paymentTemplates.id, template.id));
+
+    await recordAudit({
+      eventId: null,
+      actorId: user.id,
+      actorName: user.name,
+      action: 'UPDATE',
+      entity: 'EVENT',
+      entityId: template.id,
+      entityLabel: template.fileName,
+      oldValues: { promoter: name, card: oldCard },
+      newValues: { promoter: name, card: newCard, removedDuplicates: corrected.removedDuplicates },
+      summary: `تم تحديث رقم ${name} في سجل Promoters بالقالب`,
+    });
+
+    revalidate();
+    return ok(`تم تحديث رقم ${name} في سجل الشركة وإزالة أي تكرار مطابق.`);
+  } catch (error) {
+    return fail(error instanceof Error ? error.message : 'تعذر تحديث سجل الشركة.');
+  }
 }
 
 /**

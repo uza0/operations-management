@@ -212,6 +212,58 @@ export function companyRegister(template: Buffer): Register {
   return out;
 }
 
+/** Correct one person's account in the company's master register, without adding a duplicate row. */
+export function correctPromoterAccount(
+  template: Buffer,
+  name: string,
+  oldCard: string,
+  newCard: string,
+): { template: Buffer; changed: boolean; removedDuplicates: number } {
+  const rows = sheetText(template, PROMOTERS_SHEET);
+  const nameKey = fold(name);
+  const oldValue = oldCard.trim();
+  const newValue = newCard.trim();
+  const dataRows = rows.slice(1).filter((row) => row.some((value) => value?.trim()));
+  const matchingName = (row: string[]) => fold(row[0] ?? '') === nameKey;
+  const oldRows = dataRows
+    .map((row, index) => ({ row, index }))
+    .filter(({ row }) => matchingName(row) && (row[1] ?? '').trim() === oldValue);
+  const newRows = dataRows.filter((row) => (row[1] ?? '').trim() === newValue);
+
+  if (newRows.some((row) => !matchingName(row))) {
+    throw new Error('The new account number is already assigned to a different promoter.');
+  }
+  if (oldRows.length === 0) {
+    if (newRows.length === 1 && matchingName(newRows[0])) {
+      return { template, changed: false, removedDuplicates: 0 };
+    }
+    throw new Error('The old account row was not found exactly once.');
+  }
+
+  const duplicateOldRows = oldRows.length - 1;
+  const updatedRows: (string | null)[][] = [];
+  let replaced = false;
+  for (const row of dataRows) {
+    if (matchingName(row) && (row[1] ?? '').trim() === oldValue) {
+      if (newRows.some((existing) => matchingName(existing))) continue;
+      if (!replaced) {
+        const corrected = [...row];
+        corrected[1] = newValue;
+        updatedRows.push(corrected);
+        replaced = true;
+      }
+      continue;
+    }
+    updatedRows.push(row);
+  }
+
+  return {
+    template: fillTemplate(template, [{ sheet: PROMOTERS_SHEET, rows: updatedRows }]),
+    changed: true,
+    removedDuplicates: duplicateOldRows + (newRows.length > 0 ? oldRows.length : 0),
+  };
+}
+
 /**
  * Register rows whose name carries whitespace their own lookup will choke on.
  *
