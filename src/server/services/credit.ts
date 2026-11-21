@@ -165,6 +165,10 @@ export type LedgerLine = {
    * single merged number is one nobody can check.
    */
   seatAmount: number | null;
+  /** Chair money already included in a payment file with its own stamp. */
+  seatPaidAmount: number | null;
+  /** Chair pay was released independently from the event. */
+  detachedSeatPay: boolean;
   /** How many chair days that figure is, so it can be read rather than trusted. */
   seatDays: number;
   note: string | null;
@@ -226,6 +230,7 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
       eventName: events.name,
       eventDate: events.date,
       eventStatus: events.status,
+      seatPayDetachedAt: events.seatPayDetachedAt,
       eventDefault: events.payDefault,
       venueName: venues.name,
       memberStatus: eventMembers.status,
@@ -272,6 +277,8 @@ type SeatPay = {
   expected: Map<string, number>;
   /** Days he was confirmed at — what he has actually earned. */
   earned: Map<string, number>;
+  unpaidEarned: Map<string, number>;
+  paidEarned: Map<string, number>;
   /*
    * And how many days each of those is.
    *
@@ -282,6 +289,7 @@ type SeatPay = {
    */
   expectedDays: Map<string, number>;
   earnedDays: Map<string, number>;
+  unpaidEarnedDays: Map<string, number>;
 };
 
 export async function seatPayByMember(): Promise<SeatPay> {
@@ -291,29 +299,42 @@ export async function seatPayByMember(): Promise<SeatPay> {
       pay: seatSetupDetails.payAmount,
       attended: seatSetupMembers.attended,
       declinedAt: seatSetupMembers.declinedAt,
+      payoutId: seatSetupMembers.payoutId,
+      memberStatus: eventMembers.status,
     })
     .from(seatSetupMembers)
-    .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id));
+    .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
+    .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id));
 
   const expected = new Map<string, number>();
   const earned = new Map<string, number>();
+  const unpaidEarned = new Map<string, number>();
+  const paidEarned = new Map<string, number>();
   const expectedDays = new Map<string, number>();
   const earnedDays = new Map<string, number>();
+  const unpaidEarnedDays = new Map<string, number>();
   const add = (map: Map<string, number>, id: string, pay: number) =>
     map.set(id, (map.get(id) ?? 0) + pay);
 
   for (const row of rows) {
+    if (row.memberStatus === 'CANCELLED') continue;
     const pay = row.pay ?? SEAT_SETUP_PAY;
     if (!row.declinedAt) {
       add(expected, row.eventMemberId, pay);
       add(expectedDays, row.eventMemberId, 1);
     }
-    if (row.attended) {
+    if (row.attended && !row.declinedAt) {
       add(earned, row.eventMemberId, pay);
       add(earnedDays, row.eventMemberId, 1);
+      if (row.payoutId) {
+        add(paidEarned, row.eventMemberId, pay);
+      } else {
+        add(unpaidEarned, row.eventMemberId, pay);
+        add(unpaidEarnedDays, row.eventMemberId, 1);
+      }
     }
   }
-  return { expected, earned, expectedDays, earnedDays };
+  return { expected, earned, unpaidEarned, paidEarned, expectedDays, earnedDays, unpaidEarnedDays };
 }
 
 function toLine(
@@ -357,9 +378,18 @@ function toLine(
     seatAmount:
       row.payMode === 'SALARIED' || (row.payoutId === null && row.personSalaried)
         ? null
-        : ((closed ? seatPay.earned : seatPay.expected).get(row.eventMemberId) ?? null),
+        : ((closed || row.seatPayDetachedAt
+            ? seatPay.unpaidEarned
+            : seatPay.expected).get(row.eventMemberId) ?? null),
+    seatPaidAmount:
+      row.payMode === 'SALARIED' || (row.payoutId === null && row.personSalaried)
+        ? null
+        : (seatPay.paidEarned.get(row.eventMemberId) ?? null),
+    detachedSeatPay: row.seatPayDetachedAt !== null,
     seatDays:
-      (closed ? seatPay.earnedDays : seatPay.expectedDays).get(row.eventMemberId) ?? 0,
+      (closed || row.seatPayDetachedAt
+        ? seatPay.unpaidEarnedDays
+        : seatPay.expectedDays).get(row.eventMemberId) ?? 0,
     note: row.creditNote,
     paid: row.payoutId !== null,
     closed,
@@ -380,16 +410,25 @@ function summarise(
     lines: sorted,
     /* A null line is outside this ledger, so it adds nothing to either total. */
     /* Owed: the event is over and the money has not gone out yet. */
-    totalAmount: sorted
-      .filter((l) => l.closed && !l.paid)
-      .reduce((sum, l) => sum + (l.amount ?? 0) + (l.seatAmount ?? 0), 0),
-    pendingAmount: sorted
-      .filter((l) => !l.closed)
-      .reduce((sum, l) => sum + (l.amount ?? 0) + (l.seatAmount ?? 0), 0),
-    /* Already handed over, and so no longer part of what is owed. */
-    paidAmount: sorted
-      .filter((l) => l.paid)
-      .reduce((sum, l) => sum + (l.amount ?? 0) + (l.seatAmount ?? 0), 0),
+    totalAmount: sorted.reduce(
+      (sum, l) =>
+        sum +
+        (l.closed && !l.paid ? l.amount ?? 0 : 0) +
+        ((l.closed || l.detachedSeatPay) ? l.seatAmount ?? 0 : 0),
+      0,
+    ),
+    pendingAmount: sorted.reduce(
+      (sum, l) =>
+        sum +
+        (!l.closed ? l.amount ?? 0 : 0) +
+        (!l.closed && !l.detachedSeatPay ? l.seatAmount ?? 0 : 0),
+      0,
+    ),
+    /* Event wages and chair shifts can now be handed over independently. */
+    paidAmount: sorted.reduce(
+      (sum, l) => sum + (l.paid ? l.amount ?? 0 : 0) + (l.seatPaidAmount ?? 0),
+      0,
+    ),
     eventsWorked: sorted.filter((l) => l.closed && (l.amount ?? 0) > 0).length,
   };
 }

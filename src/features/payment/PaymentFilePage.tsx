@@ -3,13 +3,15 @@ import Link from 'next/link';
 import { getT } from '@/lib/i18n/server';
 import { formatAmount } from '@/lib/money';
 import { format } from '@/lib/i18n';
+import { formatDate } from '@/lib/time';
 import { PageHeader, Panel } from '@/components/ui/panel';
 import { EmptyState, Notice } from '@/components/ui/states';
 import { listHandovers, oldestOwed } from '@/server/actions/payment-file';
-import { previewExport } from '@/server/services/payment-file';
+import { detachedSeatEvents, previewExport } from '@/server/services/payment-file';
 
 import { GenerateForm } from './GenerateForm';
 import { HandoverList } from './HandoverList';
+import { SeatPaySeparation } from './SeatPaySeparation';
 
 /**
  * The week's file: what would go in it, what would stop it, and one button.
@@ -43,10 +45,11 @@ export async function PaymentFilePage({
   const iso = (d: Date) => d.toISOString().slice(0, 10);
 
   const range = { from: from ?? iso(monday), to: to ?? iso(sunday) };
-  const [preview, handovers, oldest] = await Promise.all([
+  const [preview, handovers, oldest, detachedEvents] = await Promise.all([
     previewExport(range),
     listHandovers(),
     oldestOwed(),
+    base === '/admin' ? detachedSeatEvents() : Promise.resolve([]),
   ]);
 
   const { bundle } = preview;
@@ -88,6 +91,12 @@ export async function PaymentFilePage({
         disabled={!preview.template || nothing || preview.blockers.length > 0}
       />
 
+      {base === '/admin' ? (
+        <div className="mt-4">
+          <SeatPaySeparation t={t} locale={locale} range={range} detachedEvents={detachedEvents} />
+        </div>
+      ) : null}
+
       {/*
         The period, spelled out on the panel that reports it. Without the
         dates here there was nothing on the screen to contradict two date
@@ -116,6 +125,26 @@ export async function PaymentFilePage({
           </dl>
         )}
       </Panel>
+
+      {base === '/admin' && bundle.fees.some((fee) => fee.detachedSeatPay) ? (
+        <Panel title={t.payment.detachReview} className="mt-4">
+          <div className="divide-y divide-line-800">
+            {bundle.fees.filter((fee) => fee.detachedSeatPay).map((fee) => (
+              <div key={fee.seatSetupMemberId ?? fee.eventMemberId} className="flex flex-wrap items-start justify-between gap-2 py-2.5">
+                <div>
+                  <div className="font-medium text-ink-100">{fee.memberName}</div>
+                  <div className="text-[12.5px] text-ink-400">
+                    {fee.eventName} · {formatDate(fee.date, locale)} · {fee.note}
+                  </div>
+                </div>
+                <div className="nums font-semibold text-ink-100">
+                  {formatAmount(fee.amount)} {t.credit.currency}
+                </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
 
       {/*
         Where the week's costs are going, said on the page that sends them.

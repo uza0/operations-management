@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, desc, eq, gte, inArray, isNull, lte, or } from 'drizzle-orm';
+import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -11,6 +11,7 @@ import {
   seatSetupMembers,
   paymentTemplates,
   teamMembers,
+  users,
 } from '@/db/schema';
 import { CLOSED_STATUSES, effectiveRate } from './credit';
 import {
@@ -294,6 +295,10 @@ export async function activeTemplate() {
 
 export type FeeLine = {
   eventMemberId: string;
+  /** Non-null only when this line pays one chair day. */
+  seatSetupMemberId: string | null;
+  /** True when the chair day was released before the event closed. */
+  detachedSeatPay: boolean;
   eventId: string;
   eventName: string;
   externalId: string | null;
@@ -325,8 +330,12 @@ export function seatNote(
   eventName: string,
   partners: string | null,
   date: string,
+  detached = false,
 ): string {
   const [, month, day] = date.split('-');
+  if (detached) {
+    return `ترتيب كراسي — ${eventName} (مفصولة عن الحفل) | ${Number(month)}/${Number(day)}`;
+  }
   const parts = ['Chiar editing', eventName];
   if (partners?.trim()) parts.push(partners.trim());
   parts.push(`${Number(month)}/${Number(day)}`);
@@ -355,12 +364,54 @@ export type Bundle = {
   people: number;
 };
 
+/** Stamp only the exact lines represented in a handover. */
+export async function stampBundle(bundle: Bundle, payoutId: string, at = new Date()) {
+  const eventMemberIds = [...new Set(
+    bundle.fees.filter((fee) => fee.seatSetupMemberId === null).map((fee) => fee.eventMemberId),
+  )];
+  const seatSetupMemberIds = [...new Set(
+    bundle.fees.flatMap((fee) => fee.seatSetupMemberId ? [fee.seatSetupMemberId] : []),
+  )];
+
+  if (eventMemberIds.length) {
+    await db
+      .update(eventMembers)
+      .set({ payoutId, updatedAt: at })
+      .where(and(inArray(eventMembers.id, eventMemberIds), isNull(eventMembers.payoutId)));
+  }
+  if (seatSetupMemberIds.length) {
+    await db
+      .update(seatSetupMembers)
+      .set({ payoutId, updatedAt: at })
+      .where(and(inArray(seatSetupMembers.id, seatSetupMemberIds), isNull(seatSetupMembers.payoutId)));
+  }
+  if (bundle.costs.length) {
+    await db
+      .update(eventExpenses)
+      .set({ payoutId, updatedAt: at })
+      .where(inArray(eventExpenses.id, bundle.costs.map((cost) => cost.id)));
+  }
+
+  return { eventMemberIds, seatSetupMemberIds };
+}
+
+/** Undo is allowed until the first chair shift is tied to a real payout. */
+export async function hasPaidChairDays(eventId: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: seatSetupMembers.id })
+    .from(seatSetupMembers)
+    .where(and(eq(seatSetupMembers.eventId, eventId), isNotNull(seatSetupMembers.payoutId)))
+    .limit(1);
+  return rows.length > 0;
+}
+
 /**
  * Everything owed in a window that has not gone out yet.
  *
- * Only finished events: an evening still running is not owed to anybody, and
- * the handover must not promise money for work that has not happened. Only
- * unstamped lines: anything already in a file is already on its way.
+ * Event pay and costs follow the existing closed-event window. Chair pay has
+ * its own stamp: ordinary chair days follow the event handover, while an
+ * explicitly detached event releases approved days by their chair date.
+ * Anything already stamped belongs to an earlier handover and stays out.
  */
 export async function collect(range: Range): Promise<Bundle> {
   const [memberRows, costRows, shiftRows] = await Promise.all([
@@ -417,41 +468,61 @@ export async function collect(range: Range): Promise<Bundle> {
         ),
       ),
     /*
-     * The chair afternoons themselves, with their own dates and rates.
-     *
-     * Read here rather than taken from the credit ledger's totals: that one
-     * answers "how much", and what the file needs is "which days". Only
-     * shifts somebody confirmed — an unapproved afternoon is not work this
-     * system can say happened.
+     * The chair afternoons themselves, with their own dates, rates and pay
+     * stamps. An approved day can be released on its own after a separation,
+     * or later when a closed event's member payment has already gone out.
      */
     db
       .select({
+        seatSetupMemberId: seatSetupMembers.id,
         eventMemberId: seatSetupMembers.eventMemberId,
+        eventId: events.id,
+        eventName: events.name,
+        externalId: events.externalId,
+        partners: events.partners,
         date: seatSetupDetails.date,
         pay: seatSetupDetails.payAmount,
+        detachedAt: events.seatPayDetachedAt,
+        eventMemberPayoutId: eventMembers.payoutId,
+        status: eventMembers.status,
+        memberName: teamMembers.fullName,
+        card: teamMembers.cardNumber,
+        salaried: teamMembers.salaried,
       })
       .from(seatSetupMembers)
       .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
       .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
       .innerJoin(events, eq(eventMembers.eventId, events.id))
+      .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
       .where(
         and(
           eq(seatSetupMembers.attended, true),
-          isNull(eventMembers.payoutId),
-          inArray(events.status, CLOSED_STATUSES),
-          gte(events.date, range.from),
-          lte(events.date, range.to),
+          isNull(seatSetupMembers.payoutId),
+          isNull(seatSetupMembers.declinedAt),
+          ne(eventMembers.status, 'CANCELLED'),
+          or(
+            and(
+              isNull(events.seatPayDetachedAt),
+              isNull(eventMembers.payoutId),
+              inArray(events.status, CLOSED_STATUSES),
+              gte(events.date, range.from),
+              lte(events.date, range.to),
+            ),
+            and(
+              isNull(events.seatPayDetachedAt),
+              isNotNull(eventMembers.payoutId),
+              inArray(events.status, CLOSED_STATUSES),
+              gte(seatSetupDetails.date, range.from),
+              lte(seatSetupDetails.date, range.to),
+            ),
+            and(
+              isNotNull(events.seatPayDetachedAt),
+              lte(seatSetupDetails.date, range.to),
+            ),
+          ),
         ),
       ),
   ]);
-
-  const shiftsBy = new Map<string, { date: string; pay: number }[]>();
-  for (const shift of shiftRows) {
-    const list = shiftsBy.get(shift.eventMemberId) ?? [];
-    list.push({ date: shift.date, pay: shift.pay });
-    shiftsBy.set(shift.eventMemberId, list);
-  }
-  for (const list of shiftsBy.values()) list.sort((a, b) => a.date.localeCompare(b.date));
 
   const fees: FeeLine[] = [];
   for (const row of memberRows) {
@@ -470,6 +541,8 @@ export async function collect(range: Range): Promise<Bundle> {
     const common = {
       note: '',
       eventMemberId: row.eventMemberId,
+      seatSetupMemberId: null,
+      detachedSeatPay: false,
       eventId: row.eventId,
       eventName: row.eventName,
       externalId: row.externalId,
@@ -479,32 +552,25 @@ export async function collect(range: Range): Promise<Bundle> {
     };
     if (nightly !== null && nightly > 0) fees.push({ ...common, amount: nightly });
 
-    /*
-     * And the afternoons before it, each as its own line.
-     *
-     * They were one merged figure on the event's own date, which is wrong
-     * twice over: two chair days at two different rates are two days' work,
-     * and the day they were worked is not the day of the match. A hall
-     * prepared on the thirty-first for a match on the first belongs to
-     * October, and the company's sheet is read by that date.
-     *
-     * The chairs follow the event in and out of a file, though. They are
-     * paid when the event is paid and not before — the man's night and his
-     * afternoon are one engagement, under one event number, and splitting
-     * them across two handovers is how somebody gets half his money and
-     * nobody can say why.
-     */
-    if (!row.salaried) {
-      for (const shift of shiftsBy.get(row.eventMemberId) ?? []) {
-        if (shift.pay <= 0) continue;
-        fees.push({
-          ...common,
-          date: shift.date,
-          amount: shift.pay,
-          note: seatNote(row.eventName, row.partners, shift.date),
-        });
-      }
-    }
+  }
+
+  for (const shift of shiftRows) {
+    /* Salaried crew are not paid per event or for chair shifts in this ledger. */
+    if (shift.salaried || shift.pay <= 0 || shift.status === 'CANCELLED') continue;
+    const detachedSeatPay = shift.detachedAt !== null;
+    fees.push({
+      eventMemberId: shift.eventMemberId,
+      seatSetupMemberId: shift.seatSetupMemberId,
+      detachedSeatPay,
+      eventId: shift.eventId,
+      eventName: shift.eventName,
+      externalId: shift.externalId,
+      date: shift.date,
+      memberName: shift.memberName,
+      card: shift.card,
+      amount: shift.pay,
+      note: seatNote(shift.eventName, shift.partners, shift.date, detachedSeatPay),
+    });
   }
 
   const costs: CostLine[] = costRows.map((row): CostLine => ({
@@ -538,6 +604,157 @@ export async function collect(range: Range): Promise<Bundle> {
     costsTotal: costs.reduce((s, c) => s + c.amount, 0),
     people: new Set(fees.map((f) => f.card ?? f.memberName)).size,
   };
+}
+
+export type SeatDetachCandidate = {
+  eventId: string;
+  eventName: string;
+  eventDate: string;
+  eventStatus: string;
+  days: { date: string; approvedWorkers: number; totalPay: number }[];
+  totalPay: number;
+};
+
+/** Approved, unpaid chair work in the selected chair-day range. */
+export async function seatDetachCandidates(range: Range): Promise<SeatDetachCandidate[]> {
+  const rows = await db
+    .select({
+      eventId: events.id,
+      eventName: events.name,
+      eventDate: events.date,
+      eventStatus: events.status,
+      detachedAt: events.seatPayDetachedAt,
+      date: seatSetupDetails.date,
+      pay: seatSetupDetails.payAmount,
+      attended: seatSetupMembers.attended,
+      declinedAt: seatSetupMembers.declinedAt,
+      payoutId: seatSetupMembers.payoutId,
+      salaried: teamMembers.salaried,
+      memberStatus: eventMembers.status,
+    })
+    .from(seatSetupMembers)
+    .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
+    .innerJoin(events, eq(seatSetupDetails.eventId, events.id))
+    .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
+    .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+    .where(
+      and(
+        gte(seatSetupDetails.date, range.from),
+        lte(seatSetupDetails.date, range.to),
+        isNull(events.seatPayDetachedAt),
+        eq(seatSetupMembers.attended, true),
+        isNull(seatSetupMembers.declinedAt),
+        isNull(seatSetupMembers.payoutId),
+        ne(eventMembers.status, 'CANCELLED'),
+      ),
+    );
+
+  const byEvent = new Map<string, SeatDetachCandidate & { daysByDate: Map<string, { date: string; approvedWorkers: number; totalPay: number }> }>();
+  for (const row of rows) {
+    const event = byEvent.get(row.eventId) ?? {
+      eventId: row.eventId,
+      eventName: row.eventName,
+      eventDate: row.eventDate,
+      eventStatus: row.eventStatus,
+      days: [],
+      totalPay: 0,
+      daysByDate: new Map(),
+    };
+    const day = event.daysByDate.get(row.date) ?? { date: row.date, approvedWorkers: 0, totalPay: 0 };
+    day.approvedWorkers += 1;
+    if (!row.salaried && row.pay > 0) day.totalPay += row.pay;
+    event.totalPay += !row.salaried && row.pay > 0 ? row.pay : 0;
+    event.daysByDate.set(row.date, day);
+    byEvent.set(row.eventId, event);
+  }
+
+  return [...byEvent.values()]
+    .map(({ daysByDate, ...event }) => ({
+      ...event,
+      days: [...daysByDate.values()].sort((a, b) => a.date.localeCompare(b.date)),
+    }))
+    .filter((event) => event.totalPay > 0)
+    .sort((a, b) => a.eventDate.localeCompare(b.eventDate) || a.eventName.localeCompare(b.eventName));
+}
+
+export type DetachedSeatEvent = {
+  eventId: string;
+  eventName: string;
+  eventDate: string;
+  detachedAt: Date;
+  detachedByName: string | null;
+  reason: string;
+  anyPaid: boolean;
+  unpaidTotal: number;
+  days: { date: string; approvedWorkers: number; unpaidWorkers: number; unpaidPay: number }[];
+};
+
+/** Detachment history and current balances for the admin payment page. */
+export async function detachedSeatEvents(): Promise<DetachedSeatEvent[]> {
+  const eventsRows = await db
+    .select({
+      eventId: events.id,
+      eventName: events.name,
+      eventDate: events.date,
+      detachedAt: events.seatPayDetachedAt,
+      detachedByName: users.name,
+      reason: events.seatPayDetachedReason,
+    })
+    .from(events)
+    .leftJoin(users, eq(events.seatPayDetachedBy, users.id))
+    .where(isNotNull(events.seatPayDetachedAt));
+  if (eventsRows.length === 0) return [];
+
+  const rows = await db
+    .select({
+      eventId: events.id,
+      date: seatSetupDetails.date,
+      pay: seatSetupDetails.payAmount,
+      attended: seatSetupMembers.attended,
+      declinedAt: seatSetupMembers.declinedAt,
+      payoutId: seatSetupMembers.payoutId,
+      memberStatus: eventMembers.status,
+      salaried: teamMembers.salaried,
+    })
+    .from(seatSetupMembers)
+    .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
+    .innerJoin(events, eq(seatSetupDetails.eventId, events.id))
+    .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
+    .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+    .where(inArray(events.id, eventsRows.map((row) => row.eventId)));
+
+  const byEvent = new Map<string, DetachedSeatEvent>();
+  for (const row of eventsRows) {
+    byEvent.set(row.eventId, {
+      ...row,
+      detachedAt: row.detachedAt!,
+      reason: row.reason ?? '',
+      anyPaid: false,
+      unpaidTotal: 0,
+      days: [],
+    });
+  }
+  for (const row of rows) {
+    const event = byEvent.get(row.eventId);
+    if (!event) continue;
+    if (row.payoutId) event.anyPaid = true;
+    if (!row.attended || row.declinedAt || row.memberStatus === 'CANCELLED') continue;
+    const day = event.days.find((item) => item.date === row.date) ?? {
+      date: row.date,
+      approvedWorkers: 0,
+      unpaidWorkers: 0,
+      unpaidPay: 0,
+    };
+    day.approvedWorkers += 1;
+    if (!row.payoutId && !row.salaried) {
+      day.unpaidWorkers += 1;
+      day.unpaidPay += row.pay;
+      event.unpaidTotal += row.pay;
+    }
+    if (!event.days.includes(day)) event.days.push(day);
+  }
+
+  return [...byEvent.values()].sort((a, b) => b.detachedAt.getTime() - a.detachedAt.getTime());
 }
 
 /* -------------------------------------------------------------------------- */

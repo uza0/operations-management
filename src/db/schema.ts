@@ -269,6 +269,12 @@ export const events = sqliteTable(
      * leaves the event alone; moving it forward by hand clears it.
      */
     heldAt: integer('held_at', { mode: 'timestamp_ms' }),
+    /** One-off approval to settle chair setup before its event is closed. */
+    seatPayDetachedAt: integer('seat_pay_detached_at', { mode: 'timestamp_ms' }),
+    seatPayDetachedBy: text('seat_pay_detached_by').references(() => users.id, {
+      onDelete: 'set null',
+    }),
+    seatPayDetachedReason: text('seat_pay_detached_reason'),
     /*
      * The companies putting the night on with us — a sponsor, an organiser,
      * sometimes two or three of them.
@@ -956,6 +962,8 @@ export const seatSetupMembers = sqliteTable(
     eventMemberId: text('event_member_id')
       .notNull()
       .references(() => eventMembers.id, { onDelete: 'cascade' }),
+    /** The handover that paid this chair day, independently from event pay. */
+    payoutId: text('payout_id').references(() => payouts.id, { onDelete: 'set null' }),
     /*
      * "HH:mm" and both nullable. This shift does not keep to a timetable:
      * people arrive as they can and leave when the room is ready, and a
@@ -999,6 +1007,7 @@ export const seatSetupMembers = sqliteTable(
   (t) => [
     uniqueIndex('seat_setup_members_unique').on(t.detailId, t.eventMemberId),
     index('seat_setup_members_event_idx').on(t.eventId),
+    index('seat_setup_members_payout_idx').on(t.payoutId),
   ],
 );
 

@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { desc, eq } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { announcements, issues, timelineItems } from '@/db/schema';
+import { announcements, issues, timelineItems, users } from '@/db/schema';
 import { loadEventPage } from '@/features/event/workspace';
 import { getEventSnapshot } from '@/server/services/events';
 import { getStaffedLocations, summarizeStaffing } from '@/server/services/staffing';
@@ -51,7 +51,7 @@ export async function EventOverviewPage({
 }) {
   const { scope, event, locale, t } = await loadEventPage(eventId);
 
-  const [snapshot, locations, audit, urgent, openIssues, timeline] = await Promise.all([
+  const [snapshot, locations, audit, urgent, openIssues, timeline, detachUser] = await Promise.all([
     getEventSnapshot(eventId),
     getStaffedLocations(eventId),
     listEventAudit(eventId, 6),
@@ -69,6 +69,12 @@ export async function EventOverviewPage({
       where: eq(timelineItems.eventId, eventId),
       orderBy: [timelineItems.scheduledTime],
     }),
+    event.seatPayDetachedBy
+      ? db.query.users.findFirst({
+          where: eq(users.id, event.seatPayDetachedBy),
+          columns: { name: true },
+        })
+      : Promise.resolve(null),
   ]);
 
   const teamLeaderId = await eventTeamLeaderId(eventId);
@@ -98,6 +104,21 @@ export async function EventOverviewPage({
           </Badge>
         }
       />
+
+      {scope.canManage && event.seatPayDetachedAt ? (
+        <div className="mb-4">
+          <Notice tone="warn">
+            <div className="space-y-1">
+              <div className="font-semibold">{t.payment.detachBadge}</div>
+              <p>
+                {t.payment.detachBy}: {detachUser?.name ?? '—'} · {t.payment.detachAt}:{' '}
+                {formatDateTime(event.seatPayDetachedAt, locale)}
+              </p>
+              {event.seatPayDetachedReason ? <p>{event.seatPayDetachedReason}</p> : null}
+            </div>
+          </Notice>
+        </div>
+      ) : null}
 
       {/*
         Said here because this is the screen a supervisor opens, and because an

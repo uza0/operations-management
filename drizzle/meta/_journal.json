@@ -281,6 +281,13 @@
       "when": 1795117563644,
       "tag": "0039_outstanding_earthquake",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "6",
+      "when": 1795265893558,
+      "tag": "0040_outgoing_quasar",
+      "breakpoints": true
     }
   ]
 }

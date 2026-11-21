@@ -190,7 +190,13 @@ export async function MemberLedgerPage({
                       */}
                       {line.seatAmount ? (
                         <span className="nums block text-[12.5px] leading-4 text-ink-500">
-                          + {formatAmount(line.seatAmount)} · {t.seatSetup.title}
+                          + {formatAmount(line.seatAmount)} ·{' '}
+                          {line.detachedSeatPay ? t.payment.seatPayDetachedLabel : t.seatSetup.title}
+                        </span>
+                      ) : null}
+                      {line.seatPaidAmount ? (
+                        <span className="nums block text-[12.5px] leading-4 text-ok-text">
+                          ✓ {formatAmount(line.seatPaidAmount)} · {t.payment.seatPayPaidLabel}
                         </span>
                       ) : null}
                       {line.note ? (

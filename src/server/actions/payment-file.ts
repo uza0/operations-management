@@ -1,15 +1,25 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { and, desc, eq, gte, inArray, isNull, lte } from 'drizzle-orm';
+import { and, desc, eq, gte, gt, inArray, isNotNull, isNull, lte, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
-import { eventExpenses, events, eventMembers, paymentTemplates, payouts, teamMembers } from '@/db/schema';
+import {
+  eventExpenses,
+  events,
+  eventMembers,
+  paymentTemplates,
+  payouts,
+  seatSetupDetails,
+  seatSetupMembers,
+  teamMembers,
+} from '@/db/schema';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
 import { str } from '@/lib/validation';
 import { format } from '@/lib/i18n';
 import { formatAmount } from '@/lib/money';
+import { isValidDate } from '@/lib/time';
 import { requireRole } from '@/server/auth/rbac';
 import { EXPENSE_ACCOUNT, expenseAccount, writeSetting } from '@/server/services/settings';
 import { pushToMembers } from '@/server/services/push';
@@ -21,7 +31,11 @@ import {
   buildHandover,
   collect,
   companyRegister,
+  detachedSeatEvents,
+  hasPaidChairDays,
   sharedAccounts,
+  seatDetachCandidates,
+  stampBundle,
 } from '@/server/services/payment-file';
 import { repairComputedTable } from '@/server/services/xlsx-template';
 
@@ -43,6 +57,146 @@ function revalidate() {
   revalidatePath('/admin/payments');
   revalidatePath('/admin/credits');
   revalidatePath('/admin/settings');
+  revalidatePath('/me');
+}
+
+function validDate(value: string) {
+  return isValidDate(value);
+}
+
+/** Date-range search is admin-only because it reveals individual pay. */
+export async function listSeatDetachCandidatesAction(from: string, to: string) {
+  await requireRole('ADMIN');
+  if (!validDate(from) || !validDate(to) || to < from) return [];
+  return seatDetachCandidates({ from, to });
+}
+
+/** Events whose chair earnings have been detached, with their remaining balance. */
+export async function listDetachedSeatEventsAction() {
+  await requireRole('ADMIN');
+  return detachedSeatEvents();
+}
+
+export async function detachSeatPayAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const user = await requireRole('ADMIN').catch(() => null);
+  if (!user) return fail(t.errors.forbidden);
+
+  const eventId = str(form, 'eventId') ?? '';
+  const reason = (str(form, 'reason') ?? '').trim();
+  if (!eventId || reason.length < 5) return fail(t.payment.detachReasonRequired);
+  if (reason.length > 1000) return fail(t.payment.detachReasonTooLong);
+
+  const event = await db.query.events.findFirst({
+    where: eq(events.id, eventId),
+    columns: { id: true, name: true, seatPayDetachedAt: true },
+  });
+  if (!event) return fail(t.errors.notFound);
+  if (event.seatPayDetachedAt) return fail(t.payment.detachAlready);
+
+  const payable = await db
+    .select({ id: seatSetupMembers.id })
+    .from(seatSetupMembers)
+    .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
+    .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
+    .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+    .where(
+      and(
+        eq(seatSetupDetails.eventId, eventId),
+        eq(seatSetupMembers.attended, true),
+        isNull(seatSetupMembers.declinedAt),
+        isNull(seatSetupMembers.payoutId),
+        ne(eventMembers.status, 'CANCELLED'),
+        eq(teamMembers.salaried, false),
+        gt(seatSetupDetails.payAmount, 0),
+      ),
+    )
+    .limit(1);
+  if (payable.length === 0) return fail(t.payment.detachNothingPayable);
+
+  const detachedAt = new Date();
+  const updated = await db
+    .update(events)
+    .set({
+      seatPayDetachedAt: detachedAt,
+      seatPayDetachedBy: user.id,
+      seatPayDetachedReason: reason,
+      updatedAt: detachedAt,
+    })
+    .where(and(eq(events.id, eventId), isNull(events.seatPayDetachedAt)))
+    .returning({ id: events.id });
+  if (updated.length === 0) return fail(t.payment.detachAlready);
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'EVENT',
+    entityId: eventId,
+    entityLabel: event.name,
+    newValues: { seatPayDetachedAt: detachedAt.toISOString(), reason },
+    reason,
+    summary: t.payment.detachAuditSummary,
+  });
+
+  revalidatePath(`/admin/events/${eventId}`);
+  revalidate();
+  return ok(t.payment.detachSuccess);
+}
+
+export async function undoSeatPayDetachAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const user = await requireRole('ADMIN').catch(() => null);
+  if (!user) return fail(t.errors.forbidden);
+
+  const eventId = str(form, 'eventId') ?? '';
+  const event = await db.query.events.findFirst({
+    where: eq(events.id, eventId),
+    columns: {
+      id: true,
+      name: true,
+      seatPayDetachedAt: true,
+      seatPayDetachedReason: true,
+    },
+  });
+  if (!event?.seatPayDetachedAt) return fail(t.payment.detachNotActive);
+
+  if (await hasPaidChairDays(eventId)) return fail(t.payment.detachUndoBlocked);
+
+  const updated = await db
+    .update(events)
+    .set({
+      seatPayDetachedAt: null,
+      seatPayDetachedBy: null,
+      seatPayDetachedReason: null,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(events.id, eventId), isNotNull(events.seatPayDetachedAt)))
+    .returning({ id: events.id });
+  if (updated.length === 0) return fail(t.payment.detachNotActive);
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'UPDATE',
+    entity: 'EVENT',
+    entityId: eventId,
+    entityLabel: event.name,
+    oldValues: { seatPayDetachedReason: event.seatPayDetachedReason },
+    summary: t.payment.detachUndoAuditSummary,
+  });
+
+  revalidatePath(`/admin/events/${eventId}`);
+  revalidate();
+  return ok(t.payment.detachUndoSuccess);
 }
 
 /**
@@ -160,7 +314,6 @@ export async function generatePaymentFileAction(
   if (stops.length) return fail(`${t.payment.blocked}: ${stops.map((s) => s.label).join(' · ')}`);
 
   const handover = buildHandover(template, bundle, range, account);
-
   const payoutId = newId();
   await db.insert(payouts).values({
     id: payoutId,
@@ -177,31 +330,8 @@ export async function generatePaymentFileAction(
     createdByName: user.name,
   });
 
-  /*
-   * The exact rows the file was built from, and no others. Re-deriving the
-   * set here from the dates would stamp a row that was added in between and
-   * is not in the file anybody is about to send.
-   */
-  await db
-    .update(eventMembers)
-    .set({ payoutId, updatedAt: new Date() })
-    .where(
-      inArray(
-        eventMembers.id,
-        bundle.fees.map((f) => f.eventMemberId),
-      ),
-    );
-  if (bundle.costs.length) {
-    await db
-      .update(eventExpenses)
-      .set({ payoutId, updatedAt: new Date() })
-      .where(
-        inArray(
-          eventExpenses.id,
-          bundle.costs.map((c) => c.id),
-        ),
-      );
-  }
+  /* Stamp the exact fee and cost lines the saved file contains. */
+  await stampBundle(bundle, payoutId);
 
   await recordAudit({
     eventId: null,
@@ -353,7 +483,29 @@ export async function oldestOwed(): Promise<string | null> {
     .orderBy(events.date)
     .limit(1)
     .get();
-  return row?.date ?? null;
+  const detached = await db
+    .select({ date: seatSetupDetails.date })
+    .from(seatSetupMembers)
+    .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
+    .innerJoin(events, eq(seatSetupDetails.eventId, events.id))
+    .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
+    .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+    .where(
+      and(
+        isNotNull(events.seatPayDetachedAt),
+        eq(seatSetupMembers.attended, true),
+        isNull(seatSetupMembers.payoutId),
+        isNull(seatSetupMembers.declinedAt),
+        ne(eventMembers.status, 'CANCELLED'),
+        eq(teamMembers.salaried, false),
+        gt(seatSetupDetails.payAmount, 0),
+      ),
+    )
+    .orderBy(seatSetupDetails.date)
+    .limit(1)
+    .get();
+  const dates = [row?.date, detached?.date].filter((date): date is string => Boolean(date));
+  return dates.sort()[0] ?? null;
 }
 
 export { gte, lte };
