@@ -10,7 +10,7 @@ import {
   revokeAccessCode,
   revokeMemberSessions,
 } from '@/server/services/member-auth';
-import { eventMembers, events, memberRates, teamMembers, uploads } from '@/db/schema';
+import { eventMembers, events, memberRates, paymentTemplates, teamMembers, uploads } from '@/db/schema';
 import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
 import { newId } from '@/lib/ids';
@@ -21,6 +21,7 @@ import { readCsv, readXlsx } from '@/server/services/xlsx-read';
 import { recordAudit } from '@/server/services/audit';
 import { applyStandingRate } from '@/server/services/rates';
 import { nextEmployeeCode } from '@/server/services/team';
+import { activeTemplate, correctPromoterAccount } from '@/server/services/payment-file';
 
 import { fail, ok, type ActionState } from './types';
 
@@ -83,18 +84,53 @@ export async function saveTeamMemberAction(
       where: eq(teamMembers.id, id),
     });
     if (!existing) return fail(t.errors.notFound);
-    await db
-      .update(teamMembers)
-      .set({
-        fullName: parsed.data.fullName,
-        phone: parsed.data.phone,
-        employeeCode: parsed.data.employeeCode,
-        cardNumber: parsed.data.cardNumber ?? null,
-        active: parsed.data.active ?? true,
-        notes: parsed.data.notes ?? null,
-        updatedAt: new Date(),
-      })
-      .where(eq(teamMembers.id, id));
+
+    const oldCard = existing.cardNumber?.trim() ?? '';
+    const newCard = parsed.data.cardNumber?.trim() ?? '';
+    const cardChanged = oldCard !== newCard;
+    let templateUpdate: { id: string; bytes: Buffer } | null = null;
+    if (cardChanged) {
+      if (form.get('confirmCardChange') !== 'confirmed') {
+        return fail(t.team.cardConfirmRequired);
+      }
+      if (newCard) {
+        const template = await activeTemplate();
+        if (!template) return fail(t.team.cardTemplateMissing);
+        try {
+          const corrected = correctPromoterAccount(
+            Buffer.from(template.bytes as Buffer),
+            existing.fullName,
+            oldCard,
+            newCard,
+          );
+          if (corrected.changed) templateUpdate = { id: template.id, bytes: corrected.template };
+        } catch (error) {
+          return fail(error instanceof Error && error.message === 'cardRegisterConflict'
+            ? t.team.cardRegisterConflict
+            : t.team.cardRegisterUpdateFailed);
+        }
+      }
+    }
+
+    const memberValues = {
+      fullName: parsed.data.fullName,
+      phone: parsed.data.phone,
+      employeeCode: parsed.data.employeeCode,
+      cardNumber: parsed.data.cardNumber ?? null,
+      active: parsed.data.active ?? true,
+      notes: parsed.data.notes ?? null,
+      updatedAt: new Date(),
+    };
+    if (templateUpdate) {
+      await db.transaction(async (tx) => {
+        await tx.update(teamMembers).set(memberValues).where(eq(teamMembers.id, id));
+        await tx.update(paymentTemplates)
+          .set({ bytes: templateUpdate.bytes, size: templateUpdate.bytes.length, updatedAt: new Date() })
+          .where(eq(paymentTemplates.id, templateUpdate.id));
+      });
+    } else {
+      await db.update(teamMembers).set(memberValues).where(eq(teamMembers.id, id));
+    }
 
     /*
      * The rate is not an ordinary field on this form.
@@ -151,18 +187,23 @@ export async function saveTeamMemberAction(
       entityLabel: parsed.data.fullName,
       oldValues: {
         fullName: existing.fullName,
+        cardNumber: existing.cardNumber,
         active: existing.active,
         defaultPay: existing.defaultPay,
         salaried: existing.salaried,
       },
       newValues: {
         fullName: parsed.data.fullName,
+        cardNumber: parsed.data.cardNumber ?? null,
         active: parsed.data.active ?? true,
         defaultPay: amount,
         salaried,
         events: touched,
+        paymentRegisterUpdated: Boolean(templateUpdate),
       },
-      summary: `${t.enums.auditAction.UPDATE}: ${parsed.data.fullName}`,
+      summary: cardChanged
+        ? `تم تحديث بطاقة ${parsed.data.fullName} للدفعات القادمة`
+        : `${t.enums.auditAction.UPDATE}: ${parsed.data.fullName}`,
     });
   } else {
     const memberId = newId();
@@ -192,6 +233,9 @@ export async function saveTeamMemberAction(
 
   revalidatePath('/admin/team');
   revalidatePath('/admin/credits');
+  revalidatePath('/admin/payments');
+  revalidatePath('/admin/payments/accounts');
+  revalidatePath('/admin/settings');
   return ok();
 }
 

@@ -228,24 +228,47 @@ export function correctPromoterAccount(
   const oldRows = dataRows
     .map((row, index) => ({ row, index }))
     .filter(({ row }) => matchingName(row) && (row[1] ?? '').trim() === oldValue);
-  const newRows = dataRows.filter((row) => (row[1] ?? '').trim() === newValue);
-
-  if (newRows.some((row) => !matchingName(row))) {
-    throw new Error('The new account number is already assigned to a different promoter.');
-  }
+  const newRows = dataRows.filter((row) => matchingName(row) && (row[1] ?? '').trim() === newValue);
   if (oldRows.length === 0) {
-    if (newRows.length === 1 && matchingName(newRows[0])) {
+    if (newRows.length === 1) {
       return { template, changed: false, removedDuplicates: 0 };
     }
-    throw new Error('The old account row was not found exactly once.');
+    if (newRows.length > 1) {
+      let kept = false;
+      const dedupedRows = dataRows.filter((row) => {
+        if (!matchingName(row) || (row[1] ?? '').trim() !== newValue) return true;
+        if (kept) return false;
+        kept = true;
+        return true;
+      });
+      return {
+        template: fillTemplate(template, [{ sheet: PROMOTERS_SHEET, rows: dedupedRows }]),
+        changed: true,
+        removedDuplicates: newRows.length - 1,
+      };
+    }
+    if (oldValue && dataRows.some((row) => (row[1] ?? '').trim() === oldValue)) {
+      throw new Error('cardRegisterConflict');
+    }
+    const conflictingName = dataRows.some((row) => matchingName(row) && (row[1] ?? '').trim() !== newValue);
+    if (conflictingName) throw new Error('cardRegisterConflict');
+    return {
+      template: fillTemplate(template, [{
+        sheet: PROMOTERS_SHEET,
+        rows: [...dataRows, [name, newValue]],
+      }]),
+      changed: true,
+      removedDuplicates: 0,
+    };
   }
 
   const duplicateOldRows = oldRows.length - 1;
   const updatedRows: (string | null)[][] = [];
   let replaced = false;
+  let keptNew = false;
   for (const row of dataRows) {
     if (matchingName(row) && (row[1] ?? '').trim() === oldValue) {
-      if (newRows.some((existing) => matchingName(existing))) continue;
+      if (newRows.length > 0) continue;
       if (!replaced) {
         const corrected = [...row];
         corrected[1] = newValue;
@@ -253,6 +276,10 @@ export function correctPromoterAccount(
         replaced = true;
       }
       continue;
+    }
+    if (matchingName(row) && (row[1] ?? '').trim() === newValue) {
+      if (keptNew) continue;
+      keptNew = true;
     }
     updatedRows.push(row);
   }

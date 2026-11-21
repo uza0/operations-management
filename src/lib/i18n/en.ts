@@ -297,6 +297,12 @@ export const en: Dictionary = {
     employeeCode: 'Employee code',
     cardNumber: 'Super Key card number',
     cardNumberHint: 'The number printed on the card',
+    cardNumberNoCard: 'No card',
+    cardPaymentConfirm: "The card number for {name} changed from {old} to {new}. Use the new card for future payments? Confirming also updates this person in Promoters in the master template; new payout files will use the new number.",
+    cardConfirmRequired: 'Confirm the new card for future payments before saving.',
+    cardTemplateMissing: 'There is no active company template; the card was not changed.',
+    cardRegisterConflict: 'The old account appears under a different name in the company register. No change was made to avoid adding a duplicate or changing someone else’s account.',
+    cardRegisterUpdateFailed: 'Could not update the company register; the card was not changed.',
     /* The general job title everyone in the field holds; a specific
        role (team leader, gate leader…) replaces it where one is set. */
     promoter: 'Promoter',

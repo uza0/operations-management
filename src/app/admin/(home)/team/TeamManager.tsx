@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useMemo, useState } from 'react';
+import { useActionState, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
@@ -19,7 +19,7 @@ import { format } from '@/lib/i18n';
 import { EmptyState, FormError } from '@/components/ui/states';
 import { Badge } from '@/components/ui/status';
 import { MemberCode } from './MemberCode';
-import { ConfirmSubmit, Dialog, SubmitButton } from '@/components/ui/client';
+import { ConfirmSubmit, Dialog, SubmitButton, useConfirm } from '@/components/ui/client';
 import {
   IconEdit,
   IconPlus,
@@ -74,6 +74,10 @@ function MemberForm({
 }) {
   const router = useRouter();
   const [state, action] = useActionState(saveTeamMemberAction, idle);
+  const [confirm, confirmDialog] = useConfirm();
+  const formRef = useRef<HTMLFormElement>(null);
+  const cardConfirmation = useRef<HTMLInputElement>(null);
+  const confirmedCardChange = useRef(false);
 
   useEffect(() => {
     if (state.status === 'success') {
@@ -83,8 +87,35 @@ function MemberForm({
   }, [state, router, onDone]);
 
   return (
-    <form action={action} className="space-y-4">
+    <form
+      ref={formRef}
+      action={action}
+      className="space-y-4"
+      onSubmit={async (event) => {
+        if (!member || confirmedCardChange.current) {
+          confirmedCardChange.current = false;
+          return;
+        }
+        const submittedCard = String(new FormData(event.currentTarget).get('cardNumber') ?? '').trim();
+        const oldCard = member.cardNumber?.trim() ?? '';
+        if (submittedCard === oldCard) return;
+
+        event.preventDefault();
+        const accepted = await confirm(format(t.team.cardPaymentConfirm, {
+          name: member.fullName,
+          old: oldCard || t.team.cardNumberNoCard,
+          new: submittedCard || t.team.cardNumberNoCard,
+        }));
+        if (!accepted) return;
+
+        confirmedCardChange.current = true;
+        if (cardConfirmation.current) cardConfirmation.current.value = 'confirmed';
+        formRef.current?.requestSubmit();
+      }}
+    >
+      {confirmDialog}
       {member ? <input type="hidden" name="memberId" value={member.id} /> : null}
+      {member ? <input ref={cardConfirmation} type="hidden" name="confirmCardChange" value="" /> : null}
 
       <div>
         <label className="field-label" htmlFor="fullName">
