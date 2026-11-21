@@ -33,6 +33,7 @@ import {
   companyRegister,
   detachedSeatEvents,
   hasPaidChairDays,
+  preparePromoterRegister,
   sharedAccounts,
   seatDetachCandidates,
   stampBundle,
@@ -310,10 +311,30 @@ export async function generatePaymentFileAction(
   }
 
   const account = await expenseAccount();
-  const stops = blockers(bundle, companyRegister(template), account);
+  const prepared = preparePromoterRegister(template, bundle, account);
+  const stops = blockers(bundle, prepared.register, account, prepared.conflicts);
   if (stops.length) return fail(`${t.payment.blocked}: ${stops.map((s) => s.label).join(' · ')}`);
 
-  const handover = buildHandover(template, bundle, range, account);
+  const handover = buildHandover(
+    prepared.template,
+    bundle,
+    range,
+    account,
+    prepared.register,
+  );
+
+  /* Remember accounts already sent in a file, so later files do not add them again. */
+  if (prepared.additions.length > 0) {
+    await db
+      .update(paymentTemplates)
+      .set({
+        bytes: prepared.template,
+        size: prepared.template.length,
+        updatedAt: new Date(),
+      })
+      .where(eq(paymentTemplates.id, row.id));
+  }
+
   const payoutId = newId();
   await db.insert(payouts).values({
     id: payoutId,
@@ -346,6 +367,7 @@ export async function generatePaymentFileAction(
       costs: handover.costsTotal,
       rows: handover.rowCount,
       people: handover.people,
+      addedPromoters: prepared.additions.length,
     },
     summary: `${t.payment.generated}: ${fromDate} → ${toDate}`,
   });

@@ -364,6 +364,107 @@ export type Bundle = {
   people: number;
 };
 
+export type PromoterAddition = {
+  /** The first company-facing name for this card; one row per account. */
+  name: string;
+  card: string;
+  /** Other people in this payment bundle who share the same card. */
+  sharedNames: string[];
+};
+
+export type PromoterRegisterConflict = {
+  name: string;
+  card: string;
+  existingCards: string[];
+};
+
+/**
+ * Add new card numbers to a copy of the company's register, once per card.
+ *
+ * The Events sheet finds an account by name, so adding the same name under a
+ * different card would make VLOOKUP send money to whichever row came first.
+ * That case is held for a human to resolve; safe, genuinely new accounts are
+ * appended to the Promoters sheet and kept in the returned register.
+ */
+export function preparePromoterRegister(
+  template: Buffer,
+  bundle: Bundle,
+  expenseAccount: ExpenseAccount | null = null,
+): {
+  template: Buffer;
+  register: Register;
+  additions: PromoterAddition[];
+  conflicts: PromoterRegisterConflict[];
+} {
+  const sourceRows = sheetText(template, PROMOTERS_SHEET);
+  const register = companyRegister(template);
+  const existingCardsByName = new Map<string, Set<string>>();
+  for (const row of sourceRows.slice(1)) {
+    const nameKey = fold(row[0] ?? '');
+    const card = (row[1] ?? '').trim();
+    if (!nameKey || !card) continue;
+    const cards = existingCardsByName.get(nameKey) ?? new Set<string>();
+    cards.add(card);
+    existingCardsByName.set(nameKey, cards);
+  }
+
+  const byCard = new Map<string, { name: string; names: string[] }>();
+  const candidateCardByName = new Map<string, string>();
+  const conflicts = new Map<string, PromoterRegisterConflict>();
+  const candidates = [
+    ...bundle.fees.map((fee) => ({ name: fee.memberName, card: fee.card })),
+    ...bundle.costs.flatMap((cost) => cost.memberName
+      ? [{ name: cost.memberName, card: cost.card }]
+      : []),
+    ...(expenseAccount ? [{ name: expenseAccount.name, card: expenseAccount.card }] : []),
+  ];
+
+  for (const candidate of candidates) {
+    const name = candidate.name.trim();
+    const card = candidate.card?.trim() ?? '';
+    if (!name || !card || register.has(card)) continue;
+
+    const nameKey = fold(name);
+    const existingCards = [...(existingCardsByName.get(nameKey) ?? [])]
+      .filter((existing) => existing !== card);
+    const claimedCard = candidateCardByName.get(nameKey);
+    if ((existingCards.length > 0 || (claimedCard && claimedCard !== card)) && nameKey) {
+      const key = `${nameKey}|${card}`;
+      const cards = new Set(existingCards);
+      if (claimedCard) cards.add(claimedCard);
+      conflicts.set(key, { name, card, existingCards: [...cards] });
+      continue;
+    }
+
+    if (nameKey) candidateCardByName.set(nameKey, card);
+    const row = byCard.get(card) ?? { name, names: [] };
+    if (!row.names.some((existing) => fold(existing) === nameKey)) row.names.push(name);
+    byCard.set(card, row);
+  }
+
+  const additions: PromoterAddition[] = [...byCard.entries()].map(([card, row]) => ({
+    name: row.name,
+    card,
+    sharedNames: row.names.filter((name) => fold(name) !== fold(row.name)),
+  }));
+  for (const addition of additions) register.set(addition.card, [addition.name]);
+
+  if (additions.length === 0) {
+    return { template, register, additions, conflicts: [...conflicts.values()] };
+  }
+
+  const currentRows = sourceRows.slice(1).filter((row) => row.some((value) => value?.trim()));
+  const updatedTemplate = fillTemplate(template, [{
+    sheet: PROMOTERS_SHEET,
+    rows: [
+      ...currentRows,
+      ...additions.map((addition) => [addition.name, addition.card]),
+    ],
+  }]);
+
+  return { template: updatedTemplate, register, additions, conflicts: [...conflicts.values()] };
+}
+
 /** Stamp only the exact lines represented in a handover. */
 export async function stampBundle(bundle: Bundle, payoutId: string, at = new Date()) {
   const eventMemberIds = [...new Set(
@@ -761,7 +862,10 @@ export async function detachedSeatEvents(): Promise<DetachedSeatEvent[]> {
 /* what would stop it                                                          */
 /* -------------------------------------------------------------------------- */
 
-export type Blocker = { kind: 'NO_CARD' | 'NOT_REGISTERED' | 'NO_EVENT_ID'; label: string };
+export type Blocker = {
+  kind: 'NO_CARD' | 'NOT_REGISTERED' | 'REGISTER_CONFLICT' | 'NO_EVENT_ID';
+  label: string;
+};
 
 /** Worth saying, not worth stopping for. */
 export type Warning = { kind: 'NAME_GUESSED'; label: string };
@@ -778,9 +882,11 @@ export function blockers(
   register: Register,
   /** The costs line's destination, which is payable or the file is not. */
   expenseAccount: ExpenseAccount | null = null,
+  registerConflicts: PromoterRegisterConflict[] = [],
 ): Blocker[] {
   const out: Blocker[] = [];
   const seen = new Set<string>();
+  const conflictKeys = new Set(registerConflicts.map((row) => `${fold(row.name)}|${row.card}`));
 
   const check = (name: string, card: string | null) => {
     const key = `${name}|${card ?? ''}`;
@@ -790,13 +896,22 @@ export function blockers(
       out.push({ kind: 'NO_CARD', label: name });
       return;
     }
-    if (!registerName(register, name, card)) {
+    if (!registerName(register, name, card) && !conflictKeys.has(`${fold(name)}|${card.trim()}`)) {
       out.push({ kind: 'NOT_REGISTERED', label: `${name} — ${card}` });
     }
   };
 
   for (const fee of bundle.fees) check(fee.memberName, fee.card);
   for (const cost of bundle.costs) if (cost.memberName) check(cost.memberName, cost.card);
+
+  for (const conflict of registerConflicts) {
+    out.push({
+      kind: 'REGISTER_CONFLICT',
+      label: `${conflict.name} — ${conflict.card}${conflict.existingCards.length
+        ? ` (${conflict.existingCards.join(' / ')})`
+        : ''}`,
+    });
+  }
 
   /*
    * The costs line is a transfer like any other, so it is held to the same
@@ -998,6 +1113,8 @@ export type Preview = {
   range: Range;
   bundle: Bundle;
   blockers: Blocker[];
+  /** Accounts that will be appended once to the Promoters sheet. */
+  newcomers: PromoterAddition[];
   /** Rows going out under a name we had to pick. */
   warnings: Warning[];
   /** The accounts two people share between them. */
@@ -1021,6 +1138,7 @@ export async function previewExport(range: Range): Promise<Preview> {
       range,
       bundle,
       blockers: [],
+      newcomers: [],
       warnings: [],
       shared: [],
       template: null,
@@ -1030,12 +1148,13 @@ export async function previewExport(range: Range): Promise<Preview> {
   }
 
   const template = Buffer.from(row.bytes as Buffer);
-  const register = companyRegister(template);
+  const prepared = preparePromoterRegister(template, bundle, account);
   return {
     range,
     bundle,
-    blockers: blockers(bundle, register, account),
-    warnings: warnings(bundle, register),
+    blockers: blockers(bundle, prepared.register, account, prepared.conflicts),
+    newcomers: prepared.additions,
+    warnings: warnings(bundle, prepared.register),
     expenseAccount: account,
     looseCosts: bundle.costs.filter((c) => !c.memberName).reduce((s, c) => s + c.amount, 0),
     /*
@@ -1043,7 +1162,7 @@ export async function previewExport(range: Range): Promise<Preview> {
      * handful of shared cards in it; listing all of them every week would be
      * noise about people who did not work.
      */
-    shared: sharedAccounts(register).filter((row) =>
+    shared: sharedAccounts(prepared.register).filter((row) =>
       bundle.fees.some((f) => f.card?.trim() === row.account),
     ),
     template: {
@@ -1083,8 +1202,8 @@ export function buildHandover(
   bundle: Bundle,
   range: Range,
   expenseAccountMember: ExpenseAccount | null = null,
+  register: Register = companyRegister(template),
 ): Omit<Handover, 'id'> {
-  const register = companyRegister(template);
   return {
     fileName: fileNameFor(range),
     bytes: buildWorkbook(template, bundle, register, expenseAccountMember),

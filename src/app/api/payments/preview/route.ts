@@ -4,7 +4,7 @@ import {
   activeTemplate,
   buildWorkbook,
   collect,
-  companyRegister,
+  preparePromoterRegister,
 } from '@/server/services/payment-file';
 
 /**
@@ -53,7 +53,9 @@ export async function GET(request: Request) {
   }
 
   const template = Buffer.from(row.bytes as Buffer);
-  const bytes = buildWorkbook(template, bundle, companyRegister(template), await expenseAccount());
+  const account = await expenseAccount();
+  const prepared = preparePromoterRegister(template, bundle, account);
+  const bytes = buildWorkbook(prepared.template, bundle, prepared.register, account);
 
   const name = `DRAFT-مسودة-${from}_${to}.xlsx`;
   return new Response(new Uint8Array(bytes), {

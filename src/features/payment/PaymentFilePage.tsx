@@ -126,6 +126,30 @@ export async function PaymentFilePage({
         )}
       </Panel>
 
+      {preview.newcomers.length ? (
+        <Panel title={t.payment.newcomersTitle} className="mt-4">
+          <p className="mb-3 text-[12.5px] leading-6 text-ink-300">{t.payment.newcomersWhy}</p>
+          <ul className="divide-y divide-line-800">
+            {preview.newcomers.map((member) => (
+              <li key={member.card} className="flex flex-wrap items-start justify-between gap-2 py-2.5">
+                <div>
+                  <div className="font-semibold text-ink-100">{member.name}</div>
+                  {member.sharedNames.length ? (
+                    <p className="mt-1 text-[12.5px] text-ink-300">
+                      {format(t.payment.newcomerShared, { names: member.sharedNames.join('، ') })}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="text-end">
+                  <div className="nums font-semibold text-ink-100">{member.card}</div>
+                  <div className="text-[11.5px] text-ink-400">{t.payment.newcomerAdded}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
+
       {base === '/admin' && bundle.fees.some((fee) => fee.detachedSeatPay) ? (
         <Panel title={t.payment.detachReview} className="mt-4">
           <div className="divide-y divide-line-800">
@@ -181,7 +205,9 @@ export async function PaymentFilePage({
                     ? t.payment.noCard
                     : b.kind === 'NOT_REGISTERED'
                       ? t.payment.notRegistered
-                      : t.payment.noEventId}
+                      : b.kind === 'REGISTER_CONFLICT'
+                        ? t.payment.registerConflict
+                        : t.payment.noEventId}
                 </span>
               </li>
             ))}
