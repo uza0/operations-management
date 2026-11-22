@@ -459,6 +459,7 @@ async function loadSeatRow(eventMemberId: string, seatMemberId: string) {
       attended: seatSetupMembers.attended,
       checkInTime: seatSetupMembers.checkInTime,
       checkOutTime: seatSetupMembers.checkOutTime,
+      status: seatSetupDetails.status,
       date: seatSetupDetails.date,
       startTime: seatSetupDetails.startTime,
       endTime: seatSetupDetails.endTime,
@@ -498,6 +499,9 @@ async function loadSeat(
 
   const seat = await loadSeatRow(member.id, seatMemberId);
   if (!seat) return { ok: false, error: t.errors.notFound };
+  if (seat.status !== 'READY' && seat.status !== 'IN_PROGRESS') {
+    return { ok: false, error: t.seatSetup.closedForMember };
+  }
 
   return {
     ok: true,

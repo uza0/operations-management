@@ -101,7 +101,7 @@ export async function getMemberHome(teamMemberId: string) {
         eq(eventMembers.teamMemberId, teamMemberId),
         ne(eventMembers.status, 'CANCELLED'),
         inArray(events.status, HIDDEN_FROM_CREW),
-        eq(seatSetupDetails.status, 'READY'),
+        inArray(seatSetupDetails.status, ['READY', 'IN_PROGRESS', 'COMPLETED']),
         isNotNull(seatSetupMembers.notifiedAt),
       ),
     )

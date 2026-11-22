@@ -20,7 +20,7 @@ import { Badge } from '@/components/ui/status';
 import { formatAmount } from '@/lib/money';
 import { format, type Dictionary, type Locale } from '@/lib/i18n';
 import { formatDate } from '@/lib/time';
-import type { SeatSetupData } from '@/server/services/seat-setup';
+import type { SeatSetupData, SeatSetupStatus } from '@/server/services/seat-setup';
 
 /**
  * The chair-setting shift, end to end: the day and the rate, who is on it,
@@ -196,6 +196,15 @@ function ShiftBlock({
   const selectedIds = shift.people.filter((person) => selected.has(person.id)).map((person) => person.id);
   const selectedCount = selectedIds.length;
   const allSelected = shift.people.length > 0 && selectedCount === shift.people.length;
+  const statusTone = shift.status === 'COMPLETED'
+    ? 'ok'
+    : shift.status === 'ARCHIVED'
+      ? 'neutral'
+      : shift.status === 'IN_PROGRESS'
+        ? 'warn'
+        : shift.status === 'READY'
+          ? 'ok'
+          : 'neutral';
 
   useEffect(() => {
     if (removeState.status === 'success') onDone();
@@ -228,7 +237,7 @@ function ShiftBlock({
           <span className="flex items-center gap-2 text-[16px] font-bold text-ink-50">
             <span aria-hidden>{expanded ? '⌄' : '›'}</span>
             {formatDate(shift.date, locale)}
-            <Badge tone={shift.status === 'READY' ? 'ok' : 'warn'}>{shift.status === 'READY' ? t.seatSetup.statusReady : t.seatSetup.statusPlanning}</Badge>
+            <Badge tone={statusTone}>{t.seatSetup.statuses[shift.status]}</Badge>
           </span>
           <span className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-ink-300">
             <span className="nums">
@@ -249,16 +258,21 @@ function ShiftBlock({
           ) : null}
         </button>
         <div className="flex flex-wrap items-center gap-2">
-          <form action={setStatus}>
+          <form action={setStatus} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="eventId" value={eventId} />
             <input type="hidden" name="detailId" value={shift.id} />
-            <input type="hidden" name="status" value={shift.status === 'READY' ? 'PLANNING' : 'READY'} />
+            <label className="sr-only" htmlFor={`seat-status-${shift.id}`}>{t.seatSetup.shiftStatus}</label>
+            <select id={`seat-status-${shift.id}`} name="status" className="field min-h-10 w-auto py-2 text-[13px]" defaultValue={shift.status}>
+              {(Object.keys(t.seatSetup.statuses) as SeatSetupStatus[]).map((status) => (
+                <option key={status} value={status}>{t.seatSetup.statuses[status]}</option>
+              ))}
+            </select>
             <SubmitButton className={shift.status === 'READY' ? 'btn-secondary btn-sm' : 'btn-primary btn-sm'}>
-              {shift.status === 'READY' ? t.seatSetup.returnToPlanning : t.seatSetup.markReady}
+              {t.seatSetup.updateStatus}
             </SubmitButton>
           </form>
           <button type="button" className="btn-secondary btn-sm" onClick={onPick}>
-            {t.seatSetup.pick}
+            {shift.people.length ? t.seatSetup.editCrew : t.seatSetup.addCrew}
           </button>
           <button type="button" className="btn-ghost btn-sm" onClick={onEdit}>
             {t.seatSetup.edit}
@@ -468,7 +482,7 @@ function CrewDialog({
   const canCopy = last.eventMemberIds.length > 0;
 
   return (
-    <Dialog open onClose={onDone} title={t.seatSetup.pick} description={t.seatSetup.subtitle}>
+    <Dialog open onClose={onDone} title={t.seatSetup.manageCrew} description={t.seatSetup.crewSelectionHint}>
       <form action={action} className="space-y-3">
         <input type="hidden" name="eventId" value={eventId} />
         <input type="hidden" name="detailId" value={shift.id} />

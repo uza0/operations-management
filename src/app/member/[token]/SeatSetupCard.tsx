@@ -15,6 +15,7 @@ import { formatAmount } from '@/lib/money';
 import { format, type Dictionary } from '@/lib/i18n';
 import { useOfflineAttendance } from './useOfflineAttendance';
 import { OfflineAttendanceNotice } from './OfflineAttendanceNotice';
+import type { SeatSetupStatus } from '@/server/services/seat-setup';
 
 /**
  * One chair-setting day, asked and answered on its own.
@@ -45,7 +46,7 @@ export function SeatSetupCard({
   t: Dictionary;
   token: string;
   seatMemberId: string;
-  setupStatus: 'PLANNING' | 'READY';
+  setupStatus: SeatSetupStatus;
   stage: 'INVITED' | 'DECLINED' | 'CONFIRMED' | 'ARRIVING' | 'AWAITING_APPROVAL' | 'ON_DUTY' | 'DONE';
   arrivalWindowStartsAt: number;
   when: string;
@@ -71,6 +72,16 @@ export function SeatSetupCard({
   };
   const pendingArrival = offline.pendingFor('SEAT_ARRIVAL', seatMemberId);
   const pendingDeparture = offline.pendingFor('SEAT_DEPARTURE', seatMemberId);
+  const statusNotice = setupStatus === 'PLANNING'
+    ? t.seatSetup.memberPlanningNotice
+    : setupStatus === 'READY'
+      ? t.seatSetup.memberReadyNotice
+      : setupStatus === 'IN_PROGRESS'
+        ? t.seatSetup.memberInProgressNotice
+        : setupStatus === 'COMPLETED'
+          ? t.seatSetup.memberCompletedNotice
+          : t.seatSetup.memberArchivedNotice;
+  const canUpdateAsMember = setupStatus === 'READY' || setupStatus === 'IN_PROGRESS';
 
   useEffect(() => {
     if (
@@ -121,8 +132,8 @@ export function SeatSetupCard({
     <li className="rounded-control border border-ink-700 bg-ink-900 p-3.5">
       {confirmDialog}
       <p className="text-[16px] font-bold leading-tight text-ink-100">{when}</p>
-      <p className={`mt-1 text-[12px] font-semibold ${setupStatus === 'READY' ? 'text-ok-text' : 'text-ink-400'}`}>
-        {setupStatus === 'READY' ? t.seatSetup.memberReadyNotice : t.seatSetup.memberPlanningNotice}
+      <p className={`mt-1 text-[12px] font-semibold ${setupStatus === 'READY' || setupStatus === 'IN_PROGRESS' ? 'text-ok-text' : 'text-ink-400'}`}>
+        {statusNotice}
       </p>
       <p className="nums mt-0.5 text-[14px] font-semibold text-ink-200">{hours}</p>
       {notes ? (
@@ -132,7 +143,7 @@ export function SeatSetupCard({
         {formatAmount(pay)} {currency}
       </p>
 
-      {stage === 'INVITED' ? (
+      {canUpdateAsMember && stage === 'INVITED' ? (
         declining ? (
           <form action={decline} className="mt-3 space-y-2.5">
             {hidden}
@@ -203,13 +214,13 @@ export function SeatSetupCard({
         </div>
       ) : null}
 
-      {stage === 'CONFIRMED' && !arrivalWindowOpen ? (
+      {canUpdateAsMember && stage === 'CONFIRMED' && !arrivalWindowOpen ? (
         <p className="mt-2.5 text-[12.5px] leading-5 text-ink-400">
           {t.seatSetup.arrivalHint}
         </p>
       ) : null}
 
-      {stage === 'ARRIVING' || (stage === 'CONFIRMED' && arrivalWindowOpen) ? (
+      {canUpdateAsMember && (stage === 'ARRIVING' || (stage === 'CONFIRMED' && arrivalWindowOpen)) ? (
         <div className="mt-3 space-y-2">
           {pendingArrival ? (
             <OfflineAttendanceNotice
@@ -235,7 +246,7 @@ export function SeatSetupCard({
         </div>
       ) : null}
 
-      {stage === 'AWAITING_APPROVAL' ? (
+      {canUpdateAsMember && stage === 'AWAITING_APPROVAL' ? (
         <>
           <p className="mt-2.5 rounded-control border border-warn/40 bg-warn/10 px-3 py-2.5 text-[13px] font-semibold text-ink-100">
             {format(t.journey.arrivalWaiting, { time: arrivedAt ?? '' })}
@@ -267,7 +278,7 @@ export function SeatSetupCard({
         </>
       ) : null}
 
-      {stage === 'ON_DUTY' ? (
+      {canUpdateAsMember && stage === 'ON_DUTY' ? (
         <div className="mt-3 space-y-2">
           {pendingDeparture ? (
             <OfflineAttendanceNotice

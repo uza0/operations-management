@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { and, eq, inArray, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -58,18 +58,20 @@ export async function setSeatSetupStatusAction(
 
   const detailId = str(form, 'detailId');
   const nextStatus = str(form, 'status');
-  if (!detailId || (nextStatus !== 'PLANNING' && nextStatus !== 'READY')) {
+  const allowedStatuses = ['PLANNING', 'READY', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED'] as const;
+  if (!detailId || !allowedStatuses.includes(nextStatus as (typeof allowedStatuses)[number])) {
     return fail(t.seatSetup.needsShift);
   }
+  const status = nextStatus as (typeof allowedStatuses)[number];
 
   const shift = await db.query.seatSetupDetails.findFirst({
     where: and(eq(seatSetupDetails.id, detailId), eq(seatSetupDetails.eventId, eventId)),
   });
   if (!shift) return fail(t.seatSetup.needsShift);
-  if (shift.status === nextStatus) return ok();
+  if (shift.status === status) return ok();
 
   let teamMemberIds: string[] = [];
-  if (nextStatus === 'READY') {
+  if (status === 'READY' && shift.status !== 'READY') {
     if (!pushConfigured()) return fail(t.seatSetup.pushUnavailable);
     const crew = await db
       .select({ teamMemberId: eventMembers.teamMemberId })
@@ -86,13 +88,15 @@ export async function setSeatSetupStatusAction(
     if (teamMemberIds.length === 0) return fail(t.seatSetup.readyNeedsCrew);
   }
 
-  const readyVersion = nextStatus === 'READY' ? (shift.readyVersion ?? 0) + 1 : shift.readyVersion;
+  const readyVersion = status === 'READY' && shift.status !== 'READY'
+    ? (shift.readyVersion ?? 0) + 1
+    : shift.readyVersion;
   await db
     .update(seatSetupDetails)
-    .set({ status: nextStatus, readyVersion, updatedAt: new Date() })
+    .set({ status, readyVersion, updatedAt: new Date() })
     .where(and(eq(seatSetupDetails.id, detailId), eq(seatSetupDetails.eventId, eventId)));
 
-  if (nextStatus === 'READY') {
+  if (status === 'READY' && shift.status !== 'READY') {
     const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
     if (event) {
       const notifiedAt = new Date();
@@ -124,9 +128,9 @@ export async function setSeatSetupStatusAction(
     actorName: user.name,
     action: 'UPDATE',
     entity: 'EVENT',
-    summary: `${formatDate(shift.date, locale)}: ${nextStatus === 'READY' ? t.seatSetup.statusReady : t.seatSetup.statusPlanning}`,
+    summary: `${formatDate(shift.date, locale)}: ${t.seatSetup.statuses[status]}`,
     oldValues: { status: shift.status },
-    newValues: { status: nextStatus, readyVersion },
+    newValues: { status, readyVersion },
   });
   revalidate(eventId);
   return ok();
@@ -178,6 +182,15 @@ export async function saveSeatSetupAction(
     payAmount > MAX_EVENT_PAY
   ) {
     return fail(t.errors.invalidCredit);
+  }
+
+  if (existing && payAmount !== existing.payAmount) {
+    const paidRows = await db
+      .select({ id: seatSetupMembers.id })
+      .from(seatSetupMembers)
+      .where(and(eq(seatSetupMembers.detailId, existing.id), isNotNull(seatSetupMembers.payoutId)))
+      .limit(1);
+    if (paidRows.length) return fail(t.seatSetup.paidRateLocked);
   }
 
   if (existing) {
@@ -240,6 +253,13 @@ export async function removeSeatSetupAction(
   });
   if (!existing || existing.eventId !== eventId) return ok();
 
+  const paidRows = await db
+    .select({ id: seatSetupMembers.id })
+    .from(seatSetupMembers)
+    .where(and(eq(seatSetupMembers.detailId, existing.id), isNotNull(seatSetupMembers.payoutId)))
+    .limit(1);
+  if (paidRows.length) return fail(t.seatSetup.removePaidShiftBlocked);
+
   await db.delete(seatSetupDetails).where(eq(seatSetupDetails.id, existing.id));
 
   await recordAudit({
@@ -269,7 +289,7 @@ export async function setSeatSetupCrewAction(
   _prev: ActionState,
   form: FormData,
 ): Promise<ActionState> {
-  const { t } = await getT();
+  const { t, locale } = await getT();
   const eventId = String(form.get('eventId') ?? '');
   const user = await assertEventManager(eventId).catch(() => null);
   if (!user) return fail(t.errors.forbidden);
@@ -300,13 +320,17 @@ export async function setSeatSetupCrewAction(
   const keep = new Set(allowed.map((row) => row.id));
 
   const current = await db
-    .select({ id: seatSetupMembers.id, eventMemberId: seatSetupMembers.eventMemberId })
+    .select({ id: seatSetupMembers.id, eventMemberId: seatSetupMembers.eventMemberId, payoutId: seatSetupMembers.payoutId })
     .from(seatSetupMembers)
     .where(eq(seatSetupMembers.detailId, detail.id));
 
   const drop = current.filter((row) => !keep.has(row.eventMemberId));
   const have = new Set(current.map((row) => row.eventMemberId));
   const add = [...keep].filter((id) => !have.has(id));
+
+  if (drop.some((row) => row.payoutId)) return fail(t.seatSetup.paidCrewCannotRemove);
+  const notifyAddedCrew = add.length > 0 && (detail.status === 'READY' || detail.status === 'IN_PROGRESS');
+  if (notifyAddedCrew && !pushConfigured()) return fail(t.seatSetup.pushUnavailable);
 
   if (drop.length > 0) {
     await db.delete(seatSetupMembers).where(
@@ -317,15 +341,38 @@ export async function setSeatSetupCrewAction(
     );
   }
   if (add.length > 0) {
-    await db.insert(seatSetupMembers).values(
-      add.map((eventMemberId, i) => ({
+    const notifiedAt = notifyAddedCrew ? new Date() : null;
+    const addedRows = add.map((eventMemberId, i) => ({
         id: newId(),
         detailId: detail.id,
         eventId,
         eventMemberId,
+        notifiedAt,
         sortOrder: current.length + i,
-      })),
-    );
+      }));
+    await db.insert(seatSetupMembers).values(addedRows);
+
+    if (notifyAddedCrew) {
+      const [event, addedCrew] = await Promise.all([
+        db.query.events.findFirst({ where: eq(events.id, eventId) }),
+        db
+          .select({ teamMemberId: eventMembers.teamMemberId, eventMemberId: eventMembers.id })
+          .from(eventMembers)
+          .where(and(eq(eventMembers.eventId, eventId), inArray(eventMembers.id, add))),
+      ]);
+      if (event) {
+        await pushOnce(`seat-setup-added:${detail.id}:${detail.readyVersion ?? 0}:${addedRows.map((row) => row.id).join(',')}`, [...new Set(addedCrew.map((row) => row.teamMemberId))], {
+          title: t.seatSetup.readyPushTitle,
+          body: format(t.seatSetup.readyPushBody, {
+            event: event.name,
+            date: formatDate(detail.date, locale),
+            time: formatTime(detail.startTime, locale),
+          }),
+          url: '/me',
+          tag: `seat-setup:${detail.id}`,
+        });
+      }
+    }
   }
 
   await recordAudit({

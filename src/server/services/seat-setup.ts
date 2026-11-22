@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, asc, desc, eq, isNotNull, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -51,6 +51,8 @@ export type SeatSetupPerson = {
   approvedAt: Date | null;
 };
 
+export type SeatSetupStatus = 'PLANNING' | 'READY' | 'IN_PROGRESS' | 'COMPLETED' | 'ARCHIVED';
+
 export type SeatSetupCandidate = {
   eventMemberId: string;
   name: string;
@@ -61,7 +63,7 @@ export type SeatSetupCandidate = {
 
 export type SeatSetupShift = {
   id: string;
-  status: 'PLANNING' | 'READY';
+  status: SeatSetupStatus;
   date: string;
   startTime: string;
   endTime: string | null;
@@ -227,7 +229,9 @@ export async function buildSeatSetup(eventId: string): Promise<SeatSetupData> {
 
   const shifts: SeatSetupShift[] = details.map((detail) => ({
     id: detail.id,
-    status: detail.status === 'READY' ? 'READY' : 'PLANNING',
+    status: (['PLANNING', 'READY', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED'].includes(detail.status)
+      ? detail.status
+      : 'PLANNING') as SeatSetupStatus,
     date: detail.date,
     startTime: detail.startTime,
     endTime: detail.endTime,
@@ -268,7 +272,7 @@ export function dayBefore(date: string): string {
 export type MySeatSetup = {
   /** The crew row itself: the thing his two buttons act on. */
   id: string;
-  status: 'PLANNING' | 'READY';
+  status: SeatSetupStatus;
   date: string;
   startTime: string;
   endTime: string | null;
@@ -329,7 +333,9 @@ export async function seatSetupForMember(
   const now = new Date();
   return rows.map((row) => ({
     ...row,
-    status: row.status === 'READY' ? 'READY' as const : 'PLANNING' as const,
+    status: (['PLANNING', 'READY', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED'].includes(row.status)
+      ? row.status
+      : 'PLANNING') as SeatSetupStatus,
     payAmount: row.payAmount ?? SEAT_SETUP_PAY,
     stage: seatStageFor({
       confirmedAt: row.confirmedAt,
@@ -381,6 +387,7 @@ export async function seatSetupInvitationByToken(token: string) {
   const rows = await db
     .select({
       id: seatSetupMembers.id,
+      status: seatSetupDetails.status,
       date: seatSetupDetails.date,
       startTime: seatSetupDetails.startTime,
       endTime: seatSetupDetails.endTime,
@@ -401,7 +408,7 @@ export async function seatSetupInvitationByToken(token: string) {
       and(
         eq(seatSetupMembers.eventMemberId, membership.id),
         eq(seatSetupMembers.eventId, membership.eventId),
-        eq(seatSetupDetails.status, 'READY'),
+        inArray(seatSetupDetails.status, ['READY', 'IN_PROGRESS', 'COMPLETED']),
         isNotNull(seatSetupMembers.notifiedAt),
       ),
     )
