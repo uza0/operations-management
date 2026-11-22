@@ -9,7 +9,7 @@ import { formatDate, isValidDate } from '@/lib/time';
  *
  * One row per person per event, plus a total row per person, so the accounts
  * department can pivot it however they like rather than trusting a single
- * number. Only finished events are included — see credit.ts for why.
+ * number. Detached approved chair work is payable independently of the event.
  */
 export const dynamic = 'force-dynamic';
 
@@ -42,12 +42,15 @@ export async function GET(request: Request) {
   ];
 
   for (const ledger of ledgers) {
-    const counted = ledger.lines.filter((line) => line.closed);
+    const counted = ledger.lines.filter((line) => line.closed || line.detachedSeatPay);
     for (const line of counted) {
-      rows.push([
+      const prefix: Cell[] = [
         ledger.name,
         ledger.employeeCode,
         ledger.phone ?? '',
+      ];
+      if (line.closed && !line.paid) rows.push([
+        ...prefix,
         line.eventName,
         formatDate(line.eventDate, locale),
         line.locationName ?? '',
@@ -55,6 +58,14 @@ export async function GET(request: Request) {
         line.checkInTime ?? '',
         line.checkOutTime ?? '',
         line.amount,
+        line.note ?? '',
+      ]);
+      if ((line.seatAmount ?? 0) > 0) rows.push([
+        ...prefix,
+        `${line.eventName} · ${line.detachedSeatPay ? t.payment.seatPayDetachedLabel : t.seatSetup.title}`,
+        formatDate(line.eventDate, locale),
+        '', '', '', '',
+        line.seatAmount,
         line.note ?? '',
       ]);
     }

@@ -2,6 +2,7 @@ import { format, type Dictionary, type Locale } from '@/lib/i18n';
 import { formatAmount } from '@/lib/money';
 import { formatDate } from '@/lib/time';
 import type { MemberLedger } from '@/server/services/credit';
+import { owedForLine } from '@/server/services/credit';
 import { IconChevron } from '@/components/ui/icons';
 import { MoneyValue } from './MoneyVisibility';
 
@@ -28,7 +29,7 @@ export function OwedLines({
   ledger: MemberLedger;
 }) {
   const owed = ledger.lines.filter(
-    (line) => (line.closed || line.detachedSeatPay) && !line.paid && ((line.amount ?? 0) > 0 || (line.seatAmount ?? 0) > 0),
+    (line) => owedForLine(line) > 0,
   );
   if (owed.length === 0) return null;
 
@@ -48,8 +49,8 @@ export function OwedLines({
 
       <ul className="divide-y divide-ink-800">
         {owed.map((line) => {
-          const fee = line.amount ?? 0;
-          const chairs = line.seatAmount ?? 0;
+          const fee = line.closed && !line.paid ? line.amount ?? 0 : 0;
+          const chairs = line.closed || line.detachedSeatPay ? line.seatAmount ?? 0 : 0;
           return (
             <li key={line.eventId} className="px-4 py-3">
               <div className="flex items-start justify-between gap-3">

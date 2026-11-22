@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, eq, gte, inArray, isNotNull, lte, ne, notInArray } from 'drizzle-orm';
+import { and, eq, exists, gte, inArray, isNotNull, isNull, lte, ne, notInArray, or } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { HIDDEN_FROM_CREW } from '@/lib/constants';
@@ -212,15 +212,35 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
    * figure for one they cannot see is the exact complaint this comment was
    * written about.
    *
-   * Nothing settled can be caught by this. The road onward from planning is
-   * one way, so neither stage has ever been worked, let alone paid.
+   * Approved detached chair work is independent of the event's stage and date.
+   * Keep that work visible even when the concert is postponed in planning.
    */
-  const conditions = [notInArray(events.status, HIDDEN_FROM_CREW)];
+  const chairDates = [];
+  const eventDates = [];
+  if (where.range?.from) {
+    chairDates.push(gte(seatSetupDetails.date, where.range.from));
+    eventDates.push(gte(events.date, where.range.from));
+  }
+  if (where.range?.to) {
+    chairDates.push(lte(seatSetupDetails.date, where.range.to));
+    eventDates.push(lte(events.date, where.range.to));
+  }
+  const detachedChairs = and(
+    isNotNull(events.seatPayDetachedAt),
+    exists(db.select({ id: seatSetupMembers.id }).from(seatSetupMembers)
+      .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
+      .where(and(
+        eq(seatSetupMembers.eventMemberId, eventMembers.id),
+        eq(seatSetupMembers.attended, true),
+        isNull(seatSetupMembers.declinedAt),
+        ...chairDates,
+      ))),
+  );
+  const conditions = [or(notInArray(events.status, HIDDEN_FROM_CREW), detachedChairs)];
   if (where.memberIds && where.memberIds.length > 0) {
     conditions.push(inArray(eventMembers.teamMemberId, where.memberIds));
   }
-  if (where.range?.from) conditions.push(gte(events.date, where.range.from));
-  if (where.range?.to) conditions.push(lte(events.date, where.range.to));
+  if (eventDates.length) conditions.push(or(and(...eventDates), detachedChairs));
 
   return db
     .select({
@@ -293,7 +313,7 @@ type SeatPay = {
   unpaidEarnedDays: Map<string, number>;
 };
 
-export async function seatPayByMember(): Promise<SeatPay> {
+export async function seatPayByMember(range?: Range): Promise<SeatPay> {
   const rows = await db
     .select({
       eventMemberId: seatSetupMembers.eventMemberId,
@@ -305,6 +325,7 @@ export async function seatPayByMember(): Promise<SeatPay> {
       memberStatus: eventMembers.status,
       chairSetupOnly: eventMembers.chairSetupOnly,
       detachedAt: events.seatPayDetachedAt,
+      date: seatSetupDetails.date,
     })
     .from(seatSetupMembers)
     .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
@@ -322,7 +343,10 @@ export async function seatPayByMember(): Promise<SeatPay> {
     map.set(id, (map.get(id) ?? 0) + pay);
 
   for (const row of rows) {
-    if (row.chairSetupOnly && !row.notifiedAt) continue;
+    if (row.detachedAt && (
+      (range?.from && row.date < range.from) || (range?.to && row.date > range.to)
+    )) continue;
+    if (row.chairSetupOnly && !row.notifiedAt && !(row.detachedAt && row.attended)) continue;
     if (
       row.memberStatus === 'CANCELLED' &&
       !row.chairSetupOnly &&
@@ -350,9 +374,22 @@ export async function seatPayByMember(): Promise<SeatPay> {
 function toLine(
   row: Awaited<ReturnType<typeof ledgerRows>>[number],
   seatPay: SeatPay,
+  range?: Range,
 ): LedgerLine {
   const status = (row.status ?? 'PENDING') as AttendanceStatus;
   const closed = CLOSED_STATUSES.includes(row.eventStatus);
+  const eventInRange = (!range?.from || row.eventDate >= range.from) &&
+    (!range?.to || row.eventDate <= range.to);
+  const eventAmount = creditFor({
+    status,
+    payAmount: row.payAmount,
+    eventDefault: row.eventDefault,
+    payMode: row.payMode,
+    eventStatus: row.eventStatus,
+    paid: row.payoutId !== null,
+    personSalaried: row.personSalaried,
+    personDefaultPay: row.personDefaultPay,
+  });
   return {
     eventId: row.eventId,
     eventName: row.eventName,
@@ -364,16 +401,9 @@ function toLine(
     status,
     checkInTime: row.checkInTime,
     checkOutTime: row.checkOutTime,
-    amount: creditFor({
-      status,
-      payAmount: row.payAmount,
-      eventDefault: row.eventDefault,
-      payMode: row.payMode,
-      eventStatus: row.eventStatus,
-      paid: row.payoutId !== null,
-      personSalaried: row.personSalaried,
-      personDefaultPay: row.personDefaultPay,
-    }),
+    amount: eventAmount !== null &&
+      (row.chairSetupOnly || HIDDEN_FROM_CREW.includes(row.eventStatus) || !eventInRange)
+      ? 0 : eventAmount,
     /*
      * Salaried people are outside this ledger for the chairs too: the flat fee
      * is event pay by another name, and their pay is settled elsewhere.
@@ -406,6 +436,12 @@ function toLine(
   };
 }
 
+/** Unpaid event wages and released chair wages have independent payment stamps. */
+export function owedForLine(line: LedgerLine): number {
+  return (line.closed && !line.paid ? line.amount ?? 0 : 0) +
+    (line.closed || line.detachedSeatPay ? line.seatAmount ?? 0 : 0);
+}
+
 function summarise(
   person: { id: string; fullName: string; employeeCode: string; phone: string | null; active: boolean },
   lines: LedgerLine[],
@@ -421,10 +457,7 @@ function summarise(
     /* A null line is outside this ledger, so it adds nothing to either total. */
     /* Owed: the event is over and the money has not gone out yet. */
     totalAmount: sorted.reduce(
-      (sum, l) =>
-        sum +
-        (l.closed && !l.paid ? l.amount ?? 0 : 0) +
-        ((l.closed || l.detachedSeatPay) ? l.seatAmount ?? 0 : 0),
+      (sum, l) => sum + owedForLine(l),
       0,
     ),
     pendingAmount: sorted.reduce(
@@ -455,7 +488,7 @@ export async function memberLedger(
 
   const [rows, seatPay, visibleChairRows] = await Promise.all([
     ledgerRows({ memberIds: [teamMemberId], range }),
-    seatPayByMember(),
+    seatPayByMember(range),
     db.select({ eventMemberId: eventMembers.id })
       .from(eventMembers)
       .innerJoin(seatSetupMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
@@ -471,8 +504,10 @@ export async function memberLedger(
   return summarise(
     person,
     rows
-      .filter((row) => !row.chairSetupOnly || visibleChairMemberships.has(row.eventMemberId))
-      .map((row) => toLine(row, seatPay)),
+      .filter((row) => !row.chairSetupOnly || visibleChairMemberships.has(row.eventMemberId) ||
+        (row.seatPayDetachedAt && ((seatPay.unpaidEarned.get(row.eventMemberId) ?? 0) > 0 ||
+          (seatPay.paidEarned.get(row.eventMemberId) ?? 0) > 0)))
+      .map((row) => toLine(row, seatPay, range)),
   );
 }
 
@@ -485,12 +520,12 @@ export async function memberLedger(
  */
 export async function payrollLedger(range?: Range): Promise<MemberLedger[]> {
   const people = await db.select().from(teamMembers).all();
-  const [rows, seatPay] = await Promise.all([ledgerRows({ range }), seatPayByMember()]);
+  const [rows, seatPay] = await Promise.all([ledgerRows({ range }), seatPayByMember(range)]);
 
   const byMember = new Map<string, LedgerLine[]>();
   for (const row of rows) {
     const list = byMember.get(row.teamMemberId) ?? [];
-    list.push(toLine(row, seatPay));
+    list.push(toLine(row, seatPay, range));
     byMember.set(row.teamMemberId, list);
   }
 
