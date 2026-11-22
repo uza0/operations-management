@@ -94,6 +94,7 @@ const COSTS_CHECK_CELL = 'B15';
 const COSTS_CHECK = `SUMIFS(${EXPENSES_SHEET}!$E$2:$E$${COSTS_LAST},${EXPENSES_SHEET}!$D$2:$D$${COSTS_LAST},"<>")`;
 
 export const PROMOTERS_SHEET = 'Promoters';
+export const SALES_TEAM_SHEET = 'Sales Team';
 
 export type Range = { from: string; to: string };
 
@@ -395,6 +396,14 @@ export type FeeLine = {
   amount: number;
   /** What goes in their notes column; empty for an ordinary night. */
   note: string;
+  /** Match-only sales duties; support remains on the normal promoter line. */
+  salesRole?: string | null;
+};
+
+const SALES_ROLE_LABEL: Record<string, string> = {
+  SALES_MANAGER: 'مسؤول المبيعات / Sales Manager',
+  SALES_ASSISTANT_MANAGER: 'مساعد مسؤول المبيعات / Assistant Sales Manager',
+  SALES_EMPLOYEE: 'موظف مبيعات / Sales Employee',
 };
 
 /**
@@ -612,6 +621,7 @@ export async function collect(range: Range): Promise<Bundle> {
         card: teamMembers.cardNumber,
         salaried: teamMembers.salaried,
         memberDefault: teamMembers.defaultPay,
+        salesRole: eventMembers.salesRole,
       })
       .from(eventMembers)
       .innerJoin(events, eq(eventMembers.eventId, events.id))
@@ -729,6 +739,7 @@ export async function collect(range: Range): Promise<Bundle> {
       date: row.date,
       memberName: row.memberName,
       card: row.card,
+      salesRole: row.salesRole,
     };
     if (nightly !== null && nightly > 0) fees.push({ ...common, amount: nightly });
 
@@ -1075,16 +1086,28 @@ export function buildWorkbook(
   expenseAccount: ExpenseAccount | null = null,
 ): Buffer {
   const eventRows: CellValue[][] = [];
+  const salesRows: CellValue[][] = [];
 
   for (const fee of bundle.fees) {
+    const isSales = Boolean(fee.salesRole && fee.salesRole !== 'SALES_SUPPORT');
+    if (isSales) {
+      salesRows.push([
+        theirName(register, fee.memberName, fee.card),
+        fee.card,
+        fee.eventName,
+        eventIdCell(fee.externalId),
+        SALES_ROLE_LABEL[fee.salesRole!] ?? fee.salesRole!,
+        fee.amount,
+      ]);
+    }
     eventRows.push([
       fee.eventName,
       excelDate(fee.date),
       theirName(register, fee.memberName, fee.card),
       null, // their VLOOKUP fills the account from the name
       fee.amount,
-      'Event',
-      fee.note,
+      isSales ? 'Sales' : 'Event',
+      isSales ? SALES_ROLE_LABEL[fee.salesRole!] ?? fee.salesRole! : fee.note,
     ]);
   }
   /* A cost handed to a person rides on their own row, as their form asks. */
@@ -1170,6 +1193,18 @@ export function buildWorkbook(
     },
     { sheet: EXPENSES_SHEET, rows: costRows },
     { sheet: EVENT_LIST_SHEET, rows: listRows },
+    {
+      sheet: SALES_TEAM_SHEET,
+      headers: [
+        'الاسم / Name',
+        'رقم الحساب / Account Number',
+        'الفعالية / Event',
+        'رقم الفعالية / Event ID',
+        'الدور / Role',
+        'الأجر بالدينار / Pay (IQD)',
+      ],
+      rows: salesRows,
+    },
   ]);
 
   const widened = COSTS_WIDENED.reduce(

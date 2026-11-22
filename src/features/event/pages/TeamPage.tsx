@@ -21,6 +21,7 @@ import { buildInvitationBoard } from '@/server/services/journey';
 import { EventTeamManager } from './parts/EventTeamManager';
 import { InvitationBoard } from './parts/InvitationBoard';
 import { byName } from '@/lib/sort';
+import { SalesTeamManager } from './parts/SalesTeamManager';
 
 async function resolveBaseUrl(): Promise<string> {
   const configured = process.env.NEXT_PUBLIC_APP_URL;
@@ -44,6 +45,8 @@ export async function EventTeamPage({ eventId }: { eventId: string }) {
       phone: teamMembers.phone,
       status: eventMembers.status,
       isReserve: eventMembers.isReserve,
+      salesRole: eventMembers.salesRole,
+      payAmount: eventMembers.payAmount,
       token: eventMembers.token,
       gateName: gates.name,
       workingPointName: workingPoints.name,
@@ -177,6 +180,21 @@ export async function EventTeamPage({ eventId }: { eventId: string }) {
         baseUrl={baseUrl}
         canManage={scope.canManage}
       />
+      {scope.user.role === 'ADMIN' && event.type === 'FOOTBALL_MATCH' ? (
+        <SalesTeamManager
+          eventId={eventId}
+          locale={locale}
+          members={scoped
+            .filter((row) => row.status !== 'CANCELLED')
+            .map((row) => ({
+              eventMemberId: row.id,
+              name: row.name,
+              status: row.status,
+              salesRole: row.salesRole,
+              payAmount: row.payAmount,
+            }))}
+        />
+      ) : null}
     </>
   );
 }

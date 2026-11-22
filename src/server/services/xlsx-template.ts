@@ -290,6 +290,8 @@ const decodeXml = (text: string) =>
 export type SheetRows = {
   /** The sheet as the company named it. */
   sheet: string;
+  /** When absent from an older company template, create this worksheet. */
+  headers?: string[];
   /** Rows of values, written from row 2 down. Headers are never touched. */
   rows: CellValue[][];
   /**
@@ -308,6 +310,38 @@ export type SheetRows = {
     rgb: string;
   };
 };
+
+/** Adds a simple worksheet to older uploaded templates which predate it. */
+function ensureWorksheet(entries: ZipEntry[], name: string, headers: string[]): void {
+  if (sheetParts(entries).has(name)) return;
+  const get = (file: string) => entries.find((e) => e.name === file)?.data.toString('utf8') ?? '';
+  const workbookEntry = entries.find((e) => e.name === 'xl/workbook.xml');
+  const relsEntry = entries.find((e) => e.name === 'xl/_rels/workbook.xml.rels');
+  const typesEntry = entries.find((e) => e.name === '[Content_Types].xml');
+  if (!workbookEntry || !relsEntry || !typesEntry) throw new Error('قالب الإكسل ناقص ملفات أساسية');
+
+  const workbook = get('xl/workbook.xml');
+  const rels = get('xl/_rels/workbook.xml.rels');
+  const types = get('[Content_Types].xml');
+  const ids = [...workbook.matchAll(/\bsheetId="(\d+)"/g)].map((m) => Number(m[1]));
+  const relIds = [...rels.matchAll(/\bId="rId(\d+)"/g)].map((m) => Number(m[1]));
+  const parts = entries.map((e) => Number(/^xl\/worksheets\/sheet(\d+)\.xml$/.exec(e.name)?.[1] ?? 0));
+  const sheetId = Math.max(0, ...parts, ...ids) + 1;
+  const relId = Math.max(0, ...relIds, ...ids) + 1;
+  const partName = `xl/worksheets/sheet${sheetId}.xml`;
+  const ref = `A1:${colName(Math.max(headers.length - 1, 0))}1`;
+  const cells = headers.map((value, i) => cellXml(`${colName(i)}1`, value, undefined, 1, 1)).join('');
+  entries.push({
+    name: partName,
+    data: Buffer.from(
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><dimension ref="${ref}"/><sheetViews><sheetView workbookViewId="0"/></sheetViews><sheetFormatPr defaultRowHeight="15"/><sheetData><row r="1">${cells}</row></sheetData><pageMargins left="0.7" right="0.7" top="0.75" bottom="0.75" header="0.3" footer="0.3"/></worksheet>`,
+      'utf8',
+    ),
+  });
+  workbookEntry.data = Buffer.from(workbook.replace('</sheets>', `<sheet name="${escapeXml(name)}" sheetId="${sheetId}" r:id="rId${relId}"/></sheets>`), 'utf8');
+  relsEntry.data = Buffer.from(rels.replace('</Relationships>', `<Relationship Id="rId${relId}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${sheetId}.xml"/></Relationships>`), 'utf8');
+  typesEntry.data = Buffer.from(types.replace('</Types>', `<Override PartName="/xl/worksheets/sheet${sheetId}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`), 'utf8');
+}
 
 /**
  * Adds a cell format that is some existing one plus a background colour, and
@@ -359,9 +393,12 @@ function styleWithFill(entries: ZipEntry[], baseStyle: string | null, rgb: strin
  */
 export function fillTemplate(template: Buffer, sheets: SheetRows[]): Buffer {
   const entries = unzipAll(template);
+  for (const sheet of sheets) {
+    if (sheet.headers) ensureWorksheet(entries, sheet.sheet, sheet.headers);
+  }
   const parts = sheetParts(entries);
 
-  for (const { sheet, rows, emphasis } of sheets) {
+  for (const { sheet, rows, emphasis, headers } of sheets) {
     const part = parts.get(sheet);
     if (!part) throw new Error(`القالب ما بيه تبويب اسمه "${sheet}"`);
     const entry = entries.find((e) => e.name === part);
@@ -370,11 +407,12 @@ export function fillTemplate(template: Buffer, sheets: SheetRows[]): Buffer {
     let xml = entry.data.toString('utf8');
     const patternRow = 2;
     const pattern = readPattern(xml, patternRow);
-      const header =
+    const header =
       new RegExp(`<row[^>]*?\\br="1"[^>]*?(?:\\/>|>[\\s\\S]*?<\\/row>)`).exec(xml)?.[0] ?? '';
 
     const width = Math.max(
       ...rows.map((r) => r.length),
+      headers?.length ?? 0,
       pattern.size > 0 ? Math.max(...pattern.keys()) + 1 : 0,
     );
 

@@ -44,6 +44,71 @@ type Portal = NonNullable<MemberPortalData>;
 type T = Awaited<ReturnType<typeof getT>>['t'];
 type Locale = Awaited<ReturnType<typeof getT>>['locale'];
 
+function salesRoleCopy(locale: Locale): {
+  titles: Record<string, string>;
+  instructions: Record<string, string[]>;
+} {
+  return locale === 'ar'
+    ? {
+        titles: {
+          SALES_MANAGER: 'مسؤول المبيعات',
+          SALES_ASSISTANT_MANAGER: 'مساعد مسؤول المبيعات',
+          SALES_EMPLOYEE: 'موظف مبيعات',
+          SALES_SUPPORT: 'إسناد المبيعات',
+        },
+        instructions: {
+          SALES_MANAGER: [
+            'نظّم فريق البيع وتوزيع التذاكر الورقية بالتنسيق مع مشرف العمليات.',
+            'تابع مبالغ البيع وعدد التذاكر المسلّمة والمتبقية، وطابقها قبل نهاية العمل.',
+            'حوّل أي اختلاف بالمبالغ أو مشكلة بالتذكرة إلى المشرف فوراً.',
+          ],
+          SALES_ASSISTANT_MANAGER: [
+            'ساند مسؤول المبيعات ونظّم العمل عند زيادة الزخم.',
+            'تابع تسليم التذاكر والمبالغ، وتولَّ المسؤولية عند غياب المسؤول.',
+            'بلّغ مسؤول المبيعات أو المشرف عن أي نقص أو اختلاف.',
+          ],
+          SALES_EMPLOYEE: [
+            'بع التذاكر الورقية بالسعر المعتمد فقط، وسلّم التذكرة بعد استلام المبلغ.',
+            'حافظ على التذاكر والمبالغ المسلّمة لك، ولا تجرِ أي خصم أو استثناء من نفسك.',
+            'أبلغ مسؤول المبيعات فوراً عند نفاد التذاكر أو ظهور مشكلة.',
+          ],
+          SALES_SUPPORT: [
+            'أنت بروموتر مساند لفريق المبيعات عند الحاجة أو زيادة الزخم.',
+            'اتبع توجيه مسؤول المبيعات، ثم ارجع لمهمتك الاعتيادية عندما ينتهي الإسناد.',
+          ],
+        },
+      }
+    : {
+        titles: {
+          SALES_MANAGER: 'Sales Manager',
+          SALES_ASSISTANT_MANAGER: 'Assistant Sales Manager',
+          SALES_EMPLOYEE: 'Sales Employee',
+          SALES_SUPPORT: 'Sales Support',
+        },
+        instructions: {
+          SALES_MANAGER: [
+            'Organize the sales team and paper ticket distribution with the operations supervisor.',
+            'Track sales amounts and issued/remaining tickets, then reconcile them before the shift ends.',
+            'Report any cash difference or ticket issue to the supervisor immediately.',
+          ],
+          SALES_ASSISTANT_MANAGER: [
+            'Support the Sales Manager and coordinate work during busy periods.',
+            'Track ticket and cash handovers, and cover for the manager when needed.',
+            'Report shortages or differences to the manager or supervisor.',
+          ],
+          SALES_EMPLOYEE: [
+            'Sell paper tickets only at the approved price, and hand over each ticket after payment.',
+            'Keep the tickets and cash assigned to you safe; do not apply discounts or exceptions.',
+            'Tell the Sales Manager immediately if tickets run out or a problem comes up.',
+          ],
+          SALES_SUPPORT: [
+            'You are a promoter assigned to support Sales when needed or during busy periods.',
+            'Follow the Sales Manager’s direction, then return to your regular promoter duty.',
+          ],
+        },
+      };
+}
+
 /** "يومين و٤ ساعات" — a span a person reads, not a number of minutes. */
 function formatSpan(ms: number, t: T): string {
   const minutes = Math.max(0, Math.round(ms / 60000));
@@ -377,11 +442,17 @@ export default async function MemberPortalPage({
    * a specific role replaces that title rather than sitting beside it.
    */
   const positionLabel =
-    membership.eventRole && membership.eventRole in t.enums.eventRole
+    membership.salesRole && membership.salesRole in salesRoleCopy(locale).titles
+      ? salesRoleCopy(locale).titles[membership.salesRole]
+      : membership.eventRole && membership.eventRole in t.enums.eventRole
       ? t.enums.eventRole[membership.eventRole as EventRole]
       : assignment?.isGateLeader
         ? t.gate.gateLeader
         : t.team.promoter;
+
+  const salesBriefing = membership.salesRole
+    ? salesRoleCopy(locale).instructions[membership.salesRole] ?? null
+    : null;
 
   /* One of three, decided by the stage and by nothing on the screen. */
   const phase =
@@ -528,6 +599,17 @@ export default async function MemberPortalPage({
             ) : null}
 
             {identity}
+
+            {salesBriefing ? (
+              <section className="rounded-card border border-brand-700/60 bg-brand-950/30 p-4">
+                <p className="text-[14px] font-bold text-ink-100">
+                  {locale === 'ar' ? 'تعليمات مهمتك بالمبيعات' : 'Your Sales Team briefing'}
+                </p>
+                <ul className="mt-2 list-disc space-y-1 ps-5 text-[13.5px] leading-6 text-ink-200">
+                  {salesBriefing.map((line) => <li key={line}>{line}</li>)}
+                </ul>
+              </section>
+            ) : null}
 
             {/*
               Urgent announcements first and loud, because they change what he

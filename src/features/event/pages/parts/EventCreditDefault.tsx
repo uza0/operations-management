@@ -15,7 +15,7 @@ import { formatAmount } from '@/lib/money';
  *
  * It sits on the attendance screen rather than in the event's settings because
  * this is where the supervisor is when the question comes up — a bigger night
- * pays more than the usual 30,000, and they are looking at the very list of
+ * pays more than the usual 35,000, and they are looking at the very list of
  * people it applies to.
  */
 export function EventCreditDefault({

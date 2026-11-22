@@ -424,6 +424,9 @@ export const eventMembers = sqliteTable(
      * already knew about gate leaders keeps working unchanged.
      */
     eventRole: text('event_role'),
+    /** Event-specific football sales assignment. Kept separate from eventRole so
+     * sales payroll never changes the person's promoter role at concerts. */
+    salesRole: text('sales_role'),
     /**
      * When this person was last sent their briefing, and by whom. Compared
      * against the assignment's own updatedAt so a member who was moved after

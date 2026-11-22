@@ -135,6 +135,7 @@ export async function getMemberPortal(token: string) {
       personSalaried: teamMembers.salaried,
       personDefaultPay: teamMembers.defaultPay,
       eventRole: eventMembers.eventRole,
+      salesRole: eventMembers.salesRole,
       memberName: teamMembers.fullName,
       /* Shown on the member's own card: at a gate it is what a supervisor
          asks for, and it is the one identifier safe to print there. */

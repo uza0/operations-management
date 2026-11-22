@@ -28,6 +28,15 @@ export const EVENT_ROLES = [
 ] as const;
 export type EventRole = (typeof EVENT_ROLES)[number];
 
+/** Match-only sales duty; SALES_SUPPORT remains paid at the promoter rate. */
+export const SALES_ROLES = [
+  'SALES_MANAGER',
+  'SALES_ASSISTANT_MANAGER',
+  'SALES_EMPLOYEE',
+  'SALES_SUPPORT',
+] as const;
+export type SalesRole = (typeof SALES_ROLES)[number];
+
 /**
  * How far a role reaches, which is also how many people may hold it:
  *   EVENT — one for the whole event (team leader, his assistant)

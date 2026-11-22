@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, eq, gte, inArray, lte, ne, notInArray } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNotNull, lte, ne, notInArray } from 'drizzle-orm';
 
 import { db } from '@/db';
 import { HIDDEN_FROM_CREW } from '@/lib/constants';
@@ -28,7 +28,7 @@ import type { AttendanceStatus } from '@/lib/constants';
  * and a handful are not — a gate leader, someone who also came the day before
  * to lay out the hall — so the rate lives in two places and only two:
  *
- *   • the event carries the figure everyone starts from (30,000 by default)
+ *   • the event carries the figure everyone starts from (35,000 by default)
  *   • a person can be put on their own figure for that event
  *
  * Credit then has exactly one rule, written here and nowhere else:

@@ -42,6 +42,7 @@ import { promoteIfBuilt } from '@/server/services/lifecycle';
 import { eventTeamLeaderId, eventTeamLeaderIds, setEventTeamLeader, setEventTeamLeaders, setGateLeader } from '@/server/services/access';
 import { hrefForStep } from '@/features/event/setup-steps';
 import { getStaffedLocations } from '@/server/services/staffing';
+import { DEFAULT_EVENT_PAY } from '@/lib/money';
 
 import { fail, ok, type ActionState } from './types';
 
@@ -127,6 +128,7 @@ export async function createEventAction(
     externalId: parsed.data.externalId || null,
     partners: parsed.data.partners || null,
     dressCode: parsed.data.dressCode ?? null,
+    payDefault: DEFAULT_EVENT_PAY,
     status: 'DRAFT',
     createdById: user.id,
     mapLinkUrl: request?.seatsUrl ?? null,

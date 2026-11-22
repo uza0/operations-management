@@ -310,7 +310,7 @@ export const en: Dictionary = {
     defaultPay: 'Rate per event',
     defaultPayPlaceholder: "Leave empty to follow the event's own rate",
     defaultPayHint:
-      "Their rate for any event they are invited to. Changing it here applies to every event of theirs that has not been paid out yet, and to new ones — an event already settled keeps the figure it was paid at. Chair setting is outside this figure: 30,000 for everyone.",
+      "Their rate for any event they are invited to. Changing it here applies to every event of theirs that has not been paid out yet, and to new ones — an event already settled keeps the figure it was paid at. The standard event rate is 35,000. Chair setting is separate: 30,000 for everyone.",
     inactive: 'Inactive',
     eventsWorked: 'Events attended',
     attendanceLeaders: 'Most frequent attendees',
