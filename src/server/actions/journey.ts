@@ -491,7 +491,7 @@ async function loadSeat(
   stageAt = new Date(),
 ): Promise<SeatLoaded> {
   const { t } = await getT();
-  const member = await resolveMemberByToken(token);
+  const member = await resolveMemberByToken(token, true);
   if (!member) return { ok: false, error: t.member.invalidToken };
   if (member.tokenExpiresAt && member.tokenExpiresAt.getTime() < Date.now()) {
     return { ok: false, error: t.member.expiredToken };

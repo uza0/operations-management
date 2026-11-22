@@ -1,7 +1,8 @@
 'use server';
 
+import { randomBytes } from 'node:crypto';
 import { revalidatePath } from 'next/cache';
-import { and, eq, inArray, isNotNull, ne } from 'drizzle-orm';
+import { and, eq, inArray, isNotNull, ne, or } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -81,7 +82,7 @@ export async function setSeatSetupStatusAction(
         and(
           eq(seatSetupMembers.eventId, eventId),
           eq(seatSetupMembers.detailId, detailId),
-          ne(eventMembers.status, 'CANCELLED'),
+          or(ne(eventMembers.status, 'CANCELLED'), eq(eventMembers.chairSetupOnly, true)),
         ),
       );
     teamMemberIds = [...new Set(crew.map((row) => row.teamMemberId))];
@@ -303,21 +304,34 @@ export async function setSeatSetupCrewAction(
 
   const wanted = [...new Set(form.getAll('eventMemberId').map(String).filter(Boolean))];
 
-  /* Only people actually on this event, and not cancelled. */
-  const allowed =
-    wanted.length === 0
-      ? []
-      : await db
-          .select({ id: eventMembers.id })
-          .from(eventMembers)
-          .where(
-            and(
-              eq(eventMembers.eventId, eventId),
-              ne(eventMembers.status, 'CANCELLED'),
-              inArray(eventMembers.id, wanted),
-            ),
-          );
+  /* Regular event members keep their normal access. Outside members get a
+     cancelled, chair-only membership so no event invitation or event page is exposed. */
+  const wantedMembershipIds = wanted.filter((id) => !id.startsWith('team:'));
+  const allowed = wantedMembershipIds.length
+    ? await db.select({ id: eventMembers.id, teamMemberId: eventMembers.teamMemberId })
+        .from(eventMembers)
+        .where(and(
+          eq(eventMembers.eventId, eventId),
+          ne(eventMembers.status, 'CANCELLED'),
+          eq(eventMembers.chairSetupOnly, false),
+          inArray(eventMembers.id, wantedMembershipIds),
+        ))
+    : [];
   const keep = new Set(allowed.map((row) => row.id));
+  const externalIds = wanted.filter((id) => id.startsWith('team:')).map((id) => id.slice(5));
+  const activeEventTeamIds = new Set(allowed.map((row) => row.teamMemberId));
+  const externalRows = externalIds.length
+    ? await db.select({ id: teamMembers.id })
+        .from(teamMembers)
+        .where(and(eq(teamMembers.active, true), inArray(teamMembers.id, externalIds)))
+    : [];
+  const external = externalRows.filter((row) => !activeEventTeamIds.has(row.id));
+  const externalMemberships = await Promise.all(external.map(({ id: teamMemberId }) =>
+    db.select({ id: eventMembers.id, teamMemberId: eventMembers.teamMemberId }).from(eventMembers)
+      .where(and(eq(eventMembers.eventId, eventId), eq(eventMembers.teamMemberId, teamMemberId), eq(eventMembers.chairSetupOnly, true)))
+      .get(),
+  ));
+  for (const membership of externalMemberships) if (membership) keep.add(membership.id);
 
   const current = await db
     .select({ id: seatSetupMembers.id, eventMemberId: seatSetupMembers.eventMemberId, payoutId: seatSetupMembers.payoutId })
@@ -325,12 +339,30 @@ export async function setSeatSetupCrewAction(
     .where(eq(seatSetupMembers.detailId, detail.id));
 
   const drop = current.filter((row) => !keep.has(row.eventMemberId));
+  if (drop.some((row) => row.payoutId)) return fail(t.seatSetup.paidCrewCannotRemove);
+  const existingIds = new Set(current.map((row) => row.eventMemberId));
+  const externalAddCount = external.filter((_, index) => !externalMemberships[index]).length;
+  const existingAddCount = [...keep].filter((id) => !existingIds.has(id)).length;
+  const mayNotifyAdded = existingAddCount + externalAddCount > 0 && (detail.status === 'READY' || detail.status === 'IN_PROGRESS');
+  if (mayNotifyAdded && !pushConfigured()) return fail(t.seatSetup.pushUnavailable);
+
+  for (const [index, { id: teamMemberId }] of external.entries()) {
+    if (externalMemberships[index]) continue;
+    const membershipId = newId();
+    await db.insert(eventMembers).values({
+      id: membershipId,
+      eventId,
+      teamMemberId,
+      status: 'CANCELLED',
+      chairSetupOnly: true,
+      token: randomBytes(16).toString('hex'),
+    });
+    keep.add(membershipId);
+  }
+
   const have = new Set(current.map((row) => row.eventMemberId));
   const add = [...keep].filter((id) => !have.has(id));
-
-  if (drop.some((row) => row.payoutId)) return fail(t.seatSetup.paidCrewCannotRemove);
   const notifyAddedCrew = add.length > 0 && (detail.status === 'READY' || detail.status === 'IN_PROGRESS');
-  if (notifyAddedCrew && !pushConfigured()) return fail(t.seatSetup.pushUnavailable);
 
   if (drop.length > 0) {
     await db.delete(seatSetupMembers).where(

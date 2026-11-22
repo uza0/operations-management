@@ -33,6 +33,8 @@ import { byName } from '@/lib/sort';
 export type SeatSetupPerson = {
   id: string;
   eventMemberId: string;
+  teamMemberId: string;
+  chairSetupOnly: boolean;
   name: string;
   employeeCode: string;
   attended: boolean;
@@ -54,7 +56,10 @@ export type SeatSetupPerson = {
 export type SeatSetupStatus = 'PLANNING' | 'READY' | 'IN_PROGRESS' | 'COMPLETED' | 'ARCHIVED';
 
 export type SeatSetupCandidate = {
+  /** Existing event membership id, or team:<id> for a chair-only invite. */
   eventMemberId: string;
+  teamMemberId: string;
+  chairSetupOnly: boolean;
   name: string;
   employeeCode: string;
   normalPlace: string | null;
@@ -148,7 +153,7 @@ async function lastCrewFor(
   const here = await db
     .select({ id: eventMembers.id, teamMemberId: eventMembers.teamMemberId })
     .from(eventMembers)
-    .where(and(eq(eventMembers.eventId, eventId), ne(eventMembers.status, 'CANCELLED')));
+    .where(and(eq(eventMembers.eventId, eventId), ne(eventMembers.status, 'CANCELLED'), eq(eventMembers.chairSetupOnly, false)));
 
   return {
     eventName: earlier.name,
@@ -174,9 +179,11 @@ export async function buildSeatSetup(eventId: string): Promise<SeatSetupData> {
     db
       .select({
         eventMemberId: eventMembers.id,
+        teamMemberId: eventMembers.teamMemberId,
         name: teamMembers.fullName,
         employeeCode: teamMembers.employeeCode,
         status: eventMembers.status,
+        chairSetupOnly: eventMembers.chairSetupOnly,
       })
       .from(eventMembers)
       .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
@@ -184,7 +191,7 @@ export async function buildSeatSetup(eventId: string): Promise<SeatSetupData> {
     placesByMember(eventId),
   ]);
 
-  const active = roster.filter((row) => row.status !== 'CANCELLED');
+  const active = roster.filter((row) => row.status !== 'CANCELLED' && !row.chairSetupOnly);
   const lastCrew = event
     ? await lastCrewFor(eventId, event.venueId, event.date)
     : { eventName: '', eventDate: '', eventMemberIds: [] };
@@ -192,11 +199,29 @@ export async function buildSeatSetup(eventId: string): Promise<SeatSetupData> {
   const candidates = active
     .map((row) => ({
       eventMemberId: row.eventMemberId,
+      teamMemberId: row.teamMemberId,
+      chairSetupOnly: false,
       name: row.name,
       employeeCode: row.employeeCode,
       normalPlace: places.get(row.eventMemberId) ?? null,
       picked: false,
     }))
+    .concat(
+      (await db
+        .select({ id: teamMembers.id, name: teamMembers.fullName, employeeCode: teamMembers.employeeCode })
+        .from(teamMembers)
+        .where(eq(teamMembers.active, true)))
+        .filter((person) => !active.some((member) => member.teamMemberId === person.id))
+        .map((person) => ({
+          eventMemberId: `team:${person.id}`,
+          teamMemberId: person.id,
+          chairSetupOnly: true,
+          name: person.name,
+          employeeCode: person.employeeCode,
+          normalPlace: null,
+          picked: false,
+        })),
+    )
     .sort(byName);
 
   if (details.length === 0) {
@@ -220,6 +245,8 @@ export async function buildSeatSetup(eventId: string): Promise<SeatSetupData> {
       approvedAt: seatSetupMembers.approvedAt,
       name: teamMembers.fullName,
       employeeCode: teamMembers.employeeCode,
+      teamMemberId: eventMembers.teamMemberId,
+      chairSetupOnly: eventMembers.chairSetupOnly,
     })
     .from(seatSetupMembers)
     .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
@@ -239,9 +266,11 @@ export async function buildSeatSetup(eventId: string): Promise<SeatSetupData> {
     payAmount: detail.payAmount ?? SEAT_SETUP_PAY,
     people: rows
       .filter((row) => row.detailId === detail.id)
-      .map((row) => ({
+    .map((row) => ({
         id: row.id,
-        eventMemberId: row.eventMemberId,
+        eventMemberId: row.chairSetupOnly ? `team:${row.teamMemberId}` : row.eventMemberId,
+        teamMemberId: row.teamMemberId,
+        chairSetupOnly: row.chairSetupOnly,
         name: row.name,
         employeeCode: row.employeeCode,
         attended: row.attended,
@@ -368,6 +397,7 @@ export async function seatSetupInvitationByToken(token: string) {
       eventName: events.name,
       eventStatus: events.status,
       memberStatus: eventMembers.status,
+      chairSetupOnly: eventMembers.chairSetupOnly,
       tokenExpiresAt: eventMembers.tokenExpiresAt,
     })
     .from(eventMembers)
@@ -378,7 +408,7 @@ export async function seatSetupInvitationByToken(token: string) {
 
   if (
     !membership ||
-    membership.memberStatus === 'CANCELLED' ||
+    (membership.memberStatus === 'CANCELLED' && !membership.chairSetupOnly) ||
     (membership.tokenExpiresAt && membership.tokenExpiresAt.getTime() < Date.now())
   ) {
     return null;
@@ -413,6 +443,8 @@ export async function seatSetupInvitationByToken(token: string) {
       ),
     )
     .orderBy(asc(seatSetupDetails.date), asc(seatSetupDetails.startTime));
+
+  if (membership.memberStatus === 'CANCELLED' && rows.length === 0) return null;
 
   const now = new Date();
   return {

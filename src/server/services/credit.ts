@@ -234,6 +234,7 @@ async function ledgerRows(where: { memberIds?: string[]; range?: Range }) {
       eventDefault: events.payDefault,
       venueName: venues.name,
       memberStatus: eventMembers.status,
+      chairSetupOnly: eventMembers.chairSetupOnly,
       payAmount: eventMembers.payAmount,
       payMode: eventMembers.payMode,
       payoutId: eventMembers.payoutId,
@@ -300,11 +301,15 @@ export async function seatPayByMember(): Promise<SeatPay> {
       attended: seatSetupMembers.attended,
       declinedAt: seatSetupMembers.declinedAt,
       payoutId: seatSetupMembers.payoutId,
+      notifiedAt: seatSetupMembers.notifiedAt,
       memberStatus: eventMembers.status,
+      chairSetupOnly: eventMembers.chairSetupOnly,
+      detachedAt: events.seatPayDetachedAt,
     })
     .from(seatSetupMembers)
     .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
-    .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id));
+    .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
+    .innerJoin(events, eq(seatSetupDetails.eventId, events.id));
 
   const expected = new Map<string, number>();
   const earned = new Map<string, number>();
@@ -317,7 +322,12 @@ export async function seatPayByMember(): Promise<SeatPay> {
     map.set(id, (map.get(id) ?? 0) + pay);
 
   for (const row of rows) {
-    if (row.memberStatus === 'CANCELLED') continue;
+    if (row.chairSetupOnly && !row.notifiedAt) continue;
+    if (
+      row.memberStatus === 'CANCELLED' &&
+      !row.chairSetupOnly &&
+      !(row.detachedAt && row.attended)
+    ) continue;
     const pay = row.pay ?? SEAT_SETUP_PAY;
     if (!row.declinedAt) {
       add(expected, row.eventMemberId, pay);
@@ -443,13 +453,26 @@ export async function memberLedger(
   });
   if (!person) return null;
 
-  const [rows, seatPay] = await Promise.all([
+  const [rows, seatPay, visibleChairRows] = await Promise.all([
     ledgerRows({ memberIds: [teamMemberId], range }),
     seatPayByMember(),
+    db.select({ eventMemberId: eventMembers.id })
+      .from(eventMembers)
+      .innerJoin(seatSetupMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
+      .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
+      .where(and(
+        eq(eventMembers.teamMemberId, teamMemberId),
+        eq(eventMembers.chairSetupOnly, true),
+        isNotNull(seatSetupMembers.notifiedAt),
+        inArray(seatSetupDetails.status, ['READY', 'IN_PROGRESS', 'COMPLETED', 'ARCHIVED']),
+      )),
   ]);
+  const visibleChairMemberships = new Set(visibleChairRows.map((row) => row.eventMemberId));
   return summarise(
     person,
-    rows.map((row) => toLine(row, seatPay)),
+    rows
+      .filter((row) => !row.chairSetupOnly || visibleChairMemberships.has(row.eventMemberId))
+      .map((row) => toLine(row, seatPay)),
   );
 }
 

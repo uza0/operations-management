@@ -28,7 +28,7 @@ export function OwedLines({
   ledger: MemberLedger;
 }) {
   const owed = ledger.lines.filter(
-    (line) => line.closed && !line.paid && ((line.amount ?? 0) > 0 || (line.seatAmount ?? 0) > 0),
+    (line) => (line.closed || line.detachedSeatPay) && !line.paid && ((line.amount ?? 0) > 0 || (line.seatAmount ?? 0) > 0),
   );
   if (owed.length === 0) return null;
 

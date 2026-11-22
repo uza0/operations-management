@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, asc, desc, eq, inArray, isNotNull, ne } from 'drizzle-orm';
+import { and, asc, desc, eq, inArray, isNotNull, ne, or } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -99,8 +99,8 @@ export async function getMemberHome(teamMemberId: string) {
     .where(
       and(
         eq(eventMembers.teamMemberId, teamMemberId),
-        ne(eventMembers.status, 'CANCELLED'),
-        inArray(events.status, HIDDEN_FROM_CREW),
+        or(ne(eventMembers.status, 'CANCELLED'), eq(eventMembers.chairSetupOnly, true)),
+        or(inArray(events.status, HIDDEN_FROM_CREW), eq(eventMembers.chairSetupOnly, true)),
         inArray(seatSetupDetails.status, ['READY', 'IN_PROGRESS', 'COMPLETED']),
         isNotNull(seatSetupMembers.notifiedAt),
       ),

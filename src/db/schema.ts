@@ -380,6 +380,8 @@ export const eventMembers = sqliteTable(
       .references(() => teamMembers.id, { onDelete: 'restrict' }),
     /** INVITED | CONFIRMED | ACTIVE | CANCELLED */
     status: text('status').notNull().default('INVITED'),
+    /** Membership exists only to give someone a private chair-setup invitation. */
+    chairSetupOnly: integer('chair_setup_only', { mode: 'boolean' }).notNull().default(false),
     /** 32 random hex chars from crypto.randomBytes — never derived from an id. */
     token: text('token').notNull(),
     tokenExpiresAt: integer('token_expires_at', { mode: 'timestamp_ms' }),
@@ -474,7 +476,9 @@ export const eventMembers = sqliteTable(
   },
   (t) => [
     uniqueIndex('event_members_token_unique').on(t.token),
-    uniqueIndex('event_members_event_person_unique').on(t.eventId, t.teamMemberId),
+    uniqueIndex('event_members_event_person_unique')
+      .on(t.eventId, t.teamMemberId)
+      .where(sql`${t.chairSetupOnly} = 0`),
     index('event_members_event_idx').on(t.eventId),
   ],
 );

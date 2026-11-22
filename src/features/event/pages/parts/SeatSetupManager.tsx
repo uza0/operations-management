@@ -538,6 +538,11 @@ function CrewDialog({
               />
               <span className="min-w-0 flex-1" style={{ unicodeBidi: 'plaintext' }}>
                 {person.name}
+                {person.chairSetupOnly ? (
+                  <span className="ms-2 inline-flex rounded-full border border-brand-700 px-2 py-0.5 text-[11px] text-brand-300">
+                    {t.seatSetup.outsideEvent}
+                  </span>
+                ) : null}
                 {person.normalPlace ? (
                   <span className="block text-[12.5px] text-ink-500">{person.normalPlace}</span>
                 ) : null}

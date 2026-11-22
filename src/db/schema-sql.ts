@@ -1,6 +1,6 @@
 /**
  * GENERATED FILE — do not edit.
- * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql, 0014_jittery_venus.sql, 0015_curved_grim_reaper.sql, 0016_hard_the_phantom.sql, 0017_glamorous_clea.sql, 0018_loose_spacker_dave.sql, 0019_hard_slapstick.sql, 0020_oval_quentin_quire.sql, 0021_complete_viper.sql, 0022_neat_turbo.sql, 0023_giant_lockheed.sql, 0024_public_blockbuster.sql, 0025_outstanding_young_avengers.sql, 0026_broken_thor_girl.sql, 0027_late_human_torch.sql, 0028_fluffy_virginia_dare.sql, 0029_magenta_karnak.sql, 0030_public_polaris.sql, 0031_yummy_power_man.sql, 0032_familiar_silhouette.sql, 0033_reflective_liz_osborn.sql, 0034_tough_doomsday.sql, 0035_wooden_sinister_six.sql, 0036_giant_peter_quill.sql, 0037_boring_ego.sql, 0038_tidy_trish_tilby.sql, 0039_outstanding_earthquake.sql, 0040_outgoing_quasar.sql.
+ * Produced by scripts/embed-schema.mjs from 0000_late_martin_li.sql, 0001_noisy_squadron_supreme.sql, 0002_fresh_alex_wilder.sql, 0003_flat_sandman.sql, 0004_great_the_renegades.sql, 0005_powerful_pixie.sql, 0006_condemned_lady_deathstrike.sql, 0007_complete_ultron.sql, 0008_open_the_professor.sql, 0009_thankful_thena.sql, 0010_tricky_mole_man.sql, 0011_grey_titania.sql, 0012_white_mandrill.sql, 0013_noisy_longshot.sql, 0014_jittery_venus.sql, 0015_curved_grim_reaper.sql, 0016_hard_the_phantom.sql, 0017_glamorous_clea.sql, 0018_loose_spacker_dave.sql, 0019_hard_slapstick.sql, 0020_oval_quentin_quire.sql, 0021_complete_viper.sql, 0022_neat_turbo.sql, 0023_giant_lockheed.sql, 0024_public_blockbuster.sql, 0025_outstanding_young_avengers.sql, 0026_broken_thor_girl.sql, 0027_late_human_torch.sql, 0028_fluffy_virginia_dare.sql, 0029_magenta_karnak.sql, 0030_public_polaris.sql, 0031_yummy_power_man.sql, 0032_familiar_silhouette.sql, 0033_reflective_liz_osborn.sql, 0034_tough_doomsday.sql, 0035_wooden_sinister_six.sql, 0036_giant_peter_quill.sql, 0037_boring_ego.sql, 0038_tidy_trish_tilby.sql, 0039_outstanding_earthquake.sql, 0040_outgoing_quasar.sql, 0041_steep_shiver_man.sql.
  * Regenerate after changing src/db/schema.ts:
  *   npx drizzle-kit generate && node scripts/embed-schema.mjs
  */
@@ -30,7 +30,6 @@ export const SCHEMA_STATEMENTS: string[] = [
   "CREATE INDEX IF NOT EXISTS `event_access_event_idx` ON `event_access` (`event_id`)",
   "CREATE TABLE IF NOT EXISTS `event_members` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`event_id` text NOT NULL,\n\t`team_member_id` text NOT NULL,\n\t`status` text DEFAULT 'INVITED' NOT NULL,\n\t`token` text NOT NULL,\n\t`token_expires_at` integer,\n\t`is_reserve` integer DEFAULT false NOT NULL,\n\t`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\t`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\tFOREIGN KEY (`event_id`) REFERENCES `events`(`id`) ON UPDATE no action ON DELETE cascade,\n\tFOREIGN KEY (`team_member_id`) REFERENCES `team_members`(`id`) ON UPDATE no action ON DELETE restrict\n)",
   "CREATE UNIQUE INDEX IF NOT EXISTS `event_members_token_unique` ON `event_members` (`token`)",
-  "CREATE UNIQUE INDEX IF NOT EXISTS `event_members_event_person_unique` ON `event_members` (`event_id`,`team_member_id`)",
   "CREATE INDEX IF NOT EXISTS `event_members_event_idx` ON `event_members` (`event_id`)",
   "CREATE TABLE IF NOT EXISTS `events` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`name` text NOT NULL,\n\t`type` text NOT NULL,\n\t`venue_id` text NOT NULL,\n\t`date` text NOT NULL,\n\t`start_time` text NOT NULL,\n\t`team_arrival_time` text NOT NULL,\n\t`description` text,\n\t`status` text DEFAULT 'DRAFT' NOT NULL,\n\t`map_image_url` text,\n\t`report_notes` text,\n\t`created_by_id` text,\n\t`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\t`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\tFOREIGN KEY (`venue_id`) REFERENCES `venues`(`id`) ON UPDATE no action ON DELETE restrict,\n\tFOREIGN KEY (`created_by_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n)",
   "CREATE INDEX IF NOT EXISTS `events_status_idx` ON `events` (`status`)",
@@ -108,6 +107,7 @@ export const SCHEMA_STATEMENTS: string[] = [
   "CREATE TABLE IF NOT EXISTS `payouts` (\n\t`id` text PRIMARY KEY NOT NULL,\n\t`from_date` text NOT NULL,\n\t`to_date` text NOT NULL,\n\t`total_amount` real NOT NULL,\n\t`people_count` integer DEFAULT 0 NOT NULL,\n\t`note` text,\n\t`created_by_id` text,\n\t`created_by_name` text NOT NULL,\n\t`created_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\t`updated_at` integer DEFAULT (unixepoch() * 1000) NOT NULL,\n\tFOREIGN KEY (`created_by_id`) REFERENCES `users`(`id`) ON UPDATE no action ON DELETE set null\n)",
   "CREATE INDEX IF NOT EXISTS `payouts_range_idx` ON `payouts` (`from_date`,`to_date`)",
   "ALTER TABLE `event_members` ADD `payout_id` text REFERENCES payouts(id)",
+  "DROP INDEX IF EXISTS `seat_setup_details_event_unique`",
   "CREATE INDEX IF NOT EXISTS `seat_setup_details_event_idx` ON `seat_setup_details` (`event_id`,`date`)",
   "ALTER TABLE `attendance` ADD `reported_arrival_at` integer",
   "ALTER TABLE `attendance` ADD `approved_at` integer",
@@ -179,4 +179,7 @@ export const SCHEMA_STATEMENTS: string[] = [
   "ALTER TABLE `events` ADD `seat_pay_detached_reason` text",
   "ALTER TABLE `seat_setup_members` ADD `payout_id` text REFERENCES payouts(id)",
   "CREATE INDEX IF NOT EXISTS `seat_setup_members_payout_idx` ON `seat_setup_members` (`payout_id`)",
+  "DROP INDEX IF EXISTS `event_members_event_person_unique`",
+  "ALTER TABLE `event_members` ADD `chair_setup_only` integer DEFAULT false NOT NULL",
+  "CREATE UNIQUE INDEX IF NOT EXISTS `event_members_event_person_unique` ON `event_members` (`event_id`,`team_member_id`) WHERE \"event_members\".\"chair_setup_only\" = 0",
 ];

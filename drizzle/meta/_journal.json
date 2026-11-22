@@ -288,6 +288,13 @@
       "when": 1795265893558,
       "tag": "0040_outgoing_quasar",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "6",
+      "when": 1795357208555,
+      "tag": "0041_steep_shiver_man",
+      "breakpoints": true
     }
   ]
 }

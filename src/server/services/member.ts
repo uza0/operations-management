@@ -119,6 +119,7 @@ export async function getMemberPortal(token: string) {
       id: eventMembers.id,
       teamMemberId: eventMembers.teamMemberId,
       status: eventMembers.status,
+      chairSetupOnly: eventMembers.chairSetupOnly,
       tokenExpiresAt: eventMembers.tokenExpiresAt,
       isReserve: eventMembers.isReserve,
       feedbackAt: eventMembers.feedbackAt,
@@ -165,7 +166,7 @@ export async function getMemberPortal(token: string) {
     .where(eq(eventMembers.token, token))
     .get();
 
-  if (!membership) return null;
+  if (!membership || membership.chairSetupOnly) return null;
 
   /*
    * And a draft is nobody's business but the office's, however he arrived.
@@ -480,20 +481,24 @@ export async function getMemberPortal(token: string) {
 }
 
 /** Resolves a token to its event membership for a write action. */
-export async function resolveMemberByToken(token: string) {
+export async function resolveMemberByToken(token: string, allowChairSetupOnly = false) {
   if (!/^[a-f0-9]{32}$/i.test(token)) return null;
   return db
     .select({
       id: eventMembers.id,
       eventId: eventMembers.eventId,
       status: eventMembers.status,
+      chairSetupOnly: eventMembers.chairSetupOnly,
       tokenExpiresAt: eventMembers.tokenExpiresAt,
       name: teamMembers.fullName,
     })
     .from(eventMembers)
     .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
     .where(eq(eventMembers.token, token))
-    .get();
+    .get()
+    .then((membership) =>
+      membership && (allowChairSetupOnly || !membership.chairSetupOnly) ? membership : null,
+    );
 }
 
 export { or };

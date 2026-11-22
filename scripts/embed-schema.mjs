@@ -48,7 +48,8 @@ const safe = statements.map((s) =>
 );
 
 /*
- * An index that a later migration drops is never created at all.
+ * Earlier incarnations of an index that a later migration replaces are
+ * skipped, while a replacement created after the final drop is retained.
  *
  * These statements are replayed in order against a database that already has
  * data in it, and "IF NOT EXISTS" does not save a UNIQUE index from the rows
@@ -59,27 +60,28 @@ const safe = statements.map((s) =>
  * the drop a dozen lines later could undo it. The whole upgrade stopped
  * there, so every column added afterwards was silently never added.
  *
- * Dropping the pair is both correct and quieter than ordering around it: an
- * index created and then dropped is an index this schema does not have.
+ * A dropped index with no replacement is omitted along with its older create.
  */
-const droppedIndexes = new Set(
-  safe
-    .map((s) => /^DROP INDEX IF EXISTS `([^`]+)`/i.exec(s)?.[1])
-    .filter((name) => Boolean(name)),
-);
+const lastDropByIndex = new Map();
+safe.forEach((statement, index) => {
+  const name = /^DROP INDEX IF EXISTS `([^`]+)`/i.exec(statement)?.[1];
+  if (name) lastDropByIndex.set(name, index);
+});
 
-const pruned = safe.filter((s) => {
-  const created = /^CREATE (?:UNIQUE )?INDEX IF NOT EXISTS `([^`]+)`/i.exec(s)?.[1];
-  const dropped = /^DROP INDEX IF EXISTS `([^`]+)`/i.exec(s)?.[1];
-  const name = created ?? dropped;
-  return !(name && droppedIndexes.has(name));
+const pruned = safe.filter((statement, index) => {
+  const created = /^CREATE (?:UNIQUE )?INDEX IF NOT EXISTS `([^`]+)`/i.exec(statement)?.[1];
+  if (!created) return true;
+  const lastDrop = lastDropByIndex.get(created);
+  /* Earlier versions of this index are superseded. Keep a replacement created
+     after the last drop (for example, the new partial membership index). */
+  return lastDrop === undefined || index > lastDrop;
 });
 
 const removed = safe.length - pruned.length;
 if (removed > 0) {
   console.log(
     `Pruned ${removed} statement(s) for indexes a later migration drops: ` +
-      [...droppedIndexes].join(', '),
+      [...lastDropByIndex.keys()].join(', '),
   );
 }
 
