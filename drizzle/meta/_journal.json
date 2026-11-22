@@ -302,6 +302,13 @@
       "when": 1795371842153,
       "tag": "0042_petite_jack_flag",
       "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "6",
+      "when": 1795375509436,
+      "tag": "0043_shiny_mentallo",
+      "breakpoints": true
     }
   ]
 }

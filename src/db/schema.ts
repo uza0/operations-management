@@ -319,7 +319,7 @@ export const events = sqliteTable(
      * figures already recorded against past events are the only record of
      * what those events were reckoned at; nothing reads it any more.
      */
-    payDefault: real('pay_default').notNull().default(30000),
+    payDefault: real('pay_default').notNull().default(35000),
     /**
      * How long someone has to answer an invitation to THIS event, in hours.
      *
