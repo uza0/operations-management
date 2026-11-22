@@ -22,10 +22,12 @@ export function EventLifecycle({
   t,
   eventId,
   status,
+  canCancel = false,
 }: {
   t: Dictionary;
   eventId: string;
   status: EventStatus;
+  canCancel?: boolean;
 }) {
   const router = useRouter();
   const [state, action] = useActionState(changeEventStatusAction, idle);
@@ -34,13 +36,14 @@ export function EventLifecycle({
     if (state.status === 'success') router.refresh();
   }, [state, router]);
 
-  const next = EVENT_STATUS_FLOW[status] ?? [];
+  const available = EVENT_STATUS_FLOW[status] ?? [];
+  const next = available.filter((s) => s !== 'CANCELLED' && (status !== 'CANCELLED' || canCancel));
   const blocked = state.status === 'conflict';
 
   return (
     <div className="space-y-3.5">
       <ol className="flex flex-wrap items-center gap-1.5">
-        {EVENT_STATUSES.filter((s) => s !== 'ARCHIVED').map((s, i) => (
+        {EVENT_STATUSES.filter((s) => s !== 'ARCHIVED' && (s !== 'CANCELLED' || status === 'CANCELLED')).map((s, i) => (
           <li key={s} className="flex items-center gap-1.5">
             {i > 0 ? (
               <IconArrowRight
@@ -64,6 +67,20 @@ export function EventLifecycle({
 
       {blocked ? <Notice tone="warn">{state.message}</Notice> : null}
       {state.status === 'error' ? <FormError message={state.message} /> : null}
+      {canCancel && available.includes('CANCELLED') ? (
+        <form action={action} className="space-y-2 rounded-xl border border-crit/40 p-3">
+          <input type="hidden" name="eventId" value={eventId} />
+          <input type="hidden" name="status" value="CANCELLED" />
+          <p className="text-[12.5px] leading-6 text-ink-300">{t.event.cancelHint}</p>
+          <label className="block space-y-1 text-[12.5px] text-ink-300">
+            <span>{t.event.cancelReason}</span>
+            <textarea name="reason" required minLength={5} maxLength={1000} rows={2} className="field w-full" />
+          </label>
+          <SubmitButton className="btn-danger btn-sm" pendingLabel={t.common.saving}>
+            {t.enums.eventStatus.CANCELLED}
+          </SubmitButton>
+        </form>
+      ) : null}
 
       {next.length > 0 ? (
         <>

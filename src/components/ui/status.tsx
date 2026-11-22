@@ -76,6 +76,7 @@ export const eventStatusTone: Record<EventStatus, Tone> = {
   LIVE: 'ok',
   COMPLETED: 'neutral',
   ARCHIVED: 'neutral',
+  CANCELLED: 'crit',
 };
 
 

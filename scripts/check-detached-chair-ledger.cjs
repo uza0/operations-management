@@ -29,6 +29,63 @@ database = drizzle(client, { schema });
 const { memberLedger, payrollLedger, owedForLine } = require('../src/server/services/credit.ts');
 const { collect } = require('../src/server/services/payment-file.ts');
 const { SCHEMA_STATEMENTS } = require('../src/db/schema-sql.ts');
+const { cancelEvent } = require('../src/server/services/cancellation.ts');
+const { stageFor } = require('../src/lib/journey.ts');
+const { membersBusyDuring } = require('../src/server/services/busy.ts');
+
+async function checkCancellation() {
+  await database.insert(schema.users).values({ id: 'test-admin', username: 'test-admin', name: 'Test admin', role: 'ADMIN', passwordHash: 'test-only' });
+  const event = { id: 'cancelled-concert', name: 'Cancelled concert', type: 'CONCERT', venueId: 'venue', date: '2026-11-20', startTime: '20:00', teamArrivalTime: '17:00', externalId: 'CANCELLED-TEST', status: 'PLANNING', payDefault: 35000 };
+  await database.insert(schema.events).values([event, { ...event, id: 'night-paid' }]);
+  await database.insert(schema.eventMembers).values([
+    { id: 'cancel-member', eventId: event.id, teamMemberId: 'worker', token: 'cancel-test', payAmount: 100000, salesRole: 'SALES_MANAGER' },
+    { id: 'night-paid-member', eventId: 'night-paid', teamMemberId: 'worker', token: 'night-paid-test', payoutId: 'paid' },
+  ]);
+  await database.insert(schema.seatSetupDetails).values([
+    { id: 'cancel-day', eventId: event.id, date: '2026-11-18', startTime: '12:00', payAmount: 30000 },
+    { id: 'cancel-paid-day', eventId: event.id, date: '2026-11-17', startTime: '12:00', payAmount: 30000 },
+  ]);
+  await database.insert(schema.seatSetupMembers).values([
+    { id: 'cancel-chair', eventId: event.id, eventMemberId: 'cancel-member', detailId: 'cancel-day', attended: true },
+    { id: 'cancel-paid-chair', eventId: event.id, eventMemberId: 'cancel-member', detailId: 'cancel-paid-day', attended: true, payoutId: 'paid' },
+  ]);
+  await database.insert(schema.eventExpenses).values({ id: 'cancel-cost', eventId: event.id, category: 'TRANSPORT', description: 'Actual transport', amount: 5000, createdByName: 'Test' });
+  const before = {};
+  for (const table of ['event_members', 'seat_setup_details', 'seat_setup_members', 'event_expenses']) {
+    before[table] = (await client.execute(`SELECT * FROM ${table} WHERE event_id='cancelled-concert' ORDER BY id`)).rows;
+  }
+  assert.equal(await cancelEvent(event.id, 'test-admin', 'x'), 'REASON');
+  assert.equal(await cancelEvent('night-paid', 'test-admin', 'Cancelled before it happened'), 'PAID');
+  assert.equal((await database.query.events.findFirst({ where: eq(schema.events.id, 'night-paid') })).status, 'PLANNING');
+  assert.equal(await cancelEvent(event.id, 'test-admin', 'Concert did not take place'), 'OK', 'chair payments do not prevent cancellation');
+  const cancelled = await database.query.events.findFirst({ where: eq(schema.events.id, event.id) });
+  assert.equal(cancelled.status, 'CANCELLED');
+  assert.ok(cancelled.seatPayDetachedAt);
+  for (const table of Object.keys(before)) {
+    assert.deepEqual((await client.execute(`SELECT * FROM ${table} WHERE event_id='cancelled-concert' ORDER BY id`)).rows, before[table], `cancellation preserves ${table}`);
+  }
+  const ledger = await memberLedger('worker');
+  const line = ledger.lines.find(row => row.eventId === event.id);
+  assert.equal(line.amount, 0, 'custom sales wage cannot override cancellation');
+  assert.equal(line.seatAmount, 30000);
+  assert.equal(line.seatPaidAmount, 30000);
+  assert.equal(owedForLine(line), 30000);
+  const bundle = await collect({ from: '2026-11-01', to: '2026-11-30' });
+  assert.equal(bundle.fees.filter(row => row.eventId === event.id).length, 1);
+  assert.ok(bundle.fees.filter(row => row.eventId === event.id).every(row => row.seatSetupMemberId && row.amount === 30000));
+  assert.equal(bundle.costs.find(row => row.id === 'cancel-cost').amount, 5000);
+  assert.equal((await membersBusyDuring({ id: 'another-event', date: event.date, teamArrivalTime: '17:00', teamDepartureTime: null })).has('worker'), true, 'the other, still-planned event retains its booking');
+  await database.update(schema.events).set({ date: '2027-01-01' }).where(eq(schema.events.id, 'night-paid'));
+  assert.equal((await membersBusyDuring({ id: 'another-event', date: event.date, teamArrivalTime: '17:00', teamDepartureTime: null })).has('worker'), false, 'cancelled event releases the crew for other work');
+  assert.equal(stageFor({ memberStatus: 'ACTIVE', eventStatus: 'CANCELLED', confirmedAt: new Date(), declinedAt: null, attendanceStatus: 'PRESENT', reportedArrivalAt: new Date(), approvedAt: new Date(), reportedDepartureAt: null, eventDate: event.date, teamArrivalTime: '17:00', arrivalWindowHours: 2, now: new Date() }), 'CLOSED');
+  const { stampBundle } = require('../src/server/services/payment-file.ts');
+  await stampBundle({ ...bundle, fees: bundle.fees.filter(row => row.eventId === event.id), costs: bundle.costs.filter(row => row.eventId === event.id) }, 'paid');
+  const repeated = await collect({ from: '2026-11-01', to: '2026-11-30' });
+  assert.equal(repeated.fees.filter(row => row.eventId === event.id).length, 0);
+  assert.equal(repeated.costs.filter(row => row.eventId === event.id).length, 0);
+  assert.equal((await memberLedger('worker')).lines.find(row => row.eventId === event.id).seatAmount, null);
+  console.log('PASS cancellation: zero custom/sales wages; approved unpaid chairs and actual costs preserved; paid work protected; no duplicate payout; crew availability released; attendance actions closed.');
+}
 
 async function main() {
   for (const sql of SCHEMA_STATEMENTS) await client.execute(sql);
@@ -99,6 +156,7 @@ async function main() {
   assert.equal(owedForLine(ledger.lines[0]), 35000);
   await database.update(schema.seatSetupMembers).set({ payoutId: 'paid' }).where(eq(schema.seatSetupMembers.id, 'shift2'));
   assert.equal((await memberLedger('worker')).totalAmount, 0, 'paid chairs cannot be owed twice');
+  await checkCancellation();
   console.log('PASS: detached planning-event chairs; date ranges; monthly exclusion; chair-only work; draft privacy; payment-file parity; independent payment stamps; no premature concert fee; no duplicate chair wages.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => client.close());

@@ -13,7 +13,7 @@ import {
   teamMembers,
   users,
 } from '@/db/schema';
-import { CLOSED_STATUSES, effectiveRate } from './credit';
+import { CLOSED_STATUSES, EXPENSE_PAYABLE_STATUSES, effectiveRate } from './credit';
 import {
   excelDate,
   fillTemplate,
@@ -652,7 +652,7 @@ export async function collect(range: Range): Promise<Bundle> {
       .where(
         and(
           isNull(eventExpenses.payoutId),
-          inArray(events.status, CLOSED_STATUSES),
+          inArray(events.status, EXPENSE_PAYABLE_STATUSES),
           gte(events.date, range.from),
           lte(events.date, range.to),
         ),
@@ -673,6 +673,7 @@ export async function collect(range: Range): Promise<Bundle> {
         date: seatSetupDetails.date,
         pay: seatSetupDetails.payAmount,
         detachedAt: events.seatPayDetachedAt,
+        eventStatus: events.status,
         eventMemberPayoutId: eventMembers.payoutId,
         status: eventMembers.status,
         memberName: teamMembers.fullName,
@@ -707,6 +708,10 @@ export async function collect(range: Range): Promise<Bundle> {
             ),
             and(
               isNotNull(events.seatPayDetachedAt),
+              lte(seatSetupDetails.date, range.to),
+            ),
+            and(
+              eq(events.status, 'CANCELLED'),
               lte(seatSetupDetails.date, range.to),
             ),
           ),
@@ -748,7 +753,7 @@ export async function collect(range: Range): Promise<Bundle> {
   for (const shift of shiftRows) {
     /* Salaried crew are not paid per event or for chair shifts in this ledger. */
     if (shift.salaried || shift.pay <= 0 || shift.status === 'CANCELLED') continue;
-    const detachedSeatPay = shift.detachedAt !== null;
+    const detachedSeatPay = shift.detachedAt !== null || shift.eventStatus === 'CANCELLED';
     fees.push({
       eventMemberId: shift.eventMemberId,
       seatSetupMemberId: shift.seatSetupMemberId,

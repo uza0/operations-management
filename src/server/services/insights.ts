@@ -297,7 +297,8 @@ export async function collectInsights(range: Range): Promise<Insights> {
    * the difference between "we ran 34 people" and "we invited 41".
    */
   const shiftRows = memberRows.filter(
-    (row) => !row.isReserve && row.status !== 'CANCELLED',
+    (row) => !row.isReserve && row.status !== 'CANCELLED' &&
+      !eventRows.some((event) => event.id === row.eventId && event.status === 'CANCELLED'),
   );
 
   const byPerson = new Map<string, { name: string; shifts: number }>();

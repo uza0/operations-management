@@ -405,6 +405,9 @@ export default async function MemberPortalPage({
     return <InvalidToken title={t.member.invalidToken} hint={t.member.invalidTokenHint} />;
   }
   if (data.cancelled) {
+    if (data.membership.eventStatus === 'CANCELLED') {
+      return <InvalidToken title={t.enums.eventStatus.CANCELLED} hint={t.event.cancelledNotice} />;
+    }
     return <InvalidToken title={t.member.cancelled} hint={t.member.invalidTokenHint} />;
   }
   if (data.expired) {

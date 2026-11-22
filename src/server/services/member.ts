@@ -430,7 +430,7 @@ export async function getMemberPortal(token: string) {
     boardPublished,
     mapSource: boardPublished ? mapSource : null,
     expired,
-    cancelled: membership.status === 'CANCELLED',
+    cancelled: membership.status === 'CANCELLED' || membership.eventStatus === 'CANCELLED',
     assignment,
     gateLeaderName,
     /** The people at his own post: see above. Empty before the board is out. */

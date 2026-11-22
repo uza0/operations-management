@@ -98,6 +98,7 @@ async function load(token: string, stageAt = new Date()): Promise<Loaded> {
 
   const row = await loadRow(member.id);
   if (!row) return { ok: false, error: t.errors.notFound };
+  if (row.eventStatus === 'CANCELLED') return { ok: false, error: t.event.cancelledNotice };
 
   const att = await loadAttendance(member.id);
 
@@ -378,11 +379,12 @@ export async function approveArrivalsAction(
   if (ids.length === 0) return ok();
 
   const event = await db
-    .select({ date: events.date, arrival: events.teamArrivalTime })
+    .select({ date: events.date, arrival: events.teamArrivalTime, status: events.status })
     .from(events)
     .where(eq(events.id, eventId))
     .get();
   if (!event) return fail(t.errors.notFound);
+  if (event.status === 'CANCELLED') return fail(t.event.cancelledNotice);
   const due = venueMoment(event.date, event.arrival);
 
   const now = new Date();
@@ -460,12 +462,14 @@ async function loadSeatRow(eventMemberId: string, seatMemberId: string) {
       checkInTime: seatSetupMembers.checkInTime,
       checkOutTime: seatSetupMembers.checkOutTime,
       status: seatSetupDetails.status,
+      eventStatus: events.status,
       date: seatSetupDetails.date,
       startTime: seatSetupDetails.startTime,
       endTime: seatSetupDetails.endTime,
     })
     .from(seatSetupMembers)
     .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
+    .innerJoin(events, eq(seatSetupMembers.eventId, events.id))
     .where(
       and(
         eq(seatSetupMembers.id, seatMemberId),
@@ -499,6 +503,7 @@ async function loadSeat(
 
   const seat = await loadSeatRow(member.id, seatMemberId);
   if (!seat) return { ok: false, error: t.errors.notFound };
+  if (seat.eventStatus === 'CANCELLED') return { ok: false, error: t.event.cancelledNotice };
   if (seat.status !== 'READY' && seat.status !== 'IN_PROGRESS') {
     return { ok: false, error: t.seatSetup.closedForMember };
   }

@@ -43,6 +43,7 @@ import { eventTeamLeaderId, eventTeamLeaderIds, setEventTeamLeader, setEventTeam
 import { hrefForStep } from '@/features/event/setup-steps';
 import { getStaffedLocations } from '@/server/services/staffing';
 import { DEFAULT_EVENT_PAY } from '@/lib/money';
+import { cancelEvent } from '@/server/services/cancellation';
 
 import { fail, ok, type ActionState } from './types';
 
@@ -524,6 +525,9 @@ export async function changeEventStatusAction(
 
   const from = event.status as EventStatus;
   if (!EVENT_STATUS_FLOW[from]?.includes(next)) return fail(t.errors.forbidden);
+  if ((next === 'CANCELLED' || from === 'CANCELLED') && user.role !== 'ADMIN') {
+    return fail(t.errors.forbidden);
+  }
 
   /*
    * Closing is the moment every undecided line turns into a zero.
@@ -571,7 +575,12 @@ export async function changeEventStatusAction(
     }
   }
 
-  await db
+  if (next === 'CANCELLED') {
+    const result = await cancelEvent(eventId, user.id, str(form, 'reason') ?? '');
+    if (result === 'REASON') return fail(t.event.cancelReasonRequired);
+    if (result === 'PAID') return fail(t.event.cancelPaidBlocked);
+    if (result !== 'OK') return fail(t.errors.forbidden);
+  } else await db
     .update(events)
     .set({
       status: next,
@@ -645,6 +654,12 @@ export async function changeEventStatusAction(
   revalidatePath(`/admin/events/${eventId}`);
   revalidatePath(`/leader/events/${eventId}`);
   revalidatePath('/admin');
+  revalidatePath('/admin/events');
+  revalidatePath('/admin/credits');
+  revalidatePath('/admin/team', 'layout');
+  revalidatePath('/admin/payments');
+  revalidatePath('/leader', 'layout');
+  revalidatePath('/me', 'layout');
   return ok();
 }
 
@@ -655,6 +670,8 @@ export async function deleteEventAction(form: FormData): Promise<void> {
 
   const event = await db.query.events.findFirst({ where: eq(events.id, eventId) });
   if (!event) redirect('/admin/events');
+  // Cancellation keeps the event as the permanent record behind chair wages and costs.
+  if (event.status === 'CANCELLED') redirect(`/admin/events/${eventId}`);
 
   /*
    * Only an evening that has not happened can be deleted.

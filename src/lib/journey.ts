@@ -124,7 +124,7 @@ export function stageFor(facts: JourneyFacts): JourneyStage {
    * outside: he said he could not come, or his place was given to somebody
    * else. Either way there is nothing left for him to do here.
    */
-  if (facts.memberStatus === 'CANCELLED' || facts.declinedAt) return 'CLOSED';
+  if (facts.eventStatus === 'CANCELLED' || facts.memberStatus === 'CANCELLED' || facts.declinedAt) return 'CLOSED';
 
   if (!facts.confirmedAt) return 'INVITED';
 

@@ -63,6 +63,7 @@ export async function membersBusyDuring(event: Shift & { id: string }): Promise<
       and(
         inArray(events.date, days),
         ne(events.id, event.id),
+        ne(events.status, 'CANCELLED'),
         ne(eventMembers.status, 'CANCELLED'),
       ),
     );

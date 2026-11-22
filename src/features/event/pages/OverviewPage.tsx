@@ -105,6 +105,10 @@ export async function EventOverviewPage({
         }
       />
 
+      {event.status === 'CANCELLED' ? (
+        <div className="mb-4"><Notice tone="warn">{t.event.cancelledNotice}</Notice></div>
+      ) : null}
+
       {scope.canManage && event.seatPayDetachedAt ? (
         <div className="mb-4">
           <Notice tone="warn">
@@ -126,7 +130,7 @@ export async function EventOverviewPage({
         itself: the promoter's screen answers "report to: not set yet", and no
         account exists that can approve a single arrival.
       */}
-      {scope.canManage && teamLeaderId === null ? (
+      {scope.canManage && teamLeaderId === null && event.status !== 'CANCELLED' ? (
         <div className="mb-4">
           <Notice tone="warn">
             <span className="font-semibold">{t.event.noLeaderTitle}</span> —{' '}
@@ -144,7 +148,7 @@ export async function EventOverviewPage({
         that was made weeks ago, and it trains whoever opens old events to
         read past red banners.
       */}
-      {staffing.understaffed.length > 0 && event.status !== 'COMPLETED' && event.status !== 'ARCHIVED' ? (
+      {staffing.understaffed.length > 0 && !['COMPLETED', 'ARCHIVED', 'CANCELLED'].includes(event.status) ? (
         <div className="mb-4">
           <Notice tone="crit">
             <span className="font-semibold">{t.event.notReady}</span> —{' '}
@@ -163,7 +167,7 @@ export async function EventOverviewPage({
             </Link>
           </Notice>
         </div>
-      ) : locations.length > 0 ? (
+      ) : locations.length > 0 && event.status !== 'CANCELLED' ? (
         <div className="mb-4">
           <Notice tone="ok">{t.event.readyToGo}</Notice>
         </div>
@@ -387,7 +391,7 @@ export async function EventOverviewPage({
 
           {scope.canManage ? (
             <Panel title={t.event.lifecycle}>
-              <EventLifecycle t={t} eventId={eventId} status={event.status as EventStatus} />
+              <EventLifecycle t={t} eventId={eventId} status={event.status as EventStatus} canCancel={scope.user.role === 'ADMIN'} />
             </Panel>
           ) : null}
 

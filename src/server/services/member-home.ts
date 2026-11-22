@@ -99,6 +99,7 @@ export async function getMemberHome(teamMemberId: string) {
     .where(
       and(
         eq(eventMembers.teamMemberId, teamMemberId),
+        ne(events.status, 'CANCELLED'),
         or(ne(eventMembers.status, 'CANCELLED'), eq(eventMembers.chairSetupOnly, true)),
         or(inArray(events.status, HIDDEN_FROM_CREW), eq(eventMembers.chairSetupOnly, true)),
         inArray(seatSetupDetails.status, ['READY', 'IN_PROGRESS', 'COMPLETED']),
@@ -140,7 +141,7 @@ export async function getMemberHome(teamMemberId: string) {
     const { payoutId, notifiedAt: _notifiedAt, ...rest } = raw;
     const row = { ...rest, paid: payoutId !== null };
     if (row.eventStatus === 'LIVE') live.push(row);
-    else if (row.eventStatus === 'COMPLETED' || row.eventStatus === 'ARCHIVED') past.push(row);
+    else if (['COMPLETED', 'ARCHIVED', 'CANCELLED'].includes(row.eventStatus)) past.push(row);
     else upcoming.push(row);
   }
 

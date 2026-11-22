@@ -29,6 +29,9 @@ export default async function SeatSetupInvitationPage({
 
   // Once the event is published, the ordinary event invitation owns the
   // promoter's view and the chair shift appears there alongside it.
+  if (invitation.eventStatus === 'CANCELLED') {
+    return <InvalidToken title={t.enums.eventStatus.CANCELLED} hint={t.event.cancelledNotice} />;
+  }
   if (invitation.eventStatus !== 'DRAFT') redirect(`/member/${token}`);
 
   return (

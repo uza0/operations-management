@@ -76,6 +76,7 @@ export const EVENT_STATUSES = [
   'LIVE',
   'COMPLETED',
   'ARCHIVED',
+  'CANCELLED',
 ] as const;
 export type EventStatus = (typeof EVENT_STATUSES)[number];
 
@@ -99,12 +100,13 @@ export const HIDDEN_FROM_CREW: string[] = ['DRAFT', 'PLANNING'];
 
 /** Allowed lifecycle moves. Anything else is rejected server-side. */
 export const EVENT_STATUS_FLOW: Record<EventStatus, EventStatus[]> = {
-  DRAFT: ['PLANNING', 'ARCHIVED'],
-  PLANNING: ['DRAFT', 'READY', 'ARCHIVED'],
-  READY: ['PLANNING', 'LIVE', 'ARCHIVED'],
-  LIVE: ['READY', 'COMPLETED'],
+  DRAFT: ['PLANNING', 'ARCHIVED', 'CANCELLED'],
+  PLANNING: ['DRAFT', 'READY', 'ARCHIVED', 'CANCELLED'],
+  READY: ['PLANNING', 'LIVE', 'ARCHIVED', 'CANCELLED'],
+  LIVE: ['READY', 'COMPLETED', 'CANCELLED'],
   COMPLETED: ['LIVE', 'ARCHIVED'],
   ARCHIVED: ['COMPLETED'],
+  CANCELLED: ['PLANNING'],
 };
 
 export const GATE_TYPES = ['GENERAL', 'VIP', 'STAFF', 'PLAYERS', 'MEDIA', 'OTHER'] as const;

@@ -47,6 +47,8 @@ import type { AttendanceStatus } from '@/lib/constants';
  * the accounts department is meant to pay against.
  */
 export const CLOSED_STATUSES = ['COMPLETED', 'ARCHIVED'];
+/** Cancellation releases costs and chair work, never the concert's wages. */
+export const EXPENSE_PAYABLE_STATUSES = [...CLOSED_STATUSES, 'CANCELLED'];
 
 /**
  * What one person is on for one event, resolved from the three places the
@@ -136,6 +138,7 @@ export function creditFor(input: {
     eventDefault: input.eventDefault,
   });
   if (rate === null) return null;
+  if (input.eventStatus === 'CANCELLED') return 0;
 
   const settled = input.eventStatus
     ? CLOSED_STATUSES.includes(input.eventStatus)
@@ -377,7 +380,7 @@ function toLine(
   range?: Range,
 ): LedgerLine {
   const status = (row.status ?? 'PENDING') as AttendanceStatus;
-  const closed = CLOSED_STATUSES.includes(row.eventStatus);
+  const closed = EXPENSE_PAYABLE_STATUSES.includes(row.eventStatus);
   const eventInRange = (!range?.from || row.eventDate >= range.from) &&
     (!range?.to || row.eventDate <= range.to);
   const eventAmount = creditFor({

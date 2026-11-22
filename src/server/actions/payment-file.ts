@@ -24,7 +24,7 @@ import { requireRole } from '@/server/auth/rbac';
 import { EXPENSE_ACCOUNT, expenseAccount, writeSetting } from '@/server/services/settings';
 import { pushToMembers } from '@/server/services/push';
 import { recordAudit } from '@/server/services/audit';
-import { CLOSED_STATUSES } from '@/server/services/credit';
+import { CLOSED_STATUSES, EXPENSE_PAYABLE_STATUSES } from '@/server/services/credit';
 import {
   activeTemplate,
   blockers,
@@ -165,9 +165,11 @@ export async function undoSeatPayDetachAction(
       name: true,
       seatPayDetachedAt: true,
       seatPayDetachedReason: true,
+      status: true,
     },
   });
   if (!event?.seatPayDetachedAt) return fail(t.payment.detachNotActive);
+  if (event.status === 'CANCELLED') return fail(t.event.cancelledNotice);
 
   if (await hasPaidChairDays(eventId)) return fail(t.payment.detachUndoBlocked);
 
@@ -527,7 +529,11 @@ export async function oldestOwed(): Promise<string | null> {
     .orderBy(seatSetupDetails.date)
     .limit(1)
     .get();
-  const dates = [row?.date, detached?.date].filter((date): date is string => Boolean(date));
+  const cost = await db.select({ date: events.date }).from(eventExpenses)
+    .innerJoin(events, eq(eventExpenses.eventId, events.id))
+    .where(and(isNull(eventExpenses.payoutId), inArray(events.status, EXPENSE_PAYABLE_STATUSES)))
+    .orderBy(events.date).limit(1).get();
+  const dates = [row?.date, detached?.date, cost?.date].filter((date): date is string => Boolean(date));
   return dates.sort()[0] ?? null;
 }
 

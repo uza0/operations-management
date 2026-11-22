@@ -102,8 +102,8 @@ export default async function AdminEventsPage({
                 rather than deleted — the server refuses it either way.
               */
               action={
-                user.systemDeveloper ||
-                DELETABLE_STATUSES.includes(event.status as EventStatus) ? (
+                event.status !== 'CANCELLED' && (user.systemDeveloper ||
+                DELETABLE_STATUSES.includes(event.status as EventStatus)) ? (
                   <DeleteEventButton t={t} eventId={event.id} eventName={event.name} />
                 ) : undefined
               }

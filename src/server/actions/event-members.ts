@@ -322,6 +322,9 @@ export async function revokeEventMemberAction(
     return fail(t.errors.forbidden);
   }
 
+  const parent = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { status: true } });
+  if (parent?.status === 'CANCELLED') return fail(t.event.cancelledNotice);
+
   const id = str(form, 'eventMemberId');
   if (!id) return fail(t.errors.notFound);
 
@@ -401,6 +404,9 @@ export async function deleteEventMemberAction(
   } catch {
     return fail(t.errors.forbidden);
   }
+
+  const parent = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { status: true } });
+  if (parent?.status === 'CANCELLED') return fail(t.event.cancelledNotice);
 
   const id = str(form, 'eventMemberId');
   if (!id) return fail(t.errors.notFound);
@@ -549,6 +555,9 @@ export async function bulkEventMembersAction(
   } catch {
     return fail(t.errors.forbidden);
   }
+  const parent = await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { status: true } });
+  if (parent?.status === 'CANCELLED') return fail(t.event.cancelledNotice);
+
   const op = String(form.get('op') ?? '') as keyof typeof BULK;
   const run = BULK[op];
   const ids = [...new Set(form.getAll('eventMemberIds').map(String).filter(Boolean))];
