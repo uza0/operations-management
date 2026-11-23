@@ -1,6 +1,7 @@
 /* eslint-disable @next/next/no-img-element -- rendered to an image; next/image would not be inlined */
 import type { CSSProperties, ReactNode } from 'react';
 import type { MemberCardStats } from '@/server/services/member-card';
+import { ROLE_NAME } from './roles';
 
 /*
  * The six story cards from the "ملف عضو فريق تكت زون" design canvas, at
@@ -124,44 +125,6 @@ const BARS = (() => {
   }
   return out;
 })();
-
-/*
- * A task on the card is the member's title, so it gets a short, proud name
- * rather than the long one the gate sheet uses. OTHER says nothing about him
- * and falls back to the crew line.
- */
-const ROLE_NAME: Record<CardLang, Record<string, string>> = {
-  ar: {
-    TICKET_CHECK: 'تدقيق التذاكر',
-    ELECTRONIC_SCANNING: 'مسح التذاكر',
-    PAPER_TICKETS: 'التذاكر الورقية',
-    CROWD_GUIDANCE: 'توجيه الجمهور',
-    WRISTBAND_DISTRIBUTION: 'توزيع الأساور',
-    WRISTBAND_FITTING: 'تركيب الأساور',
-    VIP_MANAGEMENT: 'كبار الشخصيات VIP',
-    INFORMATION: 'الاستعلامات',
-    GATE_MANAGEMENT: 'إدارة البوابة',
-    SECURITY_SUPPORT: 'الإسناد الأمني',
-    TECHNICAL_SUPPORT: 'الإسناد الفني',
-    SALES: 'المبيعات',
-    TEAM_LEAD: 'قائد فريق',
-  },
-  en: {
-    TICKET_CHECK: 'Ticket Check',
-    ELECTRONIC_SCANNING: 'Ticket Scanning',
-    PAPER_TICKETS: 'Paper Tickets',
-    CROWD_GUIDANCE: 'Crowd Guidance',
-    WRISTBAND_DISTRIBUTION: 'Wristband Desk',
-    WRISTBAND_FITTING: 'Wristband Fitting',
-    VIP_MANAGEMENT: 'VIP Management',
-    INFORMATION: 'Information Desk',
-    GATE_MANAGEMENT: 'Gate Management',
-    SECURITY_SUPPORT: 'Security Support',
-    TECHNICAL_SUPPORT: 'Technical Support',
-    SALES: 'Sales',
-    TEAM_LEAD: 'Team Lead',
-  },
-};
 
 export function StoryCard({ design, lang, stats }: { design: Design; lang: CardLang; stats: MemberCardStats }) {
   const c = COPY[lang];

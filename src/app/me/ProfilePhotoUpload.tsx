@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { IconUpload } from '@/components/ui/icons';
 
-export function ProfilePhotoUpload({ pending, labels }: { pending: boolean; labels: { upload: string; pending: string; error: string; tooLarge: string; success: string } }) {
+export function ProfilePhotoUpload({ pending, labels, variant = 'button' }: { pending: boolean; variant?: 'button' | 'avatar'; labels: { upload: string; pending: string; error: string; tooLarge: string; success: string } }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
@@ -27,6 +27,19 @@ export function ProfilePhotoUpload({ pending, labels }: { pending: boolean; labe
     } finally {
       setBusy(false);
     }
+  }
+
+  if (variant === 'avatar') {
+    // A round badge sitting on the photo's edge, the way every profile app does it.
+    return (
+      <form action={submit}>
+        <label aria-label={labels.upload} title={labels.upload} className="grid h-9 w-9 cursor-pointer place-items-center rounded-full border-2 border-ink-850 bg-brand-500 text-white shadow-md transition-colors hover:bg-brand-700">
+          {busy ? <span className="text-xs">…</span> : <IconUpload width={16} height={16} />}
+          <input className="sr-only" name="file" type="file" accept="image/jpeg,image/png,image/webp" required disabled={busy} onChange={(e) => { const form = e.currentTarget.form; if (form) form.requestSubmit(); }} />
+        </label>
+        {message ? <p aria-live="polite" className="sr-only">{message}</p> : null}
+      </form>
+    );
   }
 
   return (
