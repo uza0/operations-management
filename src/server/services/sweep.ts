@@ -3,7 +3,12 @@ import 'server-only';
 
 import { after } from 'next/server';
 
+import { and, eq, inArray, lte, or } from 'drizzle-orm';
+
+import { db } from '@/db';
+import { events, settings } from '@/db/schema';
 import { format, getDictionary } from '@/lib/i18n';
+import { todayISO } from '@/lib/time';
 import { advanceEvents, nagAboutClosing } from '@/server/services/lifecycle';
 import { reminderText, sendDueReminders } from '@/server/services/push';
 
@@ -39,36 +44,72 @@ export async function runSweep() {
   return { ...reminders, moved: moved.length, nagged: nagged.length, imagesCleared };
 }
 
-let lastSweep = 0;
+/*
+ * How often the sweep is worth its cost.
+ *
+ * The outside clock calls every few minutes, day and night, and a full sweep
+ * is several queries of work. On a day with nothing near, that is spent
+ * moving nothing — and it was most of what the free plan's processor time
+ * went on. So: every few minutes while an evening is close (an event today or
+ * tomorrow, one ready or live, or a draft being set up), and once an hour
+ * otherwise, which still archives the paid ones and nags about the unclosed.
+ * In between, a call costs two tiny reads.
+ */
+const SWEPT_AT = 'sweep.lastAt';
+const HOT_GAP = 4 * 60 * 1000;
+const QUIET_GAP = 60 * 60 * 1000;
+
+function tomorrowISO(): string {
+  const [y, m, d] = todayISO().split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d + 1)).toISOString().slice(0, 10);
+}
+
+async function eveningIsClose(): Promise<boolean> {
+  const row = await db
+    .select({ id: events.id })
+    .from(events)
+    .where(
+      or(
+        inArray(events.status, ['DRAFT', 'READY', 'LIVE']),
+        and(eq(events.status, 'PLANNING'), lte(events.date, tomorrowISO())),
+      ),
+    )
+    .limit(1);
+  return row.length > 0;
+}
+
+/** Runs the sweep if enough time has passed since the last one, from anywhere. */
+export async function runSweepIfDue(minGap = HOT_GAP) {
+  const now = Date.now();
+  const last = await db.query.settings.findFirst({ where: eq(settings.key, SWEPT_AT) });
+  const since = now - Number(last?.value ?? 0);
+  if (since < minGap) return { skipped: true as const };
+  if (since < QUIET_GAP && !(await eveningIsClose())) return { skipped: true as const };
+  await db
+    .insert(settings)
+    .values({ key: SWEPT_AT, value: String(now) })
+    .onConflictDoUpdate({ target: settings.key, set: { value: String(now), updatedAt: new Date() } });
+  return runSweep();
+}
+
+let lastPageCheck = 0;
 
 /**
- * Runs the sweep off the back of an ordinary page load.
+ * Runs the sweep off the back of an ordinary page load — now only a backup.
  *
  * A reminder an hour before arrival needs something to fire every so often,
- * and the smaller hosting plans allow one scheduled job a day, which is no
- * use to an event that starts at six. So the pages people open on an event
- * evening do it: one of them in ten minutes carries the sweep. An outside
- * clock calling /api/push/due does the same job on a quiet day.
+ * and the smaller hosting plans allow one scheduled job a day. An outside
+ * clock calling /api/push/due does that every few minutes; this only steps in
+ * when that clock has been quiet for a quarter of an hour, so a page no longer
+ * carries a second copy of the same work.
  *
- * Two things here were wrong before and are the reason this is its own file.
- *
- * It was started and simply left running while the page was sent. A
- * serverless function is frozen once its response has gone, so the sweep was
- * finished only when the platform happened to leave it time — the stages
- * usually moved, the hundred pushes behind them often did not. `after` is the
- * platform's own promise to keep the function alive until the work is done.
- *
- * And every caller passed its own idea of the sweep through one shared
- * ten-minute gate. The supervisor's dashboard passed only the stage changes,
- * so a supervisor opening it shut the gate on the promoters' reminders for
- * the next ten minutes. There is one sweep now, and whoever opens the gate
- * runs all of it.
- *
+ * `after` is the platform's own promise to keep the function alive until the
+ * work is done: a serverless function is frozen once its response has gone.
  * Never awaited by the page, and a failure here is never the page's failure.
  */
 export function sweepInBackground() {
   const now = Date.now();
-  if (now - lastSweep < 10 * 60 * 1000) return;
-  lastSweep = now;
-  after(() => runSweep().catch(() => {}));
+  if (now - lastPageCheck < 15 * 60 * 1000) return;
+  lastPageCheck = now;
+  after(() => runSweepIfDue(15 * 60 * 1000).catch(() => {}));
 }

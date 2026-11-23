@@ -1,4 +1,4 @@
-import { runSweep } from '@/server/services/sweep';
+import { runSweepIfDue } from '@/server/services/sweep';
 
 /**
  * The clock reminders, for whoever is due, late to press, or about to leave.
@@ -20,5 +20,5 @@ import { runSweep } from '@/server/services/sweep';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  return Response.json(await runSweep(), { headers: { 'Cache-Control': 'no-store' } });
+  return Response.json(await runSweepIfDue(), { headers: { 'Cache-Control': 'no-store' } });
 }
