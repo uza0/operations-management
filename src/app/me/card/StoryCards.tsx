@@ -9,7 +9,7 @@ import type { MemberCardStats } from '@/server/services/member-card';
  * properly; a server image renderer does not join Arabic letters.
  */
 
-export const DESIGNS = ['badge', 'passport', 'season', 'sticker', 'crew', 'ticket'] as const;
+export const DESIGNS = ['upcoming', 'badge', 'passport', 'season', 'sticker', 'crew', 'ticket'] as const;
 export type Design = (typeof DESIGNS)[number];
 export type CardLang = 'ar' | 'en';
 
@@ -28,6 +28,7 @@ const COPY = {
     stickerTop: 'خلفية شفافة: تحطه فوق صورتك من الحفلة', wasOn: 'كنت بالفريق', allGates: 'دخول كل البوابات',
     memberFrom: (y: string) => `عضو من ${y} · بغداد`, eventsFrom: (n: number, y: string) => `${n} فعالية · من ${y}`,
     roleNone: 'فريق تكت زون', logo: 'شعار تكت زون',
+    willBe1: 'راح أكون', willBe2: 'هناك', was1: 'كنت', wasOnCrew: 'كنت ويه فريق التنظيم', ago: (n: number) => (n === 1 ? 'البارحة' : n === 2 ? 'قبل يومين' : n <= 10 ? `قبل ${n} أيام` : `قبل ${n} يوم`), tonight: 'الليلة', tomorrow: 'باچر', inDays: (n: number) => (n === 2 ? 'بعد يومين' : n <= 10 ? `بعد ${n} أيام` : `بعد ${n} يوم`), onCrew: 'ويه فريق التنظيم',
   },
   en: {
     events: 'Events', venues: 'Venues', since: 'Since', team1: 'Ticket Zone', team2: 'Team', team: 'Ticket Zone Team',
@@ -39,6 +40,7 @@ const COPY = {
     stickerTop: 'Transparent background: place it on your event photo', wasOn: 'I was on the crew', allGates: 'All gates access',
     memberFrom: (y: string) => `Member since ${y} · Baghdad`, eventsFrom: (n: number, y: string) => `${n} ${n === 1 ? 'event' : 'events'} · since ${y}`,
     roleNone: 'Ticket Zone Crew', logo: 'Ticket Zone logo',
+    willBe1: 'See you', willBe2: 'there', was1: 'I was', wasOnCrew: 'I was on the event crew', ago: (n: number) => (n === 1 ? 'Yesterday' : `${n} days ago`), tonight: 'Tonight', tomorrow: 'Tomorrow', inDays: (n: number) => `In ${n} days`, onCrew: 'On the event crew',
   },
 } as const;
 
@@ -48,6 +50,45 @@ const dmy = (iso: string | null, year = false) => {
   const [y, m, d] = iso.split('-');
   return year ? `${Number(d)}.${m}.${y}` : `${Number(d)}.${m}`;
 };
+
+const TYPE_NAME: Record<string, { ar: string; en: string }> = {
+  FOOTBALL_MATCH: { ar: 'مباراة', en: 'Match' },
+  CONCERT: { ar: 'حفلة', en: 'Concert' },
+  THEATER: { ar: 'مسرحية', en: 'Play' },
+  COMEDY: { ar: 'عرض كوميدي', en: 'Comedy show' },
+  FESTIVAL: { ar: 'مهرجان', en: 'Festival' },
+  EXHIBITION: { ar: 'معرض', en: 'Exhibition' },
+  CONFERENCE: { ar: 'مؤتمر', en: 'Conference' },
+  WORKSHOP: { ar: 'ورشة', en: 'Workshop' },
+  PROMOTIONAL: { ar: 'فعالية', en: 'Event' },
+  OTHER: { ar: 'فعالية', en: 'Event' },
+};
+
+/** Days from today in Baghdad to "YYYY-MM-DD", counted in the viewer's browser when the card is drawn. */
+function daysUntil(iso: string): number {
+  const today = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Baghdad', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date());
+  const [ty, tm, td] = today.split('-').map(Number);
+  const a = Date.UTC(ty, tm - 1, td);
+  const [y, m, d] = iso.split('-').map(Number);
+  return Math.round((Date.UTC(y, m - 1, d) - a) / 86_400_000);
+}
+
+function dateParts(iso: string, lang: CardLang) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const at = new Date(Date.UTC(y, m - 1, d, 12));
+  const loc = lang === 'ar' ? 'ar-IQ-u-nu-latn' : 'en-GB';
+  return {
+    day: String(d),
+    month: new Intl.DateTimeFormat(loc, { month: 'long', timeZone: 'UTC' }).format(at),
+    weekday: new Intl.DateTimeFormat(loc, { weekday: 'long', timeZone: 'UTC' }).format(at),
+  };
+}
+
+function clock(hhmm: string, lang: CardLang) {
+  const [h, mm] = hhmm.split(':').map(Number);
+  const h12 = ((h + 11) % 12) + 1;
+  return lang === 'ar' ? `${h12}:${String(mm).padStart(2, '0')} ${h < 12 ? 'ص' : 'م'}` : `${h12}:${String(mm).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`;
+}
 
 const root = (extra: CSSProperties): CSSProperties => ({
   width: 1080, height: 1920, boxSizing: 'border-box', fontFamily: FONT, position: 'relative', overflow: 'hidden', ...extra,
@@ -93,6 +134,58 @@ export function StoryCard({ design, lang, stats }: { design: Design; lang: CardL
   const logo = (size: number, extra: CSSProperties = {}) => (
     <img src={LOGO} alt={c.logo} style={{ width: size, height: size, borderRadius: size * 0.22, flex: 'none', ...extra }} />
   );
+
+  if (design === 'upcoming' && stats.next) {
+    const n = stats.next;
+    const parts = dateParts(n.date, lang);
+    const left = daysUntil(n.date);
+    const when = n.past ? (left >= 0 ? c.tonight : c.ago(-left)) : left <= 0 ? c.tonight : left === 1 ? c.tomorrow : c.inDays(left);
+    const type = (TYPE_NAME[n.type] ?? TYPE_NAME.OTHER)[lang];
+    return (
+      <div dir={dir} style={root({ background: '#121317', color: '#fff', padding: '90px 76px', display: 'flex', flexDirection: 'column' })}>
+        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,0.05) 2px, transparent 2px)', backgroundSize: '44px 44px' }} />
+        <div style={{ position: 'absolute', top: -300, [end]: -300, width: 860, height: 860, borderRadius: '50%', background: RED }} />
+        <div style={{ position: 'absolute', top: -160, [end]: -160, width: 580, height: 580, borderRadius: '50%', border: '6px solid #121317' }} />
+        <div style={{ position: 'absolute', top: -40, [end]: -40, width: 340, height: 340, borderRadius: '50%', border: '6px solid #121317' }} />
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 20 }}>
+          {logo(96)}
+          {p({ fontSize: 30, fontWeight: 700, letterSpacing: 4, direction: 'ltr' }, 'TICKET ZONE · CREW')}
+        </div>
+        <div style={{ position: 'relative', marginTop: 190 }}>
+          {p({ fontSize: 150, fontWeight: 900, lineHeight: 1 }, n.past ? c.was1 : c.willBe1)}
+          <p style={{ display: 'inline-block', margin: '18px 0 0', fontSize: 150, fontWeight: 900, lineHeight: 1.05, background: RED, padding: '0 40px 14px', borderRadius: 36 }}>{c.willBe2}</p>
+        </div>
+        <p style={{ position: 'relative', alignSelf: 'flex-start', margin: '44px 0 0', fontSize: 40, fontWeight: 700, border: '4px solid #fff', borderRadius: 60, padding: '12px 36px' }}>{when}</p>
+        <div style={{ position: 'relative', marginTop: 'auto', background: '#fff', color: '#121317', borderRadius: 48, overflow: 'hidden' }}>
+          <div style={{ display: 'flex', alignItems: 'stretch' }}>
+            <div style={{ width: 300, flex: 'none', background: RED, color: '#fff', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 0' }}>
+              {p({ fontSize: 160, fontWeight: 900, lineHeight: 0.95 }, parts.day)}
+              {p({ marginTop: 10, fontSize: 36, fontWeight: 800 }, parts.month)}
+              {p({ marginTop: 4, fontSize: 30, fontWeight: 500 }, parts.weekday)}
+            </div>
+            <div style={{ padding: '44px 48px', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 18, minWidth: 0 }}>
+              {p({ fontSize: 30, fontWeight: 700, color: RED }, type)}
+              {p({ fontSize: n.name.length > 18 ? 52 : 64, fontWeight: 900, lineHeight: 1.1 }, n.name)}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 32, fontWeight: 500, color: '#44413c' }}>
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={RED} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}><path d="M12 21s-7-6.2-7-11.5a7 7 0 0 1 14 0C19 14.8 12 21 12 21z" /><circle cx="12" cy="9.5" r="2.5" /></svg>
+                <span>{n.venue}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14, fontSize: 32, fontWeight: 500, color: '#44413c' }}>
+                <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke={RED} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" style={{ flex: 'none' }}><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></svg>
+                <span>{clock(n.startTime, lang)}</span>
+              </div>
+            </div>
+          </div>
+          <div style={{ borderTop: '5px dashed #e2ddd6', margin: '0 40px' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '34px 48px' }}>
+            <div>{p({ fontSize: 44, fontWeight: 800 }, stats.name)}{p({ marginTop: 4, fontSize: 28, fontWeight: 500, color: '#6b6862' }, n.past ? c.wasOnCrew : c.onCrew)}</div>
+            {p({ fontSize: 30, fontWeight: 800, letterSpacing: 4, color: '#fff', background: '#121317', borderRadius: 40, padding: '12px 30px' }, 'CREW')}
+          </div>
+        </div>
+        {p({ position: 'relative', marginTop: 40, textAlign: 'center', fontSize: 30, fontWeight: 500, color: '#b9b9b9' }, `${c.team} · ${c.city}`)}
+      </div>
+    );
+  }
 
   if (design === 'badge') {
     return (

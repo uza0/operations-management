@@ -20,7 +20,9 @@ const NEEDS_HISTORY: Design[] = ['passport', 'season', 'sticker'];
 const SCALE = 0.3;
 
 export function ShareStudio({ stats, copy, initialLang }: { stats: MemberCardStats; copy: Copy; initialLang: CardLang }) {
-  const designs = DESIGNS.filter((d) => stats.events > 0 || !NEEDS_HISTORY.includes(d));
+  const designs = DESIGNS.filter(
+    (d) => (d === 'upcoming' ? stats.next !== null : stats.events > 0 || !NEEDS_HISTORY.includes(d)),
+  );
   const [design, setDesign] = useState<Design>(designs[0]);
   const [lang, setLang] = useState<CardLang>(initialLang);
   const [busy, setBusy] = useState(false);

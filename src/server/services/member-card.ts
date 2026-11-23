@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { and, asc, eq, inArray, isNull, ne } from 'drizzle-orm';
+import { and, asc, eq, gte, inArray, isNotNull, isNull, ne, or } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -15,6 +15,7 @@ import {
   venues,
   workingPoints,
 } from '@/db/schema';
+import { todayISO } from '@/lib/time';
 
 /**
  * What a promoter's share cards say about them — only things the system
@@ -46,6 +47,14 @@ export type MemberCardStats = {
   /** Newest first. */
   stamps: { name: string; date: string }[];
   last: { name: string; date: string; venue: string; post: string | null } | null;
+  /**
+   * The next event he is on and has been told about — the one a "see you
+   * there" card announces — or, with nothing ahead, the last one he worked
+   * (past: true), so the card says "I was there" instead. Only once the briefing reached him (or he
+   * confirmed), never a reserve place or one he declined: the card says
+   * where he will be, so it must be somewhere he has actually been asked.
+   */
+  next: { name: string; date: string; startTime: string; venue: string; type: string; past: boolean } | null;
 };
 
 const WORKED = ['PRESENT', 'LATE'];
@@ -95,6 +104,8 @@ export async function getMemberCardStats(teamMemberId: string): Promise<MemberCa
       eventMemberId: eventMembers.id,
       eventName: events.name,
       date: events.date,
+      startTime: events.startTime,
+      type: events.type,
       venue: venues.name,
       checkInTime: attendance.checkInTime,
       checkOutTime: attendance.checkOutTime,
@@ -148,6 +159,25 @@ export async function getMemberCardStats(teamMemberId: string): Promise<MemberCa
       ),
     );
 
+  const [upcoming] = await db
+    .select({ name: events.name, date: events.date, startTime: events.startTime, venue: venues.name, type: events.type })
+    .from(eventMembers)
+    .innerJoin(events, eq(eventMembers.eventId, events.id))
+    .innerJoin(venues, eq(events.venueId, venues.id))
+    .where(
+      and(
+        eq(eventMembers.teamMemberId, teamMemberId),
+        ne(eventMembers.status, 'CANCELLED'),
+        eq(eventMembers.isReserve, false),
+        isNull(eventMembers.declinedAt),
+        or(isNotNull(eventMembers.notifiedAt), isNotNull(eventMembers.confirmedAt)),
+        inArray(events.status, ['PLANNING', 'READY', 'LIVE']),
+        gte(events.date, todayISO()),
+      ),
+    )
+    .orderBy(asc(events.date), asc(events.startTime))
+    .limit(1);
+
   let total = 0;
   for (const n of nights) {
     const from = minutes(n.checkInTime) ?? clockOf(n.reportedArrivalAt);
@@ -181,6 +211,11 @@ export async function getMemberCardStats(teamMemberId: string): Promise<MemberCa
     firstDate: nights[0]?.date ?? null,
     lastDate: latest?.date ?? null,
     stamps: [...nights].reverse().map((n) => ({ name: shortEventName(n.eventName), date: n.date })),
+    next: upcoming
+      ? { ...upcoming, name: shortEventName(upcoming.name), past: false }
+      : latest
+        ? { name: shortEventName(latest.eventName), date: latest.date, startTime: latest.startTime, venue: latest.venue, type: latest.type, past: true }
+        : null,
     last: latest
       ? {
           name: shortEventName(latest.eventName),

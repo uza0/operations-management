@@ -681,6 +681,7 @@ export const en: Dictionary = {
     cardArabic: 'عربي',
     cardEnglish: 'English',
     cardStickerNote: 'The sticker has a transparent background: place it on your event photo.',
+    cardUpcoming: 'Be there',
     cardBadge: 'Badge',
     cardPassport: 'Event passport',
     cardSeason: 'Your season',
