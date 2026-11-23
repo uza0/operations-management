@@ -140,7 +140,9 @@ export async function getMemberPortal(token: string) {
       /* Shown on the member's own card: at a gate it is what a supervisor
          asks for, and it is the one identifier safe to print there. */
       memberCode: teamMembers.employeeCode,
+      memberPhotoUrl: teamMembers.photoUrl,
       eventId: events.id,
+      eventPosterUrl: events.posterUrl,
       eventName: events.name,
       eventType: events.type,
       eventDate: events.date,

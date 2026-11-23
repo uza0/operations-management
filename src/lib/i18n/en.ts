@@ -740,6 +740,7 @@ export const en: Dictionary = {
     past: 'Finished',
     none: 'No events yet. They appear here as soon as you are invited.',
     noneUpcoming: 'Nothing coming up. Your past events are kept under “My events”.',
+    teamArrival: 'Team arrival',
     greetMorning: 'Good morning',
     greetEvening: 'Good evening',
     countNow: 'Now',

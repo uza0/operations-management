@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 
 import { getT } from '@/lib/i18n/server';
 import { getMemberPortal, type MemberPortalData } from '@/server/services/member';
-import { formatClock, formatDate, formatDateTime, formatTime } from '@/lib/time';
+import { formatClock, formatDate, formatDateTime, formatTime, todayISO } from '@/lib/time';
 import { format } from '@/lib/i18n';
 import { ARRIVAL_WINDOW_HOURS, venueMoment } from '@/lib/journey';
 import { plural } from '@/lib/plural';
@@ -163,51 +163,67 @@ function EventCard({
   locale: Locale;
   m: Portal['membership'];
 }) {
+  const today = todayISO();
+  const days = Math.round((Date.parse(m.eventDate) - Date.parse(today)) / 86_400_000);
+  const countdown = days < 0 ? null : days === 0 ? t.memberAuth.countToday : days === 1 ? t.memberAuth.countTomorrow : format(t.memberAuth.countDays, { n: days });
+  const badges = (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="rounded-full bg-brand-500 px-3 py-1 text-[12px] font-bold text-white">{t.enums.eventType[m.eventType as EventType]}</span>
+      {m.isReserve ? <Badge tone="warn">{t.eventTeam.reserve}</Badge> : null}
+      {countdown ? <span className="rounded-full bg-white/15 px-3 py-1 text-[12px] font-bold text-white backdrop-blur-md">{countdown}</span> : null}
+    </div>
+  );
+  const place = (
+    <p className="mt-2 flex items-start gap-2 text-[14.5px] font-semibold text-white/90">
+      <IconPin width={17} height={17} className="mt-0.5 shrink-0 text-[#ff8f84]" />
+      <span className="min-w-0">
+        {m.venueName}
+        {m.venueAddress ? <span className="mt-0.5 block text-[12.5px] font-normal text-white/60">{m.venueAddress}</span> : null}
+      </span>
+    </p>
+  );
   return (
-    <section className="rounded-card border border-ink-700 bg-ink-900 shadow-panel">
-      <div className="p-5">
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge tone="brand">{t.enums.eventType[m.eventType as EventType]}</Badge>
-          {m.isReserve ? <Badge tone="warn">{t.eventTeam.reserve}</Badge> : null}
+    <section className="overflow-hidden rounded-card border border-ink-700 bg-ink-900 shadow-panel">
+      {/*
+        The top of the page is the evening itself: the organiser's poster
+        when there is one, otherwise the brand's own cover. Either way the
+        name and the place sit on it in white, the way a ticket reads.
+      */}
+      {m.eventPosterUrl ? (
+        <div className="relative h-[300px]">
+          {/* eslint-disable-next-line @next/next/no-img-element -- immutable /uploads/ image */}
+          <img src={m.eventPosterUrl} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: '50% 22%' }} />
+          <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-black/35 via-black/50 via-50% to-[#121317]" />
+          <div className="absolute inset-x-0 top-0 p-4">{badges}</div>
+          <div className="absolute inset-x-0 bottom-0 p-5 text-white">
+            <h1 className="text-[27px] font-extrabold leading-[1.15]">{m.eventName}</h1>
+            {place}
+          </div>
         </div>
-
-        <h1 className="mt-2.5 text-[27px] font-extrabold leading-[1.15] text-ink-100">
-          {m.eventName}
-        </h1>
-
-        <p className="mt-2 flex items-start gap-2 text-[15px] font-semibold text-ink-200">
-          <IconPin width={17} height={17} className="mt-0.5 shrink-0 text-brand-600" />
-          <span className="min-w-0">
-            {m.venueName}
-            {m.venueAddress ? (
-              <span className="mt-0.5 block text-[12.5px] font-normal text-ink-500">
-                {m.venueAddress}
-              </span>
-            ) : null}
-          </span>
-        </p>
-      </div>
+      ) : (
+        <div className="relative overflow-hidden bg-[#121317] p-5 text-white">
+          <div aria-hidden className="absolute -top-24 h-56 w-56 rounded-full bg-brand-500/90 ltr:-right-20 rtl:-left-20" />
+          <div aria-hidden className="absolute -top-16 h-40 w-40 rounded-full border-2 border-[#121317]/70 ltr:-right-12 rtl:-left-12" />
+          <div className="relative">
+            {badges}
+            <h1 className="mt-4 text-[27px] font-extrabold leading-[1.15]">{m.eventName}</h1>
+            {place}
+          </div>
+        </div>
+      )}
 
       {/* The two numbers that decide when to leave the house. */}
-      <div className="grid grid-cols-2 divide-x divide-ink-700 border-t border-ink-700 rtl:divide-x-reverse">
-        <div className="px-4 py-3">
-          <p className="flex items-center gap-1.5 text-[12.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
-            <IconCalendar width={13} height={13} />
-            {t.member.date}
-          </p>
-          <p className="mt-1 text-[14px] font-semibold text-ink-100">
-            {formatDate(m.eventDate, locale)}
-          </p>
-        </div>
-        <div className="px-4 py-3">
-          <p className="flex items-center gap-1.5 text-[12.5px] font-bold uppercase tracking-[0.1em] text-ink-500">
-            <IconClock width={13} height={13} />
-            {t.event.kickoff}
-          </p>
-          <p className="nums mt-1 text-[14px] font-semibold text-ink-100">
-            {formatTime(m.eventStart, locale)}
-          </p>
-        </div>
+      <div className="grid grid-cols-3 divide-x divide-ink-700 border-t border-ink-700 rtl:divide-x-reverse">
+        {[
+          [<IconCalendar key="i" width={13} height={13} />, t.member.date, formatDate(m.eventDate, locale)],
+          [<IconUsers key="i" width={13} height={13} />, t.memberAuth.teamArrival, formatTime(m.eventArrival, locale)],
+          [<IconClock key="i" width={13} height={13} />, t.event.kickoff, formatTime(m.eventStart, locale)],
+        ].map(([icon, label, value], index) => (
+          <div key={index} className={`px-3 py-3 ${index === 1 ? 'bg-brand-500/10' : ''}`}>
+            <p className={`flex items-center gap-1 text-[11.5px] font-bold ${index === 1 ? 'text-brand-300' : 'text-ink-500'}`}>{icon}{label}</p>
+            <p className="nums mt-1 text-[14px] font-semibold leading-5 text-ink-100">{value}</p>
+          </div>
+        ))}
       </div>
 
       {m.venueLocationUrl ? (
@@ -499,25 +515,23 @@ export default async function MemberPortalPage({
   );
 
   const identity = (
-    <section className="flex items-center gap-3 rounded-card border border-ink-700 bg-ink-850 px-4 py-3.5">
-      <span
-        aria-hidden
-        className="grid h-11 w-11 shrink-0 place-items-center rounded-full bg-brand-600 text-[16px] font-extrabold text-white"
-      >
-        {membership.memberName.trim().charAt(0)}
+    /* His badge for the night: the face a supervisor checks at the gate. */
+    <section className="relative flex items-center gap-3 overflow-hidden rounded-card border border-ink-700 bg-ink-850 px-4 py-3.5">
+      <span aria-hidden className="absolute inset-y-0 w-1.5 bg-brand-500 ltr:left-0 rtl:right-0" />
+      <span aria-hidden className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full bg-brand-600 text-[18px] font-extrabold text-white ring-2 ring-brand-500 ring-offset-2 ring-offset-ink-850">
+        {membership.memberPhotoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- immutable /uploads/ image
+          <img src={membership.memberPhotoUrl} alt="" className="h-full w-full object-cover" />
+        ) : membership.memberName.trim().charAt(0)}
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-[16px] font-bold text-ink-100">
-          {membership.memberName}
-        </p>
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12.5px] text-ink-400">
-          <span className="font-semibold text-brand-900">{positionLabel}</span>
-          <span aria-hidden className="text-ink-600">
-            ·
-          </span>
-          <span className="nums">{membership.memberCode}</span>
-        </p>
+        <p className="truncate text-[16.5px] font-bold text-ink-100" style={{ unicodeBidi: 'plaintext' }}>{membership.memberName}</p>
+        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+          <span className="rounded-full bg-brand-500/15 px-2.5 py-0.5 text-[12px] font-semibold text-brand-300">{positionLabel}</span>
+          <span className="nums rounded-full border border-ink-600 px-2.5 py-0.5 text-[12px] font-semibold text-ink-300" dir="ltr">{membership.memberCode}</span>
+        </div>
       </div>
+      <span className="hidden text-[10px] font-bold tracking-[0.2em] text-ink-500 min-[380px]:block" dir="ltr">CREW</span>
     </section>
   );
 
