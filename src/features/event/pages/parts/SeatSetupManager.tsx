@@ -38,6 +38,7 @@ export function SeatSetupManager({
   data,
   defaultDate,
   canSeeFinance,
+  defaultPay,
 }: {
   t: Dictionary;
   locale: Locale;
@@ -45,6 +46,8 @@ export function SeatSetupManager({
   data: SeatSetupData;
   defaultDate: string;
   canSeeFinance: boolean;
+  /** What a new chair day is filled in with — the event's own rate. */
+  defaultPay: number;
 }) {
   const router = useRouter();
   /** Which shift the dialogs are about: a shift object, 'new', or nothing. */
@@ -123,6 +126,7 @@ export function SeatSetupManager({
           detail={editing === 'new' ? null : editing}
           defaultDate={defaultDate}
           canSeeFinance={canSeeFinance}
+          defaultPay={defaultPay}
           onDone={refresh}
         />
       ) : null}
@@ -358,6 +362,7 @@ function ShiftDialog({
   detail,
   defaultDate,
   canSeeFinance,
+  defaultPay,
   onDone,
 }: {
   t: Dictionary;
@@ -365,6 +370,7 @@ function ShiftDialog({
   detail: SeatSetupData['shifts'][number] | null;
   defaultDate: string;
   canSeeFinance: boolean;
+  defaultPay: number;
   onDone: () => void;
 }) {
   const [state, action] = useActionState(saveSeatSetupAction, idle);
@@ -432,7 +438,7 @@ function ShiftDialog({
             name="payAmount"
             inputMode="numeric"
             className="field nums"
-            defaultValue={String(detail?.payAmount ?? 30000)}
+            defaultValue={String(detail?.payAmount ?? defaultPay)}
           />
           <p className="mt-1 text-[12px] leading-5 text-ink-500">{t.seatSetup.payHint}</p>
           <p className="text-[12px] leading-5 text-ink-500">{t.seatSetup.payNote}</p>

@@ -15,10 +15,11 @@ export const DEFAULT_EVENT_PAY = 35_000;
  * The flat rate for the chair-setting shift the day before.
  *
  * Deliberately separate from the event rate, which now defaults to 35,000.
- * Chair setting remains 30,000 for everybody on the shift, including whoever
- * leads it; changing one rate must never quietly change the other.
+ * Only a fallback now: each chair day carries its own rate, set by the admin
+ * on the chairs page (a new day starts at the event's rate). 35,000 since the
+ * company raised its rates in November 2026.
  */
-export const SEAT_SETUP_PAY = 30_000;
+export const SEAT_SETUP_PAY = 35_000;
 
 /** Upper bound for a single event's figure — a guard, not a policy. */
 export const MAX_EVENT_PAY = 10_000_000;

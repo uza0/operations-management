@@ -171,11 +171,18 @@ export async function saveSeatSetupAction(
 
   const raw = str(form, 'payAmount');
   if (user.role !== 'ADMIN' && raw !== null) return fail(t.errors.forbidden);
+  /* A new day nobody priced (a leader adding it) starts at the event's own
+     rate, the figure the admin keeps current — not a number fixed in code. */
+  const eventRate = existing
+    ? null
+    : (await db.query.events.findFirst({ where: eq(events.id, eventId), columns: { payDefault: true } }))
+        ?.payDefault ?? null;
+  const fallback = existing?.payAmount ?? eventRate ?? SEAT_SETUP_PAY;
   const payAmount = user.role === 'ADMIN'
     ? raw === null
-      ? existing?.payAmount ?? SEAT_SETUP_PAY
+      ? fallback
       : Number(raw.replace(/[,\s]/g, ''))
-    : existing?.payAmount ?? SEAT_SETUP_PAY;
+    : fallback;
   if (
     !Number.isFinite(payAmount) ||
     !Number.isInteger(payAmount) ||

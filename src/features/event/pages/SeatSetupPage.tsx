@@ -27,6 +27,8 @@ export async function EventSeatSetupPage({ eventId }: { eventId: string }) {
           data={visibleData}
           defaultDate={dayBefore(event.date)}
           canSeeFinance={canSeeFinance}
+          /* A new chair day starts at the event's own rate; the admin sets it per day. */
+          defaultPay={event.payDefault}
         />
       </Panel>
     </>
