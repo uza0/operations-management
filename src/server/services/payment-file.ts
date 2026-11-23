@@ -449,7 +449,7 @@ export type CostLine = {
 export type Bundle = {
   fees: FeeLine[];
   /** On a closed event in the window with no attendance marked: not paid, left open. */
-  unmarked: { memberName: string; eventName: string }[];
+  unmarked: { memberName: string; eventName: string; date: string }[];
   /**
    * Marked absent or excused on a closed event in the window: owed nothing, and
    * closed out with this file so the night does not sit as unpaid forever.
@@ -858,6 +858,23 @@ export async function collect(range: Range): Promise<Bundle> {
   for (const row of memberRows) {
     if (row.status === 'CANCELLED') continue;
 
+    /* The night itself. A man on a monthly contract is owed nothing here,
+     * and a zero beside his name would read as an unpaid debt. */
+    const nightly = effectiveRate({
+      paid: false,
+      payMode: row.payMode,
+      payAmount: row.payAmount,
+      personSalaried: row.salaried,
+      personDefaultPay: row.memberDefault,
+      eventDefault: row.eventDefault,
+    });
+    /* Owed nothing for the night whatever the attendance says (a monthly
+       contract, or a zero rate): closed out with this file, never listed. */
+    if (nightly === null || nightly <= 0) {
+      settledUnpaid.push(row.eventMemberId);
+      continue;
+    }
+
     /*
      * Only a night he actually worked is paid, by the same rule as the ledger
      * the promoter reads (credit.ts): present or late. This file used to pay
@@ -871,7 +888,7 @@ export async function collect(range: Range): Promise<Bundle> {
       row.attendanceStatus !== null &&
       WORKED_STATUSES.includes(row.attendanceStatus as AttendanceStatus);
     if (row.attendanceStatus === null || row.attendanceStatus === 'PENDING') {
-      unmarked.push({ memberName: row.memberName, eventName: row.eventName });
+      unmarked.push({ memberName: row.memberName, eventName: row.eventName, date: row.date });
       continue;
     }
     if (!worked) {
@@ -879,16 +896,6 @@ export async function collect(range: Range): Promise<Bundle> {
       continue;
     }
 
-    /* The night itself. A man on a monthly contract is owed nothing here,
-     * and a zero beside his name would read as an unpaid debt. */
-    const nightly = effectiveRate({
-      paid: false,
-      payMode: row.payMode,
-      payAmount: row.payAmount,
-      personSalaried: row.salaried,
-      personDefaultPay: row.memberDefault,
-      eventDefault: row.eventDefault,
-    });
     const common = {
       note: '',
       eventMemberId: row.eventMemberId,
@@ -902,7 +909,7 @@ export async function collect(range: Range): Promise<Bundle> {
       card: row.card,
       salesRole: row.salesRole,
     };
-    if (nightly !== null && nightly > 0) fees.push({ ...common, amount: nightly });
+    fees.push({ ...common, amount: nightly });
 
   }
 

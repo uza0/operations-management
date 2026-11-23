@@ -515,44 +515,26 @@ export async function listHandovers() {
     .limit(60);
 }
 
-/** What is still unpaid outside any range, so a week is never skipped. */
+/**
+ * What is still unpaid outside any range, so a week is never skipped.
+ *
+ * Asked of the same collect() the file itself uses, over all time up to
+ * today, so the warning names only something a file would actually pay or
+ * that needs attendance marked first. It used to look for any closed-event
+ * member without a pay stamp — including people on a monthly contract, who
+ * are owed nothing per night and so were never stamped — and pointed at a
+ * day that, opened on its own, said nothing was owed.
+ */
 export async function oldestOwed(): Promise<string | null> {
   const user = await requireRole('ADMIN').catch(() => null);
   if (!user) return null;
-  const row = await db
-    .select({ date: events.date })
-    .from(eventMembers)
-    .innerJoin(events, eq(eventMembers.eventId, events.id))
-    .where(and(isNull(eventMembers.payoutId), inArray(events.status, CLOSED_STATUSES)))
-    .orderBy(events.date)
-    .limit(1)
-    .get();
-  const detached = await db
-    .select({ date: seatSetupDetails.date })
-    .from(seatSetupMembers)
-    .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
-    .innerJoin(events, eq(seatSetupDetails.eventId, events.id))
-    .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
-    .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
-    .where(
-      and(
-        isNotNull(events.seatPayDetachedAt),
-        eq(seatSetupMembers.attended, true),
-        isNull(seatSetupMembers.payoutId),
-        isNull(seatSetupMembers.declinedAt),
-        ne(eventMembers.status, 'CANCELLED'),
-        eq(teamMembers.salaried, false),
-        gt(seatSetupDetails.payAmount, 0),
-      ),
-    )
-    .orderBy(seatSetupDetails.date)
-    .limit(1)
-    .get();
-  const cost = await db.select({ date: events.date }).from(eventExpenses)
-    .innerJoin(events, eq(eventExpenses.eventId, events.id))
-    .where(and(isNull(eventExpenses.payoutId), inArray(events.status, EXPENSE_PAYABLE_STATUSES)))
-    .orderBy(events.date).limit(1).get();
-  const dates = [row?.date, detached?.date, cost?.date].filter((date): date is string => Boolean(date));
+  const today = new Date().toISOString().slice(0, 10);
+  const bundle = await collect({ from: '2000-01-01', to: today });
+  const dates = [
+    ...bundle.fees.map((f) => f.date),
+    ...bundle.costs.map((c) => c.date),
+    ...bundle.unmarked.map((u) => u.date),
+  ];
   return dates.sort()[0] ?? null;
 }
 
