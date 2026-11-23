@@ -18,6 +18,7 @@ import {
   IconClock,
   IconMegaphone,
   IconPin,
+  IconStar,
   IconTarget,
   IconUsers,
 } from '@/components/ui/icons';
@@ -152,6 +153,37 @@ function Fact({
 /* -------------------------------------------------------------------------- */
 /* Pieces shared by more than one screen                                       */
 /* -------------------------------------------------------------------------- */
+
+/**
+ * A compact header backed by the event's poster (blurred, as the colour of
+ * the night) or, without one, by the brand's cover. Used once he is there
+ * and after it is over, where the full card would be in the way.
+ */
+function PosterBand({ poster, children }: { poster: string | null; children: React.ReactNode }) {
+  return (
+    <section className="relative overflow-hidden rounded-card border border-ink-700 bg-[#121317] text-white">
+      {poster ? (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element -- immutable /uploads/ image */}
+          <img aria-hidden src={poster} alt="" className="absolute -inset-8 h-[calc(100%+4rem)] w-[calc(100%+4rem)] max-w-none object-cover blur-2xl saturate-150" />
+          <div aria-hidden className="absolute inset-0 bg-gradient-to-br from-black/70 via-black/50 to-black/80" />
+        </>
+      ) : (
+        <>
+          <div aria-hidden className="absolute -top-20 h-44 w-44 rounded-full bg-brand-500/90 ltr:-right-14 rtl:-left-14" />
+          <div aria-hidden className="absolute -top-12 h-28 w-28 rounded-full border-2 border-[#121317]/70 ltr:-right-6 rtl:-left-6" />
+        </>
+      )}
+      <div className="relative flex items-center gap-3 p-4">
+        {poster ? (
+          // eslint-disable-next-line @next/next/no-img-element -- immutable /uploads/ image
+          <img src={poster} alt="" className="h-[96px] w-[76px] shrink-0 rounded-xl border-2 border-white/20 object-cover shadow-xl" style={{ objectPosition: '50% 20%' }} />
+        ) : null}
+        <div className="min-w-0 flex-1">{children}</div>
+      </div>
+    </section>
+  );
+}
 
 /** What, where, when — and the one link that gets him there. */
 function EventCard({
@@ -817,28 +849,23 @@ export default async function MemberPortalPage({
               place, and what he needs at a glance is which post he is on and
               that his attendance is recorded.
             */}
-            <section className="rounded-card border border-ink-700 bg-ink-900 px-4 py-3.5">
-              <p className="text-[12px] font-bold uppercase tracking-[0.12em] text-ink-500">
+            <PosterBand poster={membership.eventPosterUrl}>
+              <p className="inline-flex items-center gap-1.5 rounded-full bg-brand-500 px-2.5 py-0.5 text-[11.5px] font-bold text-white">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
                 {t.member.duringTitle}
               </p>
-              <p className="mt-1 truncate text-[17px] font-bold text-ink-100">
-                {membership.eventName}
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {locationName ? <Badge tone="brand">{locationName}</Badge> : null}
-                {assignment ? (
-                  <Badge tone="neutral">{t.enums.task[assignment.task as Task]}</Badge>
-                ) : null}
+              <p className="mt-1.5 line-clamp-2 text-[18px] font-bold leading-6">{membership.eventName}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[12px] font-semibold">
+                {locationName ? <span className="rounded-full bg-white/15 px-2.5 py-0.5 backdrop-blur-md">{locationName}</span> : null}
+                {assignment ? <span className="rounded-full bg-white/15 px-2.5 py-0.5 backdrop-blur-md">{t.enums.task[assignment.task as Task]}</span> : null}
                 {data.attendance ? (
                   <Badge tone={attendanceTone[data.attendance.status as AttendanceStatus]}>
                     {t.enums.attendanceStatus[data.attendance.status as AttendanceStatus]}
-                    {data.attendance.checkInTime
-                      ? ` · ${formatTime(data.attendance.checkInTime, locale)}`
-                      : ''}
+                    {data.attendance.checkInTime ? ` · ${formatTime(data.attendance.checkInTime, locale)}` : ''}
                   </Badge>
                 ) : null}
               </div>
-            </section>
+            </PosterBand>
 
             {/* The call for help, first, and deliberately hard to miss. */}
             <PanicButton t={t} token={token} />
@@ -991,12 +1018,20 @@ export default async function MemberPortalPage({
         {/* ---------------------------------------------------------------- */}
         {phase === 'AFTER' ? (
           <>
-            <section className="rounded-card border border-ink-700 bg-ink-850 p-4 text-center">
-              <p className="text-[15px] font-bold text-ink-100">{t.journey.thanksTitle}</p>
-              <p className="mt-1 text-[12.5px] leading-6 text-ink-400">
-                {t.journey.thanksHint}
-              </p>
-            </section>
+            {/* Over: the night as a keepsake, and the way to share it. */}
+            <PosterBand poster={membership.eventPosterUrl}>
+              <p className="inline-flex rounded-full bg-white/15 px-2.5 py-0.5 text-[11.5px] font-bold backdrop-blur-md">{t.journey.thanksTitle}</p>
+              <p className="mt-1.5 line-clamp-2 text-[18px] font-bold leading-6">{membership.eventName}</p>
+              <p className="mt-1 text-[12px] text-white/75">{formatDate(membership.eventDate, locale)} · {membership.venueName}</p>
+              {data.attendance?.checkInTime ? (
+                <p className="nums mt-2 inline-flex flex-wrap gap-1.5 text-[11.5px] font-semibold">
+                  <span className="rounded-full bg-white/15 px-2.5 py-0.5">{t.memberAuth.arrivedAt} {formatTime(data.attendance.checkInTime, locale)}</span>
+                  {data.attendance.checkOutTime ? <span className="rounded-full bg-white/15 px-2.5 py-0.5">{t.memberAuth.leftAt} {formatTime(data.attendance.checkOutTime, locale)}</span> : null}
+                </p>
+              ) : null}
+            </PosterBand>
+            <p className="-mt-1 px-1 text-center text-[12.5px] leading-6 text-ink-400">{t.journey.thanksHint}</p>
+            <a href="/me/card" className="btn-primary btn-sm flex w-full items-center justify-center gap-2"><IconStar width={15} height={15} />{t.memberAuth.shareWasThere}</a>
 
             {membership.eventStatus === 'COMPLETED' ||
             membership.eventStatus === 'ARCHIVED' ? (
