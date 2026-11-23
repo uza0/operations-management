@@ -11,7 +11,8 @@ import { Notice } from '@/components/ui/states';
 
 import { TemplateForm } from '@/features/payment/TemplateForm';
 import { ExpenseAccountForm } from '@/features/payment/ExpenseAccountForm';
-import { activeTemplate } from '@/server/services/payment-file';
+import { activeTemplate, previewLegacyChairRepair } from '@/server/services/payment-file';
+import { LegacyChairRepair } from '@/features/payment/LegacyChairRepair';
 import { payableMembers } from '@/server/actions/payment-file';
 import { EXPENSE_ACCOUNT, readSetting } from '@/server/services/settings';
 
@@ -124,10 +125,11 @@ export default async function SettingsPage({
 }
 
 async function PaymentsSection({ t, locale }: { t: Awaited<ReturnType<typeof getT>>['t']; locale: 'ar' | 'en' }) {
-  const [templateRow, members, expenseAccountId] = await Promise.all([
+  const [templateRow, members, expenseAccountId, chairPreview] = await Promise.all([
     activeTemplate(),
     payableMembers(),
     readSetting(EXPENSE_ACCOUNT),
+    previewLegacyChairRepair(),
   ]);
   const template = templateRow
     ? {
@@ -144,6 +146,9 @@ async function PaymentsSection({ t, locale }: { t: Awaited<ReturnType<typeof get
       </Panel>
       <Panel title={t.payment.expenseAccount}>
         <ExpenseAccountForm t={t} members={members} currentId={expenseAccountId} />
+      </Panel>
+      <Panel title={t.payment.legacyChairTitle}>
+        <LegacyChairRepair t={t} locale={locale} preview={chairPreview} />
       </Panel>
     </div>
   );

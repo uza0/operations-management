@@ -37,6 +37,7 @@ import {
   sharedAccounts,
   seatDetachCandidates,
   stampBundle,
+  reconcileLegacyChairPayments,
 } from '@/server/services/payment-file';
 import { repairComputedTable } from '@/server/services/xlsx-template';
 
@@ -63,6 +64,24 @@ function revalidate() {
 
 function validDate(value: string) {
   return isValidDate(value);
+}
+
+export async function reconcileLegacyChairPaymentsAction(_prev: ActionState, _form: FormData): Promise<ActionState> {
+  const { t, locale } = await getT();
+  const user = await requireRole('ADMIN');
+  let result;
+  try {
+    result = await reconcileLegacyChairPayments();
+  } catch {
+    return fail(t.errors.generic);
+  }
+  await recordAudit({ actorId: user.id, actorName: user.name, action: 'UPDATE', entity: 'EVENT',
+    newValues: result, summary: t.payment.legacyChairDone });
+  revalidate();
+  revalidatePath('/admin/team', 'layout');
+  revalidatePath('/me', 'layout');
+  revalidatePath('/leader', 'layout');
+  return ok(`${t.payment.legacyChairDone} (${result.count} · ${formatAmount(result.total)})`);
 }
 
 /** Date-range search is admin-only because it reveals individual pay. */

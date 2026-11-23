@@ -10,6 +10,7 @@ import {
   seatSetupDetails,
   seatSetupMembers,
   paymentTemplates,
+  payouts,
   teamMembers,
   users,
 } from '@/db/schema';
@@ -592,6 +593,123 @@ export async function hasPaidChairDays(eventId: string): Promise<boolean> {
     .where(and(eq(seatSetupMembers.eventId, eventId), isNotNull(seatSetupMembers.payoutId)))
     .limit(1);
   return rows.length > 0;
+}
+
+type LegacyChairRow = {
+  id: string;
+  payoutId: string;
+  chairPayoutId: string | null;
+  eventName: string;
+  memberName: string;
+  card: string | null;
+  date: string;
+  amount: number;
+  createdAt: Date;
+};
+
+/** Match against the immutable issued workbook, never just the event's paid flag. */
+export function planLegacyChairRepairs(
+  files: { id: string; createdAt: Date; bytes: Buffer | null }[],
+  chairs: LegacyChairRow[],
+) {
+  const repairs: { id: string; payoutId: string; amount: number }[] = [];
+  let unmatched = 0;
+  const key = (event: string, date: string | number, name: string, amount: number) =>
+    JSON.stringify([event.trim(), String(date), fold(name), amount]);
+
+  for (const file of files) {
+    const candidates = chairs.filter(row => row.payoutId === file.id);
+    if (!file.bytes) {
+      unmatched += candidates.filter(row => !row.chairPayoutId).length;
+      continue;
+    }
+    const evidence = new Map<string, number>();
+    const register = companyRegister(file.bytes);
+    for (const row of sheetText(file.bytes, EVENTS_SHEET).slice(1)) {
+      if (!/^(Chiar editing\b|ترتيب كراسي)/i.test((row[6] ?? '').trim())) continue;
+      const k = key(row[0] ?? '', row[1] ?? '', row[2] ?? '', Number(row[4]));
+      evidence.set(k, (evidence.get(k) ?? 0) + 1);
+    }
+    const pending = new Map<string, LegacyChairRow[]>();
+    for (const row of candidates) {
+      // New work after the handover remains owed, even when its event was paid.
+      if (row.createdAt > file.createdAt) continue;
+      const name = registerName(register, row.memberName, row.card);
+      if (!name?.sure) {
+        if (!row.chairPayoutId) unmatched += 1;
+        continue;
+      }
+      const k = key(row.eventName, excelDate(row.date), name.name, row.amount);
+      if (row.chairPayoutId) {
+        // An already stamped row consumes its evidence; it cannot pay a second row.
+        evidence.set(k, Math.max(0, (evidence.get(k) ?? 0) - 1));
+      } else {
+        const group = pending.get(k) ?? [];
+        group.push(row);
+        pending.set(k, group);
+      }
+    }
+    for (const [k, group] of pending) {
+      // Shared accounts and duplicate rows must have enough distinct file rows.
+      if ((evidence.get(k) ?? 0) < group.length) { unmatched += group.length; continue; }
+      for (const row of group) repairs.push({ id: row.id, payoutId: file.id, amount: row.amount });
+    }
+  }
+  return { repairs, unmatched, total: repairs.reduce((sum, row) => sum + row.amount, 0) };
+}
+
+async function legacyChairPlan(source: typeof db) {
+  const [files, chairs] = await Promise.all([
+    source.select({ id: payouts.id, createdAt: payouts.createdAt, bytes: payouts.fileBytes }).from(payouts),
+    source.select({
+      id: seatSetupMembers.id, payoutId: eventMembers.payoutId,
+      chairPayoutId: seatSetupMembers.payoutId, eventName: events.name,
+      memberName: teamMembers.fullName, card: teamMembers.cardNumber,
+      date: seatSetupDetails.date, amount: seatSetupDetails.payAmount,
+      createdAt: seatSetupMembers.createdAt,
+    }).from(seatSetupMembers)
+      .innerJoin(seatSetupDetails, eq(seatSetupMembers.detailId, seatSetupDetails.id))
+      .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
+      .innerJoin(events, eq(eventMembers.eventId, events.id))
+      .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+      .where(and(isNotNull(eventMembers.payoutId), eq(seatSetupMembers.attended, true), isNull(seatSetupMembers.declinedAt))),
+  ]);
+  return planLegacyChairRepairs(
+    files.map(file => ({ ...file, bytes: file.bytes ? Buffer.from(file.bytes) : null })),
+    chairs.map(row => ({ ...row, payoutId: row.payoutId! })),
+  );
+}
+
+export async function previewLegacyChairRepair() {
+  const plan = await legacyChairPlan(db);
+  return { count: plan.repairs.length, total: plan.total, unmatched: plan.unmatched };
+}
+
+/** Reconcile old paid chair work atomically; amounts, attendance and files stay unchanged. */
+export async function reconcileLegacyChairPayments() {
+  return db.transaction(async (tx) => {
+    const plan = await legacyChairPlan(tx as unknown as typeof db);
+    let count = 0;
+    for (const row of plan.repairs) {
+      const changed = await tx.update(seatSetupMembers).set({ payoutId: row.payoutId, updatedAt: new Date() })
+        .where(and(eq(seatSetupMembers.id, row.id), isNull(seatSetupMembers.payoutId)))
+        .returning({ id: seatSetupMembers.id });
+      count += changed.length;
+    }
+    if (count !== plan.repairs.length) throw new Error('Chair reconciliation changed concurrently');
+    return { count, total: plan.total, unmatched: plan.unmatched };
+  });
+}
+
+/** Reversing an issued file releases event, chair and expense stamps together. */
+export async function reversePaymentHandover(id: string) {
+  await db.transaction(async (tx) => {
+    const updatedAt = new Date();
+    await tx.update(eventMembers).set({ payoutId: null, updatedAt }).where(eq(eventMembers.payoutId, id));
+    await tx.update(seatSetupMembers).set({ payoutId: null, updatedAt }).where(eq(seatSetupMembers.payoutId, id));
+    await tx.update(eventExpenses).set({ payoutId: null, updatedAt }).where(eq(eventExpenses.payoutId, id));
+    await tx.delete(payouts).where(eq(payouts.id, id));
+  });
 }
 
 /**

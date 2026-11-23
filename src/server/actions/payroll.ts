@@ -21,6 +21,7 @@ import { formatAmount, MAX_EVENT_PAY } from '@/lib/money';
 import { str } from '@/lib/validation';
 import { CLOSED_STATUSES } from '@/server/services/credit';
 import { applyStandingRate } from '@/server/services/rates';
+import { reversePaymentHandover } from '@/server/services/payment-file';
 import { requireRole } from '@/server/auth/rbac';
 import { recordAudit } from '@/server/services/audit';
 import { pushToMembers } from '@/server/services/push';
@@ -145,20 +146,7 @@ export async function reversePayoutAction(
   const payout = await db.query.payouts.findFirst({ where: eq(payouts.id, id) });
   if (!payout) return fail(t.errors.notFound);
 
-  await db
-    .update(eventMembers)
-    .set({ payoutId: null, updatedAt: new Date() })
-    .where(eq(eventMembers.payoutId, id));
-  /*
-   * And the costs. A handover made from the payment file carries event costs
-   * as well as wages; untying only the wages would leave those costs tied to
-   * a handover that no longer exists, which is to say paid for ever.
-   */
-  await db
-    .update(eventExpenses)
-    .set({ payoutId: null, updatedAt: new Date() })
-    .where(eq(eventExpenses.payoutId, id));
-  await db.delete(payouts).where(eq(payouts.id, id));
+  await reversePaymentHandover(id);
 
   await recordAudit({
     eventId: null,

@@ -87,6 +87,53 @@ async function checkCancellation() {
   console.log('PASS cancellation: zero custom/sales wages; approved unpaid chairs and actual costs preserved; paid work protected; no duplicate payout; crew availability released; attendance actions closed.');
 }
 
+
+async function checkLegacyChairs() {
+  const { buildXlsx } = require('../src/server/services/xlsx.ts');
+  const { fillTemplate, excelDate } = require('../src/server/services/xlsx-template.ts');
+  const { planLegacyChairRepairs, reconcileLegacyChairPayments, reversePaymentHandover } = require('../src/server/services/payment-file.ts');
+  const headers = ['Event', 'Date', 'Name', 'Card', 'Amount', 'Role', 'Note'];
+  const bytes = fillTemplate(buildXlsx({ name: 'Events', rows: [headers] }), [
+    { sheet: 'Events', rows: [['Legacy concert', excelDate('2026-10-28'), 'Test Worker', null, 30000, null, 'Chiar editing']] },
+    { sheet: 'Promoters', headers: ['Name','Card'], rows: [['Test Worker','TEST-1']] },
+  ]);
+  const file = { id: 'legacy-paid', createdAt: new Date('2026-11-01'), bytes };
+  const row = { id: 'legacy-chair', payoutId: file.id, chairPayoutId: null, eventName: 'Legacy concert', memberName: 'Test Worker', card: 'TEST-1', date: '2026-10-28', amount: 30000, createdAt: new Date('2026-10-28') };
+  assert.equal(planLegacyChairRepairs([file], [row]).repairs.length, 1);
+  assert.equal(planLegacyChairRepairs([file], [row, {...row, id:'duplicate'}]).repairs.length, 0, 'one file row cannot pay two claims');
+  assert.equal(planLegacyChairRepairs([file], [row, {...row, id:'stamped', chairPayoutId:file.id}]).repairs.length, 0, 'stamped work consumes evidence');
+  for (const changed of [{amount:35000}, {date:'2026-10-29'}, {eventName:'Another concert'}, {card:'MISSING'}, {createdAt:new Date('2026-11-02')}]) {
+    assert.equal(planLegacyChairRepairs([file], [{...row,...changed}]).repairs.length, 0);
+  }
+  assert.equal(planLegacyChairRepairs([{...file,bytes:null}], [row]).repairs.length, 0);
+  await database.insert(schema.payouts).values({ id:file.id, fromDate:'2026-10-22', toDate:'2026-10-31', totalAmount:65000, createdByName:'Test', createdAt:file.createdAt, fileBytes:bytes });
+  await database.insert(schema.events).values({ id:'legacy-concert', name:row.eventName, type:'CONCERT', venueId:'venue', date:'2026-10-29', startTime:'20:00', teamArrivalTime:'17:00', status:'COMPLETED' });
+  await database.insert(schema.eventMembers).values({ id:'legacy-member', eventId:'legacy-concert', teamMemberId:'worker', token:'legacy-token', payoutId:file.id });
+  await database.insert(schema.seatSetupDetails).values({ id:'legacy-day', eventId:'legacy-concert', date:row.date, startTime:'12:00', payAmount:30000 });
+  await database.insert(schema.seatSetupDetails).values({ id:'legacy-new-day', eventId:'legacy-concert', date:'2026-10-28', startTime:'13:00', payAmount:30000 });
+  await database.insert(schema.seatSetupMembers).values([
+    { id:row.id, eventId:'legacy-concert', eventMemberId:'legacy-member', detailId:'legacy-day', attended:true, createdAt:row.createdAt },
+    { id:'new-unpaid-chair', eventId:'legacy-concert', eventMemberId:'legacy-member', detailId:'legacy-new-day', attended:true, createdAt:new Date('2026-11-02') },
+  ]);
+  await database.insert(schema.eventExpenses).values({ id:'legacy-cost', eventId:'legacy-concert', category:'TRANSPORT', description:'Test cost', amount:5000, createdByName:'Test', payoutId:file.id });
+  assert.equal((await memberLedger('worker')).lines.find(line => line.eventId === 'legacy-concert').seatAmount,60000);
+  const result = await reconcileLegacyChairPayments();
+  assert.equal(result.count,1); assert.equal(result.total,30000);
+  assert.equal((await memberLedger('worker')).lines.find(line => line.eventId === 'legacy-concert').seatAmount,30000,'only new unpaid work remains owed');
+  assert.equal((await reconcileLegacyChairPayments()).count,0, 'idempotent');
+  assert.equal((await database.query.seatSetupMembers.findFirst({where:eq(schema.seatSetupMembers.id,'new-unpaid-chair')})).payoutId,null);
+  const repaired = await database.query.seatSetupMembers.findFirst({where:eq(schema.seatSetupMembers.id,row.id)});
+  assert.equal(repaired.payoutId,file.id); assert.equal(repaired.attended,true);
+  assert.deepEqual(Buffer.from((await database.query.payouts.findFirst({where:eq(schema.payouts.id,file.id)})).fileBytes),bytes,'issued workbook stays unchanged');
+  await reversePaymentHandover(file.id);
+  assert.equal((await database.query.seatSetupMembers.findFirst({where:eq(schema.seatSetupMembers.id,row.id)})).payoutId,null);
+  assert.equal((await database.query.eventMembers.findFirst({where:eq(schema.eventMembers.id,'legacy-member')})).payoutId,null);
+  assert.equal(await database.query.payouts.findFirst({where:eq(schema.payouts.id,file.id)}),undefined);
+  assert.equal((await database.query.eventExpenses.findFirst({where:eq(schema.eventExpenses.id,'legacy-cost')})).payoutId,null);
+  assert.equal((await memberLedger('worker')).lines.find(line => line.eventId === 'legacy-concert').seatAmount,60000,'reversed chair work becomes owed exactly once');
+  console.log('PASS legacy chair reconciliation: immutable file evidence, no duplicate claims, date/amount/account checks, later work preserved, idempotent repair and complete reversal.');
+}
+
 async function main() {
   for (const sql of SCHEMA_STATEMENTS) await client.execute(sql);
   await database.insert(schema.venues).values({ id: 'venue', name: 'Test venue' });
@@ -157,6 +204,7 @@ async function main() {
   await database.update(schema.seatSetupMembers).set({ payoutId: 'paid' }).where(eq(schema.seatSetupMembers.id, 'shift2'));
   assert.equal((await memberLedger('worker')).totalAmount, 0, 'paid chairs cannot be owed twice');
   await checkCancellation();
+  await checkLegacyChairs();
   console.log('PASS: detached planning-event chairs; date ranges; monthly exclusion; chair-only work; draft privacy; payment-file parity; independent payment stamps; no premature concert fee; no duplicate chair wages.');
 }
 main().catch(error => { console.error(error); process.exitCode = 1; }).finally(() => client.close());
