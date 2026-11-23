@@ -77,6 +77,24 @@ const pruned = safe.filter((statement, index) => {
   return lastDrop === undefined || index > lastDrop;
 });
 
+/*
+ * Data fixes run once, never again.
+ *
+ * This list is replayed in full whenever a migration is added, so an UPDATE
+ * that corrected prices on the day it shipped ("every event from 22 Nov at
+ * 30,000 becomes 35,000") would quietly run again on every later upgrade —
+ * overwriting a price an admin had since set on purpose. Each one keeps its
+ * place as a harmless SELECT, because the server counts statements to know
+ * whether an upgrade is due and the count must never go backwards. Only the
+ * UPDATEs listed here, which are safe to repeat, still run.
+ */
+const REPEATABLE_UPDATES = [/SET `system_developer` = 1 WHERE lower\(`username`\) = 'ameer'/];
+const replayed = pruned.map((s) =>
+  /^UPDATE\s/i.test(s) && !REPEATABLE_UPDATES.some((re) => re.test(s))
+    ? `SELECT 1 /* one-off data fix, applied when it shipped: ${s.slice(0, 80).replace(/\*\//g, '')} */`
+    : s,
+);
+
 const removed = safe.length - pruned.length;
 if (removed > 0) {
   console.log(
@@ -93,7 +111,7 @@ const out = `/**
  */
 
 export const SCHEMA_STATEMENTS: string[] = [
-${pruned.map((s) => '  ' + JSON.stringify(s) + ',').join('\n')}
+${replayed.map((s) => '  ' + JSON.stringify(s) + ',').join('\n')}
 ];
 `;
 

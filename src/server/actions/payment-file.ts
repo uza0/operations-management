@@ -1,7 +1,7 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { and, desc, eq, gte, gt, inArray, isNotNull, isNull, lte, ne } from 'drizzle-orm';
+import { and, desc, eq, gte, gt, inArray, isNotNull, isNull, lte, ne, or } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -129,7 +129,7 @@ export async function detachSeatPayAction(
         eq(seatSetupMembers.attended, true),
         isNull(seatSetupMembers.declinedAt),
         isNull(seatSetupMembers.payoutId),
-        ne(eventMembers.status, 'CANCELLED'),
+        or(ne(eventMembers.status, 'CANCELLED'), eq(eventMembers.chairSetupOnly, true)),
         eq(teamMembers.salaried, false),
         gt(seatSetupDetails.payAmount, 0),
       ),

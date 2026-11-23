@@ -3,7 +3,9 @@ import 'server-only';
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lte, ne, or } from 'drizzle-orm';
 
 import { db } from '@/db';
+import type { AttendanceStatus } from '@/lib/constants';
 import {
+  attendance,
   eventExpenses,
   eventMembers,
   events,
@@ -14,7 +16,7 @@ import {
   teamMembers,
   users,
 } from '@/db/schema';
-import { CLOSED_STATUSES, EXPENSE_PAYABLE_STATUSES, effectiveRate } from './credit';
+import { CLOSED_STATUSES, EXPENSE_PAYABLE_STATUSES, effectiveRate, WORKED_STATUSES } from './credit';
 import {
   excelDate,
   fillTemplate,
@@ -446,6 +448,13 @@ export type CostLine = {
 
 export type Bundle = {
   fees: FeeLine[];
+  /** On a closed event in the window with no attendance marked: not paid, left open. */
+  unmarked: { memberName: string; eventName: string }[];
+  /**
+   * Marked absent or excused on a closed event in the window: owed nothing, and
+   * closed out with this file so the night does not sit as unpaid forever.
+   */
+  settledUnpaid: string[];
   costs: CostLine[];
   eventList: { externalId: string | null; name: string; date: string }[];
   feesTotal: number;
@@ -556,9 +565,10 @@ export function preparePromoterRegister(
 
 /** Stamp only the exact lines represented in a handover. */
 export async function stampBundle(bundle: Bundle, payoutId: string, at = new Date()) {
-  const eventMemberIds = [...new Set(
-    bundle.fees.filter((fee) => fee.seatSetupMemberId === null).map((fee) => fee.eventMemberId),
-  )];
+  const eventMemberIds = [...new Set([
+    ...bundle.fees.filter((fee) => fee.seatSetupMemberId === null).map((fee) => fee.eventMemberId),
+    ...(bundle.settledUnpaid ?? []),
+  ])];
   const seatSetupMemberIds = [...new Set(
     bundle.fees.flatMap((fee) => fee.seatSetupMemberId ? [fee.seatSetupMemberId] : []),
   )];
@@ -740,10 +750,12 @@ export async function collect(range: Range): Promise<Bundle> {
         salaried: teamMembers.salaried,
         memberDefault: teamMembers.defaultPay,
         salesRole: eventMembers.salesRole,
+        attendanceStatus: attendance.status,
       })
       .from(eventMembers)
       .innerJoin(events, eq(eventMembers.eventId, events.id))
       .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+      .leftJoin(attendance, eq(attendance.eventMemberId, eventMembers.id))
       .where(
         and(
           isNull(eventMembers.payoutId),
@@ -794,6 +806,7 @@ export async function collect(range: Range): Promise<Bundle> {
         eventStatus: events.status,
         eventMemberPayoutId: eventMembers.payoutId,
         status: eventMembers.status,
+        chairSetupOnly: eventMembers.chairSetupOnly,
         memberName: teamMembers.fullName,
         card: teamMembers.cardNumber,
         salaried: teamMembers.salaried,
@@ -808,7 +821,9 @@ export async function collect(range: Range): Promise<Bundle> {
           eq(seatSetupMembers.attended, true),
           isNull(seatSetupMembers.payoutId),
           isNull(seatSetupMembers.declinedAt),
-          ne(eventMembers.status, 'CANCELLED'),
+          /* Crew brought in only for the chairs sit on the event as cancelled
+             (they are not on its night roster), and are still owed the chairs. */
+          or(ne(eventMembers.status, 'CANCELLED'), eq(eventMembers.chairSetupOnly, true)),
           or(
             and(
               isNull(events.seatPayDetachedAt),
@@ -838,8 +853,31 @@ export async function collect(range: Range): Promise<Bundle> {
   ]);
 
   const fees: FeeLine[] = [];
+  const unmarked: Bundle['unmarked'] = [];
+  const settledUnpaid: string[] = [];
   for (const row of memberRows) {
     if (row.status === 'CANCELLED') continue;
+
+    /*
+     * Only a night he actually worked is paid, by the same rule as the ledger
+     * the promoter reads (credit.ts): present or late. This file used to pay
+     * everyone still on the event, so a man marked absent got a full row here
+     * while his own balance said zero — and the file is the one the money
+     * follows. A night nobody marked is not paid either; it is named on the
+     * preview and left open, so it is paid once someone marks it. A night
+     * marked absent or excused is settled at zero with this file.
+     */
+    const worked =
+      row.attendanceStatus !== null &&
+      WORKED_STATUSES.includes(row.attendanceStatus as AttendanceStatus);
+    if (row.attendanceStatus === null || row.attendanceStatus === 'PENDING') {
+      unmarked.push({ memberName: row.memberName, eventName: row.eventName });
+      continue;
+    }
+    if (!worked) {
+      settledUnpaid.push(row.eventMemberId);
+      continue;
+    }
 
     /* The night itself. A man on a monthly contract is owed nothing here,
      * and a zero beside his name would read as an unpaid debt. */
@@ -870,7 +908,7 @@ export async function collect(range: Range): Promise<Bundle> {
 
   for (const shift of shiftRows) {
     /* Salaried crew are not paid per event or for chair shifts in this ledger. */
-    if (shift.salaried || shift.pay <= 0 || shift.status === 'CANCELLED') continue;
+    if (shift.salaried || shift.pay <= 0 || (shift.status === 'CANCELLED' && !shift.chairSetupOnly)) continue;
     const detachedSeatPay = shift.detachedAt !== null || shift.eventStatus === 'CANCELLED';
     fees.push({
       eventMemberId: shift.eventMemberId,
@@ -912,6 +950,8 @@ export async function collect(range: Range): Promise<Bundle> {
 
   return {
     fees,
+    unmarked,
+    settledUnpaid,
     costs,
     eventList: [...byEvent.values()].sort((a, b) => a.date.localeCompare(b.date)),
     feesTotal: fees.reduce((s, f) => s + f.amount, 0),

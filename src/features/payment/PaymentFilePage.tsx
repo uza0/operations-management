@@ -243,6 +243,19 @@ export async function PaymentFilePage({
         </Panel>
       ) : null}
 
+      {preview.bundle.unmarked.length ? (
+        <Panel title={t.payment.unmarkedTitle} className="mt-4">
+          <p className="mb-3 text-[12.5px] leading-6 text-ink-400">{t.payment.unmarkedWhy}</p>
+          <ul className="space-y-1 text-[13.5px] text-ink-200">
+            {preview.bundle.unmarked.map((row, i) => (
+              <li key={`${row.eventName}-${row.memberName}-${i}`} style={{ unicodeBidi: 'plaintext' }}>
+                {row.memberName} — <span className="text-ink-400">{row.eventName}</span>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      ) : null}
+
       <Panel title={t.payment.history} className="mt-4" bodyClassName="p-0">
         <HandoverList t={t} locale={locale} rows={handovers} />
       </Panel>
