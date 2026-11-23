@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { IconCalendar, IconCheckCircle, IconDashboard, IconUser } from '@/components/ui/icons';
+import { IconCalendar, IconCheckCircle, IconDashboard, IconStar, IconUser } from '@/components/ui/icons';
 import type { getT } from '@/lib/i18n/server';
 
 type T = Awaited<ReturnType<typeof getT>>['t'];
@@ -11,6 +11,7 @@ const tabs = [
   { href: '/me', key: 'navHome', Icon: IconDashboard },
   { href: '/me/events', key: 'navEvents', Icon: IconCalendar },
   { href: '/me/attendance', key: 'navAttendance', Icon: IconCheckCircle },
+  { href: '/me/card', key: 'navCard', Icon: IconStar },
   { href: '/me/account', key: 'navAccount', Icon: IconUser },
 ] as const;
 
@@ -18,7 +19,7 @@ export function MemberBottomNav({ t }: { t: T }) {
   const pathname = usePathname();
   return (
     <nav aria-label="Promoter navigation" className="fixed inset-x-0 bottom-0 z-40 border-t border-ink-700 bg-ink-950/95 pb-[env(safe-area-inset-bottom)] backdrop-blur">
-      <div className="mx-auto grid max-w-[560px] grid-cols-4 px-2 py-2">
+      <div className="mx-auto grid max-w-[560px] grid-cols-5 px-2 py-2">
         {tabs.map(({ href, key, Icon }) => {
           const active = pathname === href || (href === '/me/events' && pathname.startsWith('/member/'));
           return (
