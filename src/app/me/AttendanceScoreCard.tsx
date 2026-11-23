@@ -35,6 +35,37 @@ export function AttendanceScoreCard({
             ? { label: t.member.attendanceScoreFair, hint: t.member.attendanceScoreFairHint, tone: 'warn' as const }
             : { label: t.member.attendanceScoreImprove, hint: t.member.attendanceScoreImproveHint, tone: 'crit' as const };
 
+  if (compact && score.total > 0) {
+    /*
+     * On the home page: a ring rather than a bar. One look tells him where
+     * he stands; the sentence beside it says what to do about it.
+     */
+    const r = 30;
+    const len = 2 * Math.PI * r;
+    const ringTone = level?.tone === 'ok' ? 'text-ok' : level?.tone === 'info' ? 'text-info' : level?.tone === 'warn' ? 'text-warn' : 'text-brand-500';
+    return (
+      <section className="rounded-card border border-ink-700 bg-ink-850 p-4" aria-labelledby="attendance-score-title">
+        <div className="flex items-center gap-4">
+          <div className="relative h-[76px] w-[76px] shrink-0" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={score.percentage} aria-label={t.member.attendanceScoreTitle}>
+            <svg viewBox="0 0 76 76" className="h-full w-full -rotate-90">
+              <circle cx="38" cy="38" r={r} fill="none" strokeWidth="7" className="stroke-ink-700" />
+              <circle cx="38" cy="38" r={r} fill="none" strokeWidth="7" strokeLinecap="round" stroke="currentColor" className={ringTone} strokeDasharray={len} strokeDashoffset={len * (1 - score.percentage / 100)} />
+            </svg>
+            <span className="nums absolute inset-0 grid place-items-center text-[17px] font-bold text-ink-100">{score.percentage}%</span>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 id="attendance-score-title" className="text-[14.5px] font-bold text-ink-100">{t.member.attendanceScoreTitle}</h2>
+              {level ? <Badge tone={level.tone}>{level.label}</Badge> : null}
+            </div>
+            <p className="mt-1 text-[12.5px] font-medium text-ink-300">{format(t.member.attendanceScoreCount, { completed: score.completed, total: score.total })}</p>
+            {level ? <p className="mt-1 text-[12px] leading-5 text-ink-400">{level.hint}</p> : null}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="rounded-card border border-ink-700 bg-ink-850 p-4" aria-labelledby="attendance-score-title">
       <div className="flex items-start justify-between gap-3">

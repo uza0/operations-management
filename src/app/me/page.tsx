@@ -4,7 +4,8 @@ import { redirect } from 'next/navigation';
 
 import { format } from '@/lib/i18n';
 import { getT } from '@/lib/i18n/server';
-import { formatDate, formatTime } from '@/lib/time';
+import { formatDate, formatTime, todayISO } from '@/lib/time';
+import { IconCalendar, IconChevron, IconClock, IconPin, IconClipboard } from '@/components/ui/icons';
 import { currentMember, touchMemberSession } from '@/server/services/member-auth';
 import { currentUser, homeFor } from '@/server/auth/rbac';
 import { getMemberHome } from '@/server/services/member-home';
@@ -76,41 +77,20 @@ export default async function MemberHomePage() {
       ? confirmedSeat
       : undefined);
 
-  const empty =
-    home.live.length === 0 &&
-    home.upcoming.length === 0 &&
-    home.past.length === 0 &&
-    home.seatInvitations.length === 0;
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Baghdad', hour: '2-digit', hour12: false }).format(new Date()));
+  const greeting = hour >= 5 && hour < 12 ? t.memberAuth.greetMorning : t.memberAuth.greetEvening;
+  const nextDate = nextSeat?.date ?? nextEvent?.date ?? null;
+  const daysLeft = nextDate ? Math.round((Date.parse(nextDate) - Date.parse(todayISO())) / 86_400_000) : null;
+  const countdown = daysLeft === null ? null : home.live.length > 0 && !nextSeat ? t.memberAuth.countNow : daysLeft <= 0 ? t.memberAuth.countToday : daysLeft === 1 ? t.memberAuth.countTomorrow : format(t.memberAuth.countDays, { n: daysLeft });
+  const poster = !nextSeat && nextEvent?.posterUrl ? nextEvent.posterUrl : null;
+  const [dDay, dMonth] = nextDate ? [Number(nextDate.slice(8, 10)), new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ar-IQ', { month: 'long', timeZone: 'UTC' }).format(new Date(nextDate + 'T00:00:00Z'))] : [0, ''];
 
-  return (
-    <MemberShell>
-      <section className="rounded-card border border-ink-700 bg-ink-850 p-4">
-        <div className="flex items-center gap-3">
-          <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full border border-ink-600 bg-ink-800 text-lg font-bold text-brand-300">
-            {home.person.photoUrl ? <img src={home.person.photoUrl} alt="" width={56} height={56} loading="lazy" className="h-14 w-14 object-cover" /> : home.person.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('')}
-          </div>
-          <div className="min-w-0">
-            <p className="text-[12.5px] font-semibold uppercase tracking-wide text-ink-500">{t.member.you}</p>
-            <p className="mt-0.5 truncate text-[19px] font-bold leading-7 text-ink-100" style={{ unicodeBidi: 'plaintext' }}>{home.person.name}</p>
-          </div>
-        </div>
-        {home.person.cardNumber ? (
-          <p className="nums mt-1 text-[12.5px] text-ink-400" dir="ltr">
-            {t.team.cardNumber}: {home.person.cardNumber}
-          </p>
-        ) : null}
-      </section>
-
-      {/*
-        A questionnaire somebody sent the whole team. Above everything else
-        until he has opened it; after that it steps down to a quiet line.
-      */}
-      {openSurveys.map((survey) => (
+  const surveyCard = (survey: (typeof openSurveys)[number]) => (
         <section
           key={survey.id}
           className={`rounded-card border p-4 ${survey.openedAt ? 'border-ink-700 bg-ink-850' : 'border-info/50 bg-info/10'}`}
         >
-          <p className="text-[12.5px] font-semibold text-info-text">{t.surveys.cardTitle}</p>
+          <p className="flex items-center gap-2 text-[12.5px] font-semibold text-info-text"><span className="grid h-7 w-7 place-items-center rounded-lg bg-info/15"><IconClipboard width={15} height={15} /></span>{t.surveys.cardTitle}</p>
           <h2 className="mt-1 text-[15.5px] font-bold leading-6 text-ink-100">{survey.title}</h2>
           {survey.note ? (
             <p className="mt-1 whitespace-pre-line text-[13px] leading-5 text-ink-300">{survey.note}</p>
@@ -126,43 +106,101 @@ export default async function MemberHomePage() {
             </a>
           </div>
         </section>
-      ))}
+  );
 
-      <AttendanceScoreCard score={attendanceScore} t={t} compact />
-      <Link href="/me/events" className="btn-ghost btn-sm w-full text-center">{t.memberAuth.myEvents}</Link>
+  const empty =
+    home.live.length === 0 &&
+    home.upcoming.length === 0 &&
+    home.past.length === 0 &&
+    home.seatInvitations.length === 0;
 
+  return (
+    <MemberShell>
+      {/* Who he is, on the brand's own colours: the same cover his profile wears. */}
+      <section className="relative overflow-hidden rounded-card border border-ink-700 bg-[#121317] p-4 text-white">
+        <div aria-hidden className="absolute -top-20 h-48 w-48 rounded-full bg-brand-500 ltr:-right-16 rtl:-left-16" />
+        <div aria-hidden className="absolute -top-12 h-32 w-32 rounded-full border-2 border-[#121317]/70 ltr:-right-8 rtl:-left-8" />
+        <div className="relative flex items-center gap-3">
+          <div className="grid h-16 w-16 shrink-0 place-items-center overflow-hidden rounded-full border-[3px] border-[#121317] bg-ink-800 text-xl font-bold text-brand-300 ring-2 ring-brand-500">
+            {home.person.photoUrl ? <img src={home.person.photoUrl} alt="" width={64} height={64} loading="lazy" className="h-16 w-16 object-cover" /> : home.person.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('')}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[13px] font-medium text-white/70">{greeting}</p>
+            <p className="mt-0.5 truncate text-[20px] font-bold leading-7" style={{ unicodeBidi: 'plaintext' }}>{home.person.name}</p>
+            {home.person.cardNumber ? (
+              <p className="nums mt-1 inline-flex rounded-full bg-white/10 px-2.5 py-0.5 text-[11.5px] text-white/80">
+                {t.team.cardNumber}: <span dir="ltr" className="ms-1 font-semibold text-white">{home.person.cardNumber}</span>
+              </p>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      {/* Unopened questionnaires lead; once opened they step down below his next evening. */}
+      {openSurveys.filter((x) => !x.openedAt).map(surveyCard)}
       {nextSeat || nextEvent ? (
-        <section className="rounded-card border border-brand-600/45 bg-brand-50/50 p-4">
-          <p className="text-[12.5px] font-semibold text-brand-900">{t.memberAuth.nextStep}</p>
-          <h2 className="mt-1 text-[16px] font-bold leading-6 text-ink-100">
-            {nextSeat?.eventName ?? nextEvent?.name}
-          </h2>
-          <p className="mt-1 text-[13px] leading-5 text-ink-300">
-            {nextSeat
-              ? t.memberAuth.nextStepSeat
-              : home.live.length > 0
-                ? t.memberAuth.nextStepLive
-                : t.memberAuth.nextStepUpcoming}
-          </p>
-          {nextSeat && nextSeat.stage === 'INVITED' ? (
-            <p className="mt-1 text-[12.5px] leading-5 text-ink-400">{t.memberAuth.nextStepSeatInvite}</p>
-          ) : nextSeat ? (
-            <p className="mt-1 text-[12.5px] leading-5 text-ink-400">{t.memberAuth.nextStepSeatProgress}</p>
-          ) : null}
-          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <p className="nums text-[12.5px] text-ink-400">
-              {formatDate(nextSeat?.date ?? nextEvent!.date, locale)} ·{' '}
-              {formatTime(nextSeat?.startTime ?? nextEvent!.teamArrivalTime, locale)}
-            </p>
-            <Link
-              href={nextSeat ? `/setup/${nextSeat.token}` : `/member/${nextEvent!.token}`}
-              className="btn-primary btn-sm"
-            >
+        poster ? (
+          /* With a poster: the evening as the organiser announced it. */
+          <Link href={`/member/${nextEvent!.token}`} className="relative block h-[320px] overflow-hidden rounded-card shadow-lg transition hover:brightness-110">
+            <img src={poster} alt="" className="absolute inset-0 h-full w-full object-cover" style={{ objectPosition: '50% 22%' }} />
+            <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/60 via-55% to-black/95" />
+            <div className="absolute inset-x-0 top-0 flex items-center justify-between p-3">
+              <span className="rounded-full bg-black/55 px-3 py-1 text-[12px] font-semibold text-white backdrop-blur-md">{t.memberAuth.nextStep}</span>
+              {countdown ? <span className={`rounded-full px-3 py-1 text-[12px] font-bold text-white ${home.live.length ? 'animate-pulse bg-brand-500' : 'bg-brand-500'}`}>{countdown}</span> : null}
+            </div>
+            <div className="absolute inset-x-0 bottom-0 p-4 text-white">
+              <h2 className="line-clamp-2 text-[22px] font-bold leading-7">{nextEvent!.name}</h2>
+              <p className="mt-1 text-[12.5px] text-white/75">{home.live.length > 0 ? t.memberAuth.nextStepLive : t.memberAuth.nextStepUpcoming}</p>
+              <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1.5 text-[12.5px] text-white/90">
+                <span className="flex items-center gap-1"><IconCalendar width={14} />{formatDate(nextEvent!.date, locale)}</span>
+                <span className="flex items-center gap-1"><IconClock width={14} />{formatTime(nextEvent!.teamArrivalTime, locale)}</span>
+                <span className="flex min-w-0 items-center gap-1"><IconPin width={14} className="shrink-0" /><span className="truncate">{nextEvent!.venue}</span></span>
+              </div>
+              <span className="btn-primary btn-sm mt-3 inline-flex w-full items-center justify-center">{t.memberAuth.nextStepOpen}</span>
+            </div>
+          </Link>
+        ) : (
+        <section className="overflow-hidden rounded-card border border-brand-600/45 bg-ink-850">
+          <div className="flex items-center justify-between gap-2 bg-brand-500/10 px-4 py-2.5">
+            <p className="text-[12.5px] font-bold text-brand-300">{t.memberAuth.nextStep}</p>
+            {countdown ? <span className={`rounded-full bg-brand-500 px-2.5 py-0.5 text-[11.5px] font-bold text-white ${home.live.length && !nextSeat ? 'animate-pulse' : ''}`}>{countdown}</span> : null}
+          </div>
+          <div className="flex gap-3 p-4">
+            {/* The date as a block, the way a ticket prints it. */}
+            <div className="flex w-[64px] shrink-0 flex-col items-center justify-center rounded-2xl bg-brand-500 py-2 text-white">
+              <span className="nums text-[26px] font-bold leading-7">{dDay}</span>
+              <span className="text-[11px] font-semibold">{dMonth}</span>
+            </div>
+            <div className="min-w-0 flex-1">
+              <h2 className="line-clamp-2 text-[16px] font-bold leading-6 text-ink-100">{nextSeat?.eventName ?? nextEvent?.name}</h2>
+              <p className="mt-0.5 text-[12.5px] leading-5 text-ink-400">
+                {nextSeat
+                  ? nextSeat.stage === 'INVITED' ? t.memberAuth.nextStepSeatInvite : t.memberAuth.nextStepSeatProgress
+                  : home.live.length > 0
+                    ? t.memberAuth.nextStepLive
+                    : t.memberAuth.nextStepUpcoming}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[12.5px] text-ink-300">
+                <span className="flex items-center gap-1"><IconClock width={13} />{formatTime(nextSeat?.startTime ?? nextEvent!.teamArrivalTime, locale)}</span>
+                {!nextSeat && nextEvent ? <span className="flex min-w-0 items-center gap-1"><IconPin width={13} className="shrink-0" /><span className="truncate">{nextEvent.venue}</span></span> : null}
+              </div>
+            </div>
+          </div>
+          <div className="px-4 pb-4">
+            <Link href={nextSeat ? `/setup/${nextSeat.token}` : `/member/${nextEvent!.token}`} className="btn-primary btn-sm flex w-full items-center justify-center">
               {t.memberAuth.nextStepOpen}
             </Link>
           </div>
         </section>
+        )
       ) : null}
+
+      {openSurveys.filter((x) => x.openedAt).map(surveyCard)}
+      <AttendanceScoreCard score={attendanceScore} t={t} compact />
+      <Link href="/me/events" className="flex items-center justify-between rounded-card border border-ink-700 bg-ink-850 px-4 py-3.5 transition-colors hover:bg-ink-800">
+        <span className="flex items-center gap-3 text-[14px] font-semibold text-ink-100"><span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-500/15 text-brand-300"><IconCalendar width={17} height={17} /></span>{t.memberAuth.myEvents}</span>
+        <IconChevron width={18} height={18} className="text-ink-500 rtl:rotate-180" />
+      </Link>
 
       {/*
         Nothing on, and nothing coming. Two different sentences, because a
