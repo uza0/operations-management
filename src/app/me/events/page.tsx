@@ -10,6 +10,7 @@ import { MemberShell } from '@/app/member/[token]/MemberShell';
 import type { EventStatus, EventType } from '@/lib/constants';
 import { typeSkin } from '@/lib/event-type';
 import type { SeatSetupStatus } from '@/server/services/seat-setup';
+import { BlurPosterCard, HeroPosterCard } from './PosterCards';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,10 +27,14 @@ export default async function MemberEventsPage() {
     [t.memberAuth.upcoming, home.upcoming],
     [t.memberAuth.past, home.past],
   ] as const;
+  // The one evening that gets the full-poster card: the one he is heading to.
+  const heroToken = (home.live[0] ?? home.upcoming[0])?.posterUrl ? (home.live[0] ?? home.upcoming[0])!.token : null;
+  const badgesOf = (row: (typeof home.upcoming)[number]) => <>{row.paid ? <Badge tone="ok">{t.memberAuth.paidBadge}</Badge> : CLOSED.includes(row.eventStatus) ? <Badge tone="warn">{t.memberAuth.owedBadge}</Badge> : null}<Badge tone={eventStatusTone[row.eventStatus as EventStatus]} pulse={row.eventStatus === 'LIVE'}>{t.enums.eventStatus[row.eventStatus as EventStatus]}</Badge></>;
+  const bitsOf = (row: (typeof home.upcoming)[number]) => ({ typeLabel: t.enums.eventType[row.type as EventType], date: formatDate(row.date, locale), time: formatTime(row.teamArrivalTime, locale), badges: badgesOf(row) });
   return <MemberShell>
     <header><h1 className="text-xl font-bold text-ink-100">{t.memberAuth.navEvents}</h1><p className="mt-1 text-sm text-ink-400">{t.memberAuth.myEvents}</p></header>
     {home.seatInvitations.length ? <section className="space-y-2"><h2 className="font-bold text-ink-100">{t.seatSetup.invitationSection}</h2>{home.seatInvitations.map((row) => <Link key={row.shiftId} href={`/setup/${row.token}`} className="block rounded-card border border-brand-700/60 bg-ink-850 p-4"><div className="flex flex-wrap items-center justify-between gap-2"><strong className="text-ink-100">{row.eventName}</strong><div className="flex flex-wrap gap-1.5"><Badge tone={row.status === 'COMPLETED' ? 'ok' : row.status === 'IN_PROGRESS' ? 'warn' : 'neutral'}>{t.seatSetup.statuses[row.status as SeatSetupStatus]}</Badge><Badge tone={row.declinedAt ? 'crit' : row.confirmedAt ? 'ok' : 'warn'}>{row.declinedAt ? t.seatSetup.declinedCard : row.confirmedAt ? t.seatSetup.confirmedList : t.seatSetup.waitingReply}</Badge></div></div><p className="mt-2 text-sm text-ink-300">{formatDate(row.date, locale)} · {formatTime(row.startTime, locale)}</p><p className="mt-1 text-xs text-brand-300">{t.seatSetup.inviteTitle}</p></Link>)}</section> : null}
-    {sections.map(([title, rows]) => rows.length ? <section key={title} className="space-y-2"><h2 className="px-1 font-bold text-ink-100">{title}</h2>{rows.map((row) => <Link key={row.token} href={`/member/${row.token}`} style={typeSkin(row.type, '--ink-850').surface} className="block rounded-card border p-4 transition-colors hover:brightness-110"><div className="flex items-start justify-between gap-2"><h3 className="line-clamp-2 font-bold text-ink-100">{row.name}</h3><div className="flex shrink-0 flex-wrap justify-end gap-1.5">{/*
+    {sections.map(([title, rows]) => rows.length ? <section key={title} className="space-y-2"><h2 className="px-1 font-bold text-ink-100">{title}</h2>{rows.map((row) => row.posterUrl ? (row.token === heroToken ? <HeroPosterCard key={row.token} row={row} bits={bitsOf(row)} /> : <BlurPosterCard key={row.token} row={row} bits={bitsOf(row)} />) : <Link key={row.token} href={`/member/${row.token}`} style={typeSkin(row.type, '--ink-850').surface} className="block rounded-card border p-4 transition-colors hover:brightness-110"><div className="flex items-start justify-between gap-2"><h3 className="line-clamp-2 font-bold text-ink-100">{row.name}</h3><div className="flex shrink-0 flex-wrap justify-end gap-1.5">{/*
       Paid or still owed, said on the night it belongs to.
 
       The balance above gives him two totals; what it cannot tell him is

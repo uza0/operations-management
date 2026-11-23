@@ -23,6 +23,8 @@ export type EventCardData = {
   teamSize: number;
   gateCount: number;
   openIssues?: number;
+  /** The organiser's poster, when somebody uploaded one. */
+  posterUrl?: string | null;
 };
 
 export function EventCard({
@@ -63,10 +65,26 @@ export function EventCard({
        * below it — the delete button is placed against the bottom edge, and
        * without this that edge is not where the card ends.
        */
-      className={`panel lift group block h-full p-4 hover:brightness-110 ${
-        action ? 'pb-12' : ''
-      }`}
+      className={`panel lift group block h-full hover:brightness-110 ${
+        event.posterUrl ? 'flex overflow-hidden p-0' : 'p-4'
+      } ${action ? 'pb-12' : ''}`}
     >
+      {event.posterUrl ? (
+        /*
+         * The poster on the start side, cut on a slant into the card. It is
+         * the fastest way to tell one evening from the next in a long list:
+         * people know the artist's face before they read the name.
+         */
+        // eslint-disable-next-line @next/next/no-img-element -- immutable /uploads/ image, already sized
+        <img
+          src={event.posterUrl}
+          alt=""
+          loading="lazy"
+          className="w-[36%] shrink-0 object-cover ltr:[clip-path:polygon(0_0,100%_0,82%_100%,0_100%)] rtl:[clip-path:polygon(18%_0,100%_0,100%_100%,0_100%)]"
+          style={{ objectPosition: '50% 22%', minHeight: 168 }}
+        />
+      ) : null}
+      <div className={event.posterUrl ? 'min-w-0 flex-1 p-4' : ''}>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="line-clamp-2 text-[15.5px] font-semibold text-ink-100">{event.name}</p>
@@ -87,8 +105,8 @@ export function EventCard({
         </Badge>
       </div>
 
-      <dl className="mt-3.5 grid grid-cols-2 gap-x-4 gap-y-2 text-[13px]">
-        <div className="col-span-2 flex items-center gap-2 text-ink-300">
+      <dl className={`mt-3.5 grid gap-x-4 gap-y-2 text-[13px] ${event.posterUrl ? 'grid-cols-1' : 'grid-cols-2'}`}>
+        <div className={`${event.posterUrl ? '' : 'col-span-2 '}flex items-center gap-2 text-ink-300`}>
           <IconPin width={15} height={15} className="shrink-0 text-ink-500" />
           <span className="truncate">{event.venueName}</span>
         </div>
@@ -121,6 +139,7 @@ export function EventCard({
           </div>
         ) : null}
       </dl>
+      </div>
     </Link>
   );
 

@@ -5,6 +5,7 @@ import { eventTeamLeaderId, eventTeamLeaderIds, leadershipCandidates } from '@/s
 import { PageHeader, Panel } from '@/components/ui/panel';
 import { Notice } from '@/components/ui/states';
 import { EventForm } from '@/app/admin/(home)/events/new/EventForm';
+import { PosterUpload } from '@/features/event/pages/parts/PosterUpload';
 
 /**
  * Changing an event after it exists.
@@ -30,7 +31,12 @@ export async function EditEventPage({ eventId }: { eventId: string }) {
   return (
     <>
       <PageHeader title={t.event.editEvent} subtitle={t.event.editEventHint} />
-      <div className="max-w-2xl">
+      <div className="max-w-2xl space-y-4">
+        <Panel bodyClassName="p-5">
+          <h2 className="text-[15px] font-bold text-ink-100">{t.event.posterTitle}</h2>
+          <p className="mb-4 mt-1 text-[12.5px] leading-5 text-ink-400">{t.event.posterHint}</p>
+          <PosterUpload eventId={event.id} url={event.posterUrl ?? null} labels={{ upload: t.event.posterUpload, replace: t.event.posterReplace, remove: t.event.posterRemove, removeConfirm: t.event.posterRemoveConfirm, error: t.event.posterError, tooLarge: t.event.posterTooLarge, working: t.event.posterWorking }} />
+        </Panel>
         <Panel bodyClassName="p-5">
           {/*
             Said before the form rather than after the save: a supervisor

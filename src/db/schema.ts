@@ -236,6 +236,12 @@ export const events = sqliteTable(
     teamDepartureTime: text('team_departure_time'),
     description: text('description'),
     /**
+     * The event's poster, as an /uploads/ path. Shrunk to a 640px WebP when it
+     * is uploaded, and served with a year-long immutable cache, so the CDN
+     * answers every view after the first. Null means the plain card.
+     */
+    posterUrl: text('poster_url'),
+    /**
      * The company's own number for this event.
      *
      * It comes from the ticketing side, and it arrives whenever it arrives:

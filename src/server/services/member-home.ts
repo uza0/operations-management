@@ -52,6 +52,7 @@ export async function getMemberHome(teamMemberId: string) {
       eventStatus: events.status,
       notifiedAt: eventMembers.notifiedAt,
       venue: venues.name,
+      posterUrl: events.posterUrl,
       /*
        * Whether this night's wage has already gone out in a handover.
        *

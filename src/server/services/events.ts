@@ -29,6 +29,7 @@ export type EventListRow = {
   teamSize: number;
   gateCount: number;
   openIssues: number;
+  posterUrl: string | null;
 };
 
 /** Events the user is allowed to see. Admin sees all; others need a grant. */
@@ -55,6 +56,7 @@ export async function listEventsForUser(user: SessionUser): Promise<EventListRow
       /* For the badge that tells an unfinished night from a running one. */
       teamDepartureTime: events.teamDepartureTime,
       venueName: venues.name,
+      posterUrl: events.posterUrl,
       teamSize: sql<number>`(select count(*) from "event_members" em where em."event_id" = "events"."id")`,
       gateCount: sql<number>`(select count(*) from "gates" g where g."event_id" = "events"."id")`,
       openIssues: sql<number>`(select count(*) from "issues" i where i."event_id" = "events"."id" and i."status" in ('OPEN','ACKNOWLEDGED','IN_PROGRESS'))`,
