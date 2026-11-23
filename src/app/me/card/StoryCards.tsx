@@ -27,7 +27,7 @@ const COPY = {
     titleLabel: 'لقبك هالموسم', titleOf: (p: string) => `نجم ${p}`, titleNone: 'من فريق الموسم',
     stickerTop: 'خلفية شفافة: تحطه فوق صورتك من الحفلة', wasOn: 'كنت بالفريق', allGates: 'دخول كل البوابات',
     memberFrom: (y: string) => `عضو من ${y} · بغداد`, eventsFrom: (n: number, y: string) => `${n} فعالية · من ${y}`,
-    roleNone: 'فريق تكت زون', logo: 'شعار تكت زون',
+    roleNone: 'فريق تكت زون', promoter: 'بروموتر', logo: 'شعار تكت زون',
     willBe1: 'راح أكون', willBe2: 'هناك', was1: 'كنت', wasOnCrew: 'كنت ويه فريق التنظيم', ago: (n: number) => (n === 1 ? 'البارحة' : n === 2 ? 'قبل يومين' : n <= 10 ? `قبل ${n} أيام` : `قبل ${n} يوم`), tonight: 'الليلة', tomorrow: 'باچر', inDays: (n: number) => (n === 2 ? 'بعد يومين' : n <= 10 ? `بعد ${n} أيام` : `بعد ${n} يوم`), onCrew: 'ويه فريق التنظيم',
   },
   en: {
@@ -39,7 +39,7 @@ const COPY = {
     titleNone: 'Season Crew',
     stickerTop: 'Transparent background: place it on your event photo', wasOn: 'I was on the crew', allGates: 'All gates access',
     memberFrom: (y: string) => `Member since ${y} · Baghdad`, eventsFrom: (n: number, y: string) => `${n} ${n === 1 ? 'event' : 'events'} · since ${y}`,
-    roleNone: 'Ticket Zone Crew', logo: 'Ticket Zone logo',
+    roleNone: 'Ticket Zone Crew', promoter: 'Promoter', logo: 'Ticket Zone logo',
     willBe1: 'See you', willBe2: 'there', was1: 'I was', wasOnCrew: 'I was on the event crew', ago: (n: number) => (n === 1 ? 'Yesterday' : `${n} days ago`), tonight: 'Tonight', tomorrow: 'Tomorrow', inDays: (n: number) => `In ${n} days`, onCrew: 'On the event crew',
   },
 } as const;
@@ -242,7 +242,7 @@ export function StoryCard({ design, lang, stats }: { design: Design; lang: CardL
               </div>
               <div style={{ textAlign: 'center' }}>
                 {p({ fontSize: 72, fontWeight: 800, lineHeight: 1.15 }, stats.name)}
-                <p style={{ display: 'inline-block', margin: '18px 0 0', background: '#fff', color: '#8f2a1c', fontSize: 36, fontWeight: 700, padding: '10px 36px', borderRadius: 40 }}>{role}</p>
+                <p style={{ display: 'inline-block', margin: '18px 0 0', background: '#fff', color: '#8f2a1c', fontSize: 36, fontWeight: 700, padding: '10px 36px', borderRadius: 40 }}>{c.promoter}</p>
               </div>
               <div style={{ width: '100%', borderTop: '3px dashed rgba(255,255,255,0.55)' }} />
               <div style={{ width: '100%', display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', textAlign: 'center' }}>
