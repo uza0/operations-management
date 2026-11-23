@@ -35,7 +35,7 @@ export function AttendanceScoreCard({
             ? { label: t.member.attendanceScoreFair, hint: t.member.attendanceScoreFairHint, tone: 'warn' as const }
             : { label: t.member.attendanceScoreImprove, hint: t.member.attendanceScoreImproveHint, tone: 'crit' as const };
 
-  if (compact && score.total > 0) {
+  if (score.total > 0) {
     /*
      * On the home page: a ring rather than a bar. One look tells him where
      * he stands; the sentence beside it says what to do about it.
@@ -62,6 +62,17 @@ export function AttendanceScoreCard({
             {level ? <p className="mt-1 text-[12px] leading-5 text-ink-400">{level.hint}</p> : null}
           </div>
         </div>
+        {compact ? null : (
+          <>
+            <p className="mt-3 text-[12px] leading-5 text-ink-500">{t.member.attendanceScoreHint}</p>
+            <p className="mt-3 flex items-center gap-2 rounded-xl bg-ink-800/70 px-3 py-2.5 text-[12.5px] font-semibold text-ink-200">
+              <span aria-hidden className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-brand-500/15 text-brand-300">#</span>
+              {score.rank !== null
+                ? format(score.rank === 1 ? t.member.attendanceRankTop : t.member.attendanceRankPosition, { rank: score.rank, total: score.rankedPromoters })
+                : t.member.attendanceRankPending}
+            </p>
+          </>
+        )}
       </section>
     );
   }

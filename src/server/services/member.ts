@@ -84,6 +84,7 @@ export async function getMemberAttendanceHistory(teamMemberId: string) {
     .select({
       eventName: events.name,
       eventDate: events.date,
+      posterUrl: events.posterUrl,
       venue: venues.name,
       status: attendance.status,
       checkInTime: attendance.checkInTime,

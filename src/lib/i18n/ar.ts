@@ -753,6 +753,7 @@ export const ar = {
     arrivedAt: 'وصلت',
     leftAt: 'انصرفت',
     shareWasThere: 'شارك «كنت هناك» ستوري',
+    attendanceSelfShort: 'بنفسك',
     greetMorning: 'صباح الخير',
     greetEvening: 'مساء الخير',
     countNow: 'الآن',

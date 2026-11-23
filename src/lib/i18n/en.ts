@@ -744,6 +744,7 @@ export const en: Dictionary = {
     arrivedAt: 'Arrived',
     leftAt: 'Left',
     shareWasThere: 'Share «I was there» story',
+    attendanceSelfShort: 'Self',
     greetMorning: 'Good morning',
     greetEvening: 'Good evening',
     countNow: 'Now',
