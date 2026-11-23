@@ -731,6 +731,60 @@ export async function revokeMemberCodeAction(
   return ok();
 }
 
+/**
+ * Cancels the sign-in codes of several people at once — the idle filter's
+ * button. Anyone still on a coming or live event is left alone whatever the
+ * page sent, so a stale list cannot lock out tonight's crew.
+ */
+export async function bulkRevokeCodesAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  let user;
+  try {
+    user = await assertRole('ADMIN');
+  } catch {
+    return fail(t.errors.forbidden);
+  }
+  const ids = [...new Set(form.getAll('memberIds').map(String).filter(Boolean))].slice(0, 500);
+  if (ids.length === 0) return fail(t.errors.notFound);
+
+  const busy = await db
+    .selectDistinct({ id: eventMembers.teamMemberId })
+    .from(eventMembers)
+    .innerJoin(events, eq(events.id, eventMembers.eventId))
+    .where(
+      and(
+        inArray(eventMembers.teamMemberId, ids),
+        ne(eventMembers.status, 'CANCELLED'),
+        inArray(events.status, ['DRAFT', 'PLANNING', 'READY', 'LIVE']),
+      ),
+    );
+  const skip = new Set(busy.map((b) => b.id));
+  const targets = await db
+    .select({ id: teamMembers.id, name: teamMembers.fullName })
+    .from(teamMembers)
+    .where(inArray(teamMembers.id, ids.filter((id) => !skip.has(id))));
+
+  for (const m of targets) {
+    await revokeAccessCode(m.id);
+    await recordAudit({
+      eventId: null,
+      actorId: user.id,
+      actorName: user.name,
+      action: 'UPDATE',
+      entity: 'TEAM_MEMBER',
+      entityId: m.id,
+      entityLabel: m.name,
+      newValues: { accessCode: 'revoked', reason: 'idle' },
+      summary: `${t.memberAuth.revokeCode}: ${m.name}`,
+    });
+  }
+  revalidatePath('/admin/team');
+  return ok(format(t.team.idleRevoked, { n: targets.length, skipped: skip.size }));
+}
+
 /** Signs one person out everywhere, leaving their code alone. */
 export async function signOutMemberEverywhereAction(
   _prev: ActionState,

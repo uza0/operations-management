@@ -53,6 +53,9 @@ export default async function TeamPage() {
        * person who will get a briefing link but cannot sign into the app.
        */
       onOpenEvent: sql<number>`(select count(*) from "event_members" em inner join "events" ev on ev."id" = em."event_id" where em."team_member_id" = "team_members"."id" and em."status" <> 'CANCELLED' and ev."status" in ('DRAFT', 'PLANNING', 'READY', 'LIVE'))`,
+      /* The last night he actually worked, for the idle filter. */
+      lastWorked: sql<string | null>`(select max(ev."date") from "event_members" em inner join "events" ev on ev."id" = em."event_id" inner join "attendance" at on at."event_member_id" = em."id" where em."team_member_id" = "team_members"."id" and ev."status" in ('COMPLETED', 'ARCHIVED') and at."status" in ('PRESENT', 'LATE'))`,
+      createdAt: teamMembers.createdAt,
     })
     .from(teamMembers)
     .orderBy(teamMembers.fullName);
@@ -95,10 +98,22 @@ export default async function TeamPage() {
       employeeCode: row.employeeCode,
       removedAt: row.removedAt as Date,
     }));
-  const members = rows.filter((row) => !row.removedAt).map(({ onOpenEvent, removedAt: _r, ...row }) => ({
+  /*
+   * Idle: nothing worked in the last 60 days, nothing ahead, and on the
+   * roster long enough to have had the chance. Only a filter for the admin to
+   * look through; nothing happens to anyone on its account.
+   */
+  const IDLE_DAYS = 60;
+  const cutoff = new Date(Date.now() - IDLE_DAYS * 86_400_000);
+  const cutoffDay = cutoff.toISOString().slice(0, 10);
+  const members = rows.filter((row) => !row.removedAt).map(({ onOpenEvent, removedAt: _r, createdAt, ...row }) => ({
     ...row,
     whatsapp: toWhatsAppNumber(row.phone),
     needsCode: Number(row.hasCode) !== 1 && Number(onOpenEvent) > 0,
+    idle:
+      Number(onOpenEvent) === 0 &&
+      (!row.lastWorked || row.lastWorked < cutoffDay) &&
+      (!createdAt || new Date(createdAt) < cutoff),
   }));
   const needingCode = members.filter((m) => m.needsCode).length;
 

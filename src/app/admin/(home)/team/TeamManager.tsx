@@ -10,6 +10,7 @@ import {
   toggleTeamMemberAction,
 } from '@/server/actions/team';
 import {
+  bulkRevokeCodesAction,
   importTeamAction,
   restoreTeamMemberAction,
   toggleFavoriteAction,
@@ -46,6 +47,9 @@ export type TeamRow = {
   hasCode?: number;
   /** On a current or coming event with no sign-in code yet. */
   needsCode?: boolean;
+  /** Nothing worked in 60 days, nothing ahead, on the roster over 60 days. */
+  idle?: boolean;
+  lastWorked?: string | null;
   sessions?: number;
   active: boolean;
   salaried: boolean;
@@ -287,6 +291,25 @@ function RemovedMembers({ t, removed }: { t: Dictionary; removed: RemovedRow[] }
   );
 }
 
+function BulkRevokeCodes({ t, ids }: { t: Dictionary; ids: string[] }) {
+  const router = useRouter();
+  const [state, action] = useActionState(bulkRevokeCodesAction, idle);
+  useEffect(() => {
+    if (state.status === 'success') router.refresh();
+  }, [state, router]);
+  if (ids.length === 0) return null;
+  return (
+    <form action={action} className="flex items-center gap-2">
+      {ids.map((id) => <input key={id} type="hidden" name="memberIds" value={id} />)}
+      <ConfirmSubmit className="btn-ghost btn-sm text-crit-text" message={format(t.team.idleRevokeConfirm, { n: ids.length })}>
+        {format(t.team.idleRevoke, { n: ids.length })}
+      </ConfirmSubmit>
+      {state.status === 'error' ? <span className="text-[12px] text-crit-text">{state.message}</span> : null}
+      {state.status === 'success' && state.message ? <span className="text-[12px] text-ok-text">{state.message}</span> : null}
+    </form>
+  );
+}
+
 function RowActions({ t, member }: { t: Dictionary; member: TeamRow }) {
   const router = useRouter();
   const [toggleState, toggle] = useActionState(toggleTeamMemberAction, idle);
@@ -346,6 +369,8 @@ export function TeamManager({
   const [query, setQuery] = useState('');
   const [onlyFavorites, setOnlyFavorites] = useState(false);
   const favoriteCount = members.filter((m) => m.favorite).length;
+  const [onlyIdle, setOnlyIdle] = useState(false);
+  const idleCount = members.filter((m) => m.idle).length;
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<TeamRow | null>(null);
   const [importing, setImporting] = useState(false);
@@ -360,14 +385,15 @@ export function TeamManager({
             (m.phone ?? '').includes(q),
         )
       : members;
-    const shortlisted = onlyFavorites ? matching.filter((m) => m.favorite) : matching;
+    const favourites = onlyFavorites ? matching.filter((m) => m.favorite) : matching;
+    const shortlisted = onlyIdle ? favourites.filter((m) => m.idle) : favourites;
     /*
      * Alphabetical across both scripts — SQLite's own ORDER BY puts every
      * Latin name before every Arabic one, which on a roster that mixes them
      * reads as no order at all. See src/lib/sort.ts.
      */
     return [...shortlisted].sort((a, b) => compareNames(a.fullName, b.fullName));
-  }, [members, query, onlyFavorites]);
+  }, [members, query, onlyFavorites, onlyIdle]);
 
   return (
     <>
@@ -449,6 +475,17 @@ export function TeamManager({
           <IconStar width={15} height={15} filled={onlyFavorites} />
           {format(t.team.favoritesCount, { n: favoriteCount })}
         </button>
+        {/* People with nothing worked in 60 days: a list to look through, nothing more. */}
+        <button
+          type="button"
+          aria-pressed={onlyIdle}
+          title={t.team.idleHint}
+          onClick={() => setOnlyIdle((v) => !v)}
+          className={`btn-sm whitespace-nowrap ${onlyIdle ? 'btn-secondary text-warn-text' : 'btn-ghost'}`}
+        >
+          {format(t.team.idleFilter, { n: idleCount })}
+        </button>
+        {onlyIdle ? <BulkRevokeCodes t={t} ids={filtered.filter((m) => Number(m.hasCode) === 1).map((m) => m.id)} /> : null}
         <div className="flex flex-wrap items-center gap-2">
           {/*
            * Export first, then import: that is the order they are used in.
@@ -535,6 +572,11 @@ export function TeamManager({
                           <IconEdit width={14} height={14} className="text-ink-500" />
                           {member.fullName}
                         </button>
+                        {member.idle ? (
+                          <span title={member.lastWorked ? format(t.team.idleLast, { date: member.lastWorked }) : t.team.idleNever}>
+                            <Badge tone="neutral">{t.team.idleBadge}</Badge>
+                          </span>
+                        ) : null}
                         {member.needsCode ? (
                           <span title={t.team.needsCodeHint}>
                             <Badge tone="warn">{t.team.needsCode}</Badge>
