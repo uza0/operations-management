@@ -1118,6 +1118,8 @@ export const ar = {
     shiftStatus: 'ملخص حالة الوردية',
     selectAll: 'تحديد الكل',
     selectedCount: '{n} محدد',
+    removeSelected: 'حذف {n} من الكراسي',
+    removeSelectedConfirm: 'تريد تحذف {n} من فريق كراسي هذا اليوم؟ ما راح يطلعون بملف الدفعات لهذا اليوم.',
     markPresentSelected: 'تسجيل حضور {n}',
     selectMember: 'تحديد {name}',
     editAttendance: 'عرض وتعديل أوقات الدوام',

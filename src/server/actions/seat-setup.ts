@@ -571,3 +571,63 @@ export async function markSeatSetupAttendanceAction(
   revalidate(eventId);
   return ok();
 }
+
+/**
+ * Takes the selected people off one chair-setup day.
+ *
+ * The same rule as editing the crew: a day whose pay already went into a
+ * payment file stays as it is, so nobody's paid line disappears from under
+ * the file that paid it. If any selected row is paid, nothing is removed.
+ */
+export async function removeSeatSetupMembersAction(
+  _prev: ActionState,
+  form: FormData,
+): Promise<ActionState> {
+  const { t } = await getT();
+  const eventId = String(form.get('eventId') ?? '');
+  const user = await assertEventManager(eventId).catch(() => null);
+  if (!user) return fail(t.errors.forbidden);
+
+  const detailId = str(form, 'detailId');
+  if (!detailId) return fail(t.seatSetup.needsShift);
+  const shift = await db.query.seatSetupDetails.findFirst({
+    where: and(eq(seatSetupDetails.id, detailId), eq(seatSetupDetails.eventId, eventId)),
+  });
+  if (!shift) return fail(t.seatSetup.needsShift);
+
+  const wanted = [...new Set(form.getAll('seatMemberIds').map(String).filter(Boolean))];
+  if (wanted.length === 0) return fail(t.errors.required);
+
+  const rows = await db
+    .select({ id: seatSetupMembers.id, payoutId: seatSetupMembers.payoutId, name: teamMembers.fullName })
+    .from(seatSetupMembers)
+    .innerJoin(eventMembers, eq(seatSetupMembers.eventMemberId, eventMembers.id))
+    .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+    .where(and(
+      eq(seatSetupMembers.eventId, eventId),
+      eq(seatSetupMembers.detailId, detailId),
+      inArray(seatSetupMembers.id, wanted),
+    ));
+  if (rows.length === 0) return fail(t.errors.notFound);
+  if (rows.some((row) => row.payoutId)) return fail(t.seatSetup.paidCrewCannotRemove);
+
+  await db.delete(seatSetupMembers).where(and(
+    eq(seatSetupMembers.detailId, detailId),
+    inArray(seatSetupMembers.id, rows.map((row) => row.id)),
+  ));
+
+  await recordAudit({
+    eventId,
+    actorId: user.id,
+    actorName: user.name,
+    action: 'DELETE',
+    entity: 'EVENT',
+    entityId: eventId,
+    entityLabel: t.seatSetup.title,
+    oldValues: { removed: rows.map((row) => row.name) },
+    summary: `${t.seatSetup.title}: ${format(t.seatSetup.removeSelected, { n: rows.length })} — ${rows.map((row) => row.name).join('، ')}`,
+  });
+
+  revalidate(eventId);
+  return ok();
+}

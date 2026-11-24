@@ -9,6 +9,7 @@ import {
   setSeatSetupCrewAction,
   setSeatSetupPersonAction,
   markSeatSetupAttendanceAction,
+  removeSeatSetupMembersAction,
   setSeatSetupStatusAction,
 } from '@/server/actions/seat-setup';
 import { approveSeatArrivalsAction } from '@/server/actions/journey';
@@ -189,6 +190,7 @@ function ShiftBlock({
   const router = useRouter();
   const [removeState, remove] = useActionState(removeSeatSetupAction, idle);
   const [attendanceState, markAttendance] = useActionState(markSeatSetupAttendanceAction, idle);
+  const [dropState, dropMembers] = useActionState(removeSeatSetupMembersAction, idle);
   const [statusState, setStatus] = useActionState(setSeatSetupStatusAction, idle);
   const [expanded, setExpanded] = useState(defaultExpanded);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
@@ -220,6 +222,13 @@ function ShiftBlock({
       router.refresh();
     }
   }, [attendanceState, router]);
+
+  useEffect(() => {
+    if (dropState.status === 'success') {
+      setSelected(new Set());
+      router.refresh();
+    }
+  }, [dropState, router]);
 
   useEffect(() => {
     if (statusState.status === 'success') router.refresh();
@@ -328,7 +337,17 @@ function ShiftBlock({
             >
               {format(t.seatSetup.markPresentSelected, { n: selectedCount })}
             </SubmitButton>
+            <button
+              type="submit"
+              formAction={dropMembers}
+              disabled={selectedCount === 0}
+              onClick={(event) => { if (!window.confirm(format(t.seatSetup.removeSelectedConfirm, { n: selectedCount }))) event.preventDefault(); }}
+              className="btn-ghost btn-sm !text-crit-text disabled:opacity-40"
+            >
+              {format(t.seatSetup.removeSelected, { n: selectedCount })}
+            </button>
             {attendanceState.status === 'error' ? <FormError message={attendanceState.message} /> : null}
+            {dropState.status === 'error' ? <FormError message={dropState.message} /> : null}
           </form>
           <ul className="mt-2 space-y-2">
             {shift.people.map((person) => (
