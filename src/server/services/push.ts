@@ -3,7 +3,7 @@ import 'server-only';
 import { momentOfBaghdad } from '@/lib/time';
 
 import webpush from 'web-push';
-import { and, eq, gte, inArray, lte, ne } from 'drizzle-orm';
+import { and, eq, gte, inArray, isNotNull, isNull, lte, ne, or } from 'drizzle-orm';
 
 import { db } from '@/db';
 import {
@@ -538,6 +538,7 @@ export async function pushPlaces(
     .select({
       eventMemberId: eventMembers.id,
       teamMemberId: eventMembers.teamMemberId,
+      token: eventMembers.token,
       eventName: events.name,
       eventArrival: events.teamArrivalTime,
       published: events.boardPublishedAt,
@@ -555,6 +556,14 @@ export async function pushPlaces(
       and(
         eq(assignments.eventId, eventId),
         ne(eventMembers.status, 'CANCELLED'),
+        /*
+         * Only people who can already open this event: briefed (or who
+         * confirmed) and not declined. A man who has not been told about the
+         * evening would tap the notice and find nothing; he learns his place
+         * with the briefing instead, where the page already shows it.
+         */
+        or(isNotNull(eventMembers.notifiedAt), isNotNull(eventMembers.confirmedAt)),
+        isNull(eventMembers.declinedAt),
         ...(eventMemberIds === 'ALL' ? [] : [inArray(assignments.eventMemberId, eventMemberIds)]),
       ),
     );
@@ -571,7 +580,7 @@ export async function pushPlaces(
         task: tasks[row.task] ?? row.task,
         time: row.arrival ?? row.eventArrival ?? '',
       }),
-      url: '/me',
+      url: `/member/${row.token}`,
       tag: `place:${row.eventMemberId}`,
     });
     sent += result.sent;
