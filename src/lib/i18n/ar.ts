@@ -754,6 +754,7 @@ export const ar = {
     leftAt: 'انصرفت',
     shareWasThere: 'شارك «كنت هناك» ستوري',
     attendanceSelfShort: 'بنفسك',
+    dressLabel: 'الزي المطلوب',
     greetMorning: 'صباح الخير',
     greetEvening: 'مساء الخير',
     countNow: 'الآن',
@@ -980,7 +981,7 @@ export const ar = {
     testBody: 'هيج راح توصلك أخبار فعالياتك.',
     /* نصوص الإشعارات نفسها */
     invitedTitle: 'تمت إضافتك لفعالية',
-    invitedBody: '{event} — {date} · الوصول {time}',
+    invitedBody: '{event} — {date} · الوصول {time} · الزي: {dress}',
     arrivalTitle: 'باقي ساعة على وصولك',
     arrivalBody: '{event} · {place} · {time}',
     arrivalBodyNoPlace: '{event} · الوصول {time}',

@@ -152,6 +152,7 @@ export async function markBriefedAction(
         event: event.name,
         date: formatDate(event.date, locale),
         time: event.teamArrivalTime ?? '',
+        dress: dressCodeFor(event.type as EventType, t, event.dressCode),
       });
       /*
        * Once per membership, ever. The same man hears "you are on this one"

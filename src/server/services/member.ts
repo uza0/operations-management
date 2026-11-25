@@ -144,6 +144,7 @@ export async function getMemberPortal(token: string) {
       memberPhotoUrl: teamMembers.photoUrl,
       eventId: events.id,
       eventPosterUrl: events.posterUrl,
+      eventDressCode: events.dressCode,
       eventName: events.name,
       eventType: events.type,
       eventDate: events.date,

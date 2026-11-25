@@ -1,5 +1,8 @@
 'use server';
 
+import type { EventType } from '@/lib/constants';
+import { dressCodeFor } from '@/server/services/notify';
+
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { and, eq, inArray, isNull, ne } from 'drizzle-orm';
@@ -635,6 +638,7 @@ export async function changeEventStatusAction(
         event: event.name,
         date: formatDate(event.date, locale),
         time: event.teamArrivalTime ?? '',
+        dress: dressCodeFor(event.type as EventType, t, event.dressCode),
       });
       await Promise.all(
         crew.map((row) =>

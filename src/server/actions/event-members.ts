@@ -1,5 +1,8 @@
 'use server';
 
+import type { EventType } from '@/lib/constants';
+import { dressCodeFor } from '@/server/services/notify';
+
 import { revalidatePath } from 'next/cache';
 import { after } from 'next/server';
 import { and, eq, inArray, ne } from 'drizzle-orm';
@@ -176,6 +179,7 @@ export async function addMembersToEventAction(
         event: event.name,
         date: formatDate(event.date, locale),
         time: event.teamArrivalTime ?? '',
+        dress: dressCodeFor(event.type as EventType, t, event.dressCode),
       });
       const back = new Set(toReinstate.map((p) => p.id));
       await Promise.all(
