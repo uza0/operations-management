@@ -1671,6 +1671,7 @@ export const ar = {
     atYourPoint: 'الي وياك بنقطة العمل',
     yourSectionSupervisor: 'مسؤول قسمك',
     youAreSectionSupervisor: 'أنت مسؤول القسم',
+    noSectionSupervisorHere: 'ما أكو مسؤول قسم هنا — راجع قائد الفريق.',
     gateLeaderIs: 'قائد البوابة',
     noGateLeaderHere: 'ما أكو قائد بوابة هنا — راجع قائد الفريق.',
     duringTitle: 'أثناء الحفل',

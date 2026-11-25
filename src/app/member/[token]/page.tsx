@@ -375,11 +375,15 @@ function MatesCard({
   const supervisors = mates
     .filter((row) => row.eventRole === 'SECTION_SUPERVISOR' && row.id !== leader?.id)
     .sort((a, b) => Number(b.task === myTask) - Number(a.task === myTask));
+  // A gate is run by its gate leader; a working point (a section) by its
+  // section supervisor — whichever of the two roles he was given there.
+  const atPoint = !data.assignment?.gateId;
+  const sectionLabel = (row: { id: string }) => (row.id === myId ? t.member.youAreSectionSupervisor : t.member.yourSectionSupervisor);
   const heads = [
-    ...(leader ? [{ row: leader, label: t.member.gateLeaderIs }] : []),
+    ...(leader ? [{ row: leader, label: atPoint ? sectionLabel(leader) : t.member.gateLeaderIs }] : []),
     ...supervisors.map((row) => ({
       row,
-      label: row.id === myId ? t.member.youAreSectionSupervisor : row.task === myTask ? t.member.yourSectionSupervisor : t.enums.eventRole.SECTION_SUPERVISOR,
+      label: atPoint || row.task === myTask ? sectionLabel(row) : t.enums.eventRole.SECTION_SUPERVISOR,
     })),
   ];
   const headIds = new Set(heads.map((head) => head.row.id));
@@ -419,7 +423,7 @@ function MatesCard({
       </ul>
       {heads.length === 0 ? (
         <p className="mt-1.5 px-1 text-[12.5px] leading-5 text-ink-400">
-          {t.member.noGateLeaderHere}
+          {atPoint ? t.member.noSectionSupervisorHere : t.member.noGateLeaderHere}
         </p>
       ) : null}
     </section>
