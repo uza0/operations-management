@@ -21,7 +21,7 @@ const SCALE = 0.3;
 
 export function ShareStudio({ stats, copy, initialLang }: { stats: MemberCardStats; copy: Copy; initialLang: CardLang }) {
   const designs = DESIGNS.filter(
-    (d) => (d === 'upcoming' ? stats.next !== null : stats.events > 0 || !NEEDS_HISTORY.includes(d)),
+    (d) => (d === 'poster' ? Boolean(stats.next?.posterUrl) : d === 'upcoming' ? stats.next !== null : stats.events > 0 || !NEEDS_HISTORY.includes(d)),
   );
   const [design, setDesign] = useState<Design>(designs[0]);
   const [lang, setLang] = useState<CardLang>(initialLang);

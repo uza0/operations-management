@@ -699,6 +699,7 @@ export const ar = {
     cardArabic: 'عربي',
     cardEnglish: 'English',
     cardStickerNote: 'الستيكر يطلع بخلفية شفافة، حطه فوق صورتك من الحفلة.',
+    cardPoster: 'بوستر الحفلة',
     cardUpcoming: 'أكون هناك',
     cardBadge: 'الباج',
     cardPassport: 'جواز الفعاليات',

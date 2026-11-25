@@ -26,7 +26,7 @@ export default async function MemberCardPage() {
         copy={{
           share: m.cardShare, save: m.cardSave, working: m.cardWorking, failed: m.cardFailed, hint: m.cardHint,
           arabic: m.cardArabic, english: m.cardEnglish, stickerNote: m.cardStickerNote,
-          names: { upcoming: m.cardUpcoming, badge: m.cardBadge, passport: m.cardPassport, season: m.cardSeason, sticker: m.cardSticker, crew: m.cardCrew, ticket: m.cardTicket },
+          names: { poster: m.cardPoster, upcoming: m.cardUpcoming, badge: m.cardBadge, passport: m.cardPassport, season: m.cardSeason, sticker: m.cardSticker, crew: m.cardCrew, ticket: m.cardTicket },
         }}
       />
     </MemberShell>

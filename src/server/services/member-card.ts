@@ -54,7 +54,7 @@ export type MemberCardStats = {
    * confirmed), never a reserve place or one he declined: the card says
    * where he will be, so it must be somewhere he has actually been asked.
    */
-  next: { name: string; date: string; startTime: string; venue: string; type: string; past: boolean } | null;
+  next: { name: string; date: string; startTime: string; venue: string; type: string; past: boolean; posterUrl: string | null } | null;
 };
 
 const WORKED = ['PRESENT', 'LATE'];
@@ -105,6 +105,7 @@ export async function getMemberCardStats(teamMemberId: string): Promise<MemberCa
       eventName: events.name,
       date: events.date,
       startTime: events.startTime,
+      posterUrl: events.posterUrl,
       type: events.type,
       venue: venues.name,
       checkInTime: attendance.checkInTime,
@@ -160,7 +161,7 @@ export async function getMemberCardStats(teamMemberId: string): Promise<MemberCa
     );
 
   const [upcoming] = await db
-    .select({ name: events.name, date: events.date, startTime: events.startTime, venue: venues.name, type: events.type })
+    .select({ name: events.name, date: events.date, startTime: events.startTime, venue: venues.name, type: events.type, posterUrl: events.posterUrl })
     .from(eventMembers)
     .innerJoin(events, eq(eventMembers.eventId, events.id))
     .innerJoin(venues, eq(events.venueId, venues.id))
@@ -214,7 +215,7 @@ export async function getMemberCardStats(teamMemberId: string): Promise<MemberCa
     next: upcoming
       ? { ...upcoming, name: shortEventName(upcoming.name), past: false }
       : latest
-        ? { name: shortEventName(latest.eventName), date: latest.date, startTime: latest.startTime, venue: latest.venue, type: latest.type, past: true }
+        ? { name: shortEventName(latest.eventName), date: latest.date, startTime: latest.startTime, venue: latest.venue, type: latest.type, posterUrl: latest.posterUrl ?? null, past: true }
         : null,
     last: latest
       ? {

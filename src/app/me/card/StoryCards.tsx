@@ -10,7 +10,7 @@ import { ROLE_NAME } from './roles';
  * properly; a server image renderer does not join Arabic letters.
  */
 
-export const DESIGNS = ['upcoming', 'badge', 'passport', 'season', 'sticker', 'crew', 'ticket'] as const;
+export const DESIGNS = ['poster', 'upcoming', 'badge', 'passport', 'season', 'sticker', 'crew', 'ticket'] as const;
 export type Design = (typeof DESIGNS)[number];
 export type CardLang = 'ar' | 'en';
 
@@ -136,6 +136,51 @@ export function StoryCard({ design, lang, stats }: { design: Design; lang: CardL
   const logo = (size: number, extra: CSSProperties = {}) => (
     <img src={LOGO} alt={c.logo} style={{ width: size, height: size, borderRadius: size * 0.22, flex: 'none', ...extra }} />
   );
+
+  if (design === 'poster' && stats.next?.posterUrl) {
+    /*
+     * The organiser's own poster, with his place in it underneath: the
+     * story people actually post the night before a show.
+     */
+    const n = stats.next;
+    const parts = dateParts(n.date, lang);
+    const left = daysUntil(n.date);
+    const when = n.past ? (left >= 0 ? c.tonight : c.ago(-left)) : left <= 0 ? c.tonight : left === 1 ? c.tomorrow : c.inDays(left);
+    return (
+      <div dir={dir} style={root({ background: '#121317', color: '#fff', display: 'flex', flexDirection: 'column' })}>
+        <div style={{ position: 'relative', height: 1080, flex: 'none' }}>
+          <img src={n.posterUrl!} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 20%' }} />
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(18,19,23,0) 62%, #121317 100%)' }} />
+          {p({ position: 'absolute', bottom: 150, [start]: 76, fontSize: 36, fontWeight: 800, background: RED, borderRadius: 50, padding: '12px 34px', boxShadow: '0 10px 30px rgba(0,0,0,0.35)' }, when)}
+        </div>
+        <div style={{ position: 'relative', marginTop: -110, padding: '0 76px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 24, flexWrap: 'wrap' }}>
+            {p({ fontSize: 118, fontWeight: 900, lineHeight: 1 }, n.past ? c.was1 : c.willBe1)}
+            <p style={{ margin: 0, fontSize: 118, fontWeight: 900, lineHeight: 1.05, background: RED, padding: '0 34px 12px', borderRadius: 32 }}>{c.willBe2}</p>
+          </div>
+          <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'stretch', gap: 36 }}>
+            <div style={{ width: 220, flex: 'none', background: '#fff', color: '#121317', borderRadius: 36, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '22px 0' }}>
+              {p({ fontSize: 116, fontWeight: 900, lineHeight: 0.95, color: RED }, parts.day)}
+              {p({ marginTop: 6, fontSize: 28, fontWeight: 800 }, parts.month)}
+            </div>
+            <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 12 }}>
+              {p({ fontSize: n.name.length > 18 ? 58 : 70, fontWeight: 900, lineHeight: 1.1 }, n.name)}
+              {p({ fontSize: 36, fontWeight: 500, color: '#cfcfcf' }, `${parts.weekday} · ${clock(n.startTime, lang)}`)}
+              {p({ fontSize: 36, fontWeight: 500, color: '#cfcfcf' }, n.venue)}
+            </div>
+          </div>
+          <div style={{ marginTop: 'auto', marginBottom: 80, display: 'flex', alignItems: 'center', gap: 26, background: 'rgba(255,255,255,0.08)', border: '2px solid rgba(255,255,255,0.14)', borderRadius: 40, padding: '26px 32px' }}>
+            <div style={{ width: 120, height: 120, borderRadius: '50%', border: `5px solid ${RED}`, overflow: 'hidden', flex: 'none' }}><Face stats={stats} size={110} font={44} /></div>
+            <div style={{ minWidth: 0, flex: 1 }}>
+              {p({ fontSize: 44, fontWeight: 800 }, stats.name)}
+              {p({ marginTop: 4, fontSize: 28, fontWeight: 500, color: '#bdbdbd' }, n.past ? c.wasOnCrew : c.onCrew)}
+            </div>
+            {logo(96)}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (design === 'upcoming' && stats.next) {
     const n = stats.next;
