@@ -16,6 +16,7 @@ import {
   workingPoints,
 } from '@/db/schema';
 import { todayISO } from '@/lib/time';
+import { getMemberAttendanceScore } from '@/server/services/member';
 
 /**
  * What a promoter's share cards say about them — only things the system
@@ -55,6 +56,33 @@ export type MemberCardStats = {
    * where he will be, so it must be somewhere he has actually been asked.
    */
   next: { name: string; date: string; startTime: string; venue: string; type: string; past: boolean; posterUrl: string | null } | null;
+  /** Every night he worked, newest first — what the picker cards choose from. */
+  worked: WorkedNight[];
+  /** Self-recorded arrival and departure, as the attendance page counts it. */
+  score: { percentage: number; completed: number; total: number; rank: number | null; ranked: number } | null;
+};
+
+export type Mate = { name: string; photoUrl: string; lead: boolean; me: boolean };
+
+export type WorkedNight = {
+  key: string;
+  name: string;
+  date: string;
+  venue: string;
+  type: string;
+  posterUrl: string | null;
+  inAt: string | null;
+  outAt: string | null;
+  /** Gate or working point he stood at. */
+  post: string | null;
+  task: string | null;
+  /** TEAM_LEADER | ASSISTANT_TEAM_LEADER | GATE_LEADER | SECTION_SUPERVISOR, or null. */
+  role: string | null;
+  /** How many worked that night. */
+  crew: number;
+  /** Faces for the group cards: approved photos of people who did not opt out. */
+  team: Mate[];
+  gateTeam: Mate[];
 };
 
 const WORKED = ['PRESENT', 'LATE'];
@@ -102,6 +130,8 @@ export async function getMemberCardStats(teamMemberId: string): Promise<MemberCa
   const nights = await db
     .select({
       eventMemberId: eventMembers.id,
+      eventId: events.id,
+      eventRole: eventMembers.eventRole,
       eventName: events.name,
       date: events.date,
       startTime: events.startTime,
@@ -132,6 +162,9 @@ export async function getMemberCardStats(teamMemberId: string): Promise<MemberCa
         .select({
           eventMemberId: assignments.eventMemberId,
           task: assignments.task,
+          isGateLeader: assignments.isGateLeader,
+          gateId: assignments.gateId,
+          workingPointId: assignments.workingPointId,
           gate: gates.name,
           point: workingPoints.name,
         })
@@ -196,6 +229,65 @@ export async function getMemberCardStats(teamMemberId: string): Promise<MemberCa
   const firstYear = nights[0]?.date.slice(0, 4);
   const joinedYear = member.createdAt ? String(new Date(member.createdAt).getUTCFullYear()) : '';
 
+  /*
+   * The nights' crews, for the group cards and "how big was it". Only the
+   * last 30 nights: no card reaches further back than a picker can show.
+   */
+  const recent = [...nights].reverse().slice(0, 30);
+  const crewRows = recent.length
+    ? await db
+        .select({
+          eventId: eventMembers.eventId,
+          teamMemberId: eventMembers.teamMemberId,
+          name: teamMembers.fullName,
+          photoUrl: teamMembers.photoUrl,
+          hidden: teamMembers.hideFromGroupCards,
+          eventRole: eventMembers.eventRole,
+          gateId: assignments.gateId,
+          workingPointId: assignments.workingPointId,
+          isGateLeader: assignments.isGateLeader,
+        })
+        .from(attendance)
+        .innerJoin(eventMembers, eq(attendance.eventMemberId, eventMembers.id))
+        .innerJoin(teamMembers, eq(eventMembers.teamMemberId, teamMembers.id))
+        .leftJoin(assignments, and(eq(assignments.eventMemberId, eventMembers.id), ne(assignments.status, 'CANCELLED')))
+        .where(and(inArray(eventMembers.eventId, recent.map((n) => n.eventId)), inArray(attendance.status, WORKED), ne(eventMembers.status, 'CANCELLED')))
+    : [];
+  const hhmm = (clockText: string | null, at: Date | null) => {
+    const m = minutes(clockText) ?? clockOf(at);
+    return m === null ? null : `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+  };
+  const worked: WorkedNight[] = recent.map((n) => {
+    const post = postOf.get(n.eventMemberId);
+    const crew = crewRows.filter((r) => r.eventId === n.eventId);
+    const face = (r: (typeof crew)[number]): Mate => ({
+      name: r.name.trim(),
+      photoUrl: r.photoUrl!,
+      lead: Boolean(r.isGateLeader) || r.eventRole === 'SECTION_SUPERVISOR' || r.eventRole === 'TEAM_LEADER',
+      me: r.teamMemberId === teamMemberId,
+    });
+    const shown = crew.filter((r) => r.photoUrl && (!r.hidden || r.teamMemberId === teamMemberId));
+    const samePost = (r: (typeof crew)[number]) =>
+      post && ((post.gateId && r.gateId === post.gateId) || (post.workingPointId && r.workingPointId === post.workingPointId));
+    return {
+      key: n.eventMemberId,
+      name: shortEventName(n.eventName),
+      date: n.date,
+      venue: n.venue,
+      type: n.type,
+      posterUrl: n.posterUrl ?? null,
+      inAt: hhmm(n.checkInTime, n.reportedArrivalAt),
+      outAt: hhmm(n.checkOutTime, n.reportedDepartureAt),
+      post: post?.point ?? post?.gate ?? null,
+      task: post?.task ?? null,
+      role: n.eventRole ?? (post?.isGateLeader ? 'GATE_LEADER' : null),
+      crew: new Set(crew.map((r) => r.teamMemberId)).size,
+      team: shown.slice(0, 40).map(face),
+      gateTeam: shown.filter(samePost).slice(0, 24).map(face),
+    };
+  });
+  const rawScore = await getMemberAttendanceScore(teamMemberId).catch(() => null);
+
   return {
     name: member.fullName.trim(),
     initials: initialsOf(member.fullName),
@@ -217,6 +309,10 @@ export async function getMemberCardStats(teamMemberId: string): Promise<MemberCa
       : latest
         ? { name: shortEventName(latest.eventName), date: latest.date, startTime: latest.startTime, venue: latest.venue, type: latest.type, posterUrl: latest.posterUrl ?? null, past: true }
         : null,
+    worked,
+    score: rawScore && rawScore.total > 0
+      ? { percentage: rawScore.percentage, completed: rawScore.completed, total: rawScore.total, rank: rawScore.rank, ranked: rawScore.rankedPromoters }
+      : null,
     last: latest
       ? {
           name: shortEventName(latest.eventName),

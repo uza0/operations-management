@@ -4,7 +4,11 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import { getT } from '@/lib/i18n/server';
-import { signInMember, signOutMember } from '@/server/services/member-auth';
+import { revalidatePath } from 'next/cache';
+import { eq } from 'drizzle-orm';
+import { db } from '@/db';
+import { teamMembers } from '@/db/schema';
+import { currentMember, signInMember, signOutMember } from '@/server/services/member-auth';
 
 import { fail, type ActionState } from './types';
 
@@ -62,4 +66,14 @@ export async function memberSignInAction(
 export async function memberSignOutAction(): Promise<void> {
   await signOutMember();
   redirect('/login');
+}
+
+/** The signed-in member's own choice to stay off group story cards. */
+export async function setGroupCardsVisibilityAction(form: FormData): Promise<void> {
+  const session = await currentMember();
+  if (!session) return;
+  const hide = form.get('hide') === '1';
+  await db.update(teamMembers).set({ hideFromGroupCards: hide }).where(eq(teamMembers.id, session.teamMemberId));
+  revalidatePath('/me/account');
+  revalidatePath('/me/card');
 }

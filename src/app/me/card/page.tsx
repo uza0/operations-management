@@ -25,8 +25,8 @@ export default async function MemberCardPage() {
         initialLang={locale === 'en' ? 'en' : 'ar'}
         copy={{
           share: m.cardShare, save: m.cardSave, working: m.cardWorking, failed: m.cardFailed, hint: m.cardHint,
-          arabic: m.cardArabic, english: m.cardEnglish, stickerNote: m.cardStickerNote,
-          names: { poster: m.cardPoster, upcoming: m.cardUpcoming, badge: m.cardBadge, passport: m.cardPassport, season: m.cardSeason, sticker: m.cardSticker, crew: m.cardCrew, ticket: m.cardTicket },
+          arabic: m.cardArabic, english: m.cardEnglish, stickerNote: m.cardStickerNote, pick: m.cardPick,
+          names: { poster: m.cardPoster, upcoming: m.cardUpcoming, wasThere: m.cardWasThere, milestone: m.cardMilestone, commitment: m.cardCommitment, month: m.cardMonth, year: m.cardYear, role: m.cardRole, team: m.cardTeam, gateTeam: m.cardGateTeam, chairs: m.cardChairs, anniversary: m.cardAnniversary, badge: m.cardBadge, passport: m.cardPassport, season: m.cardSeason, sticker: m.cardSticker, crew: m.cardCrew, ticket: m.cardTicket },
         }}
       />
     </MemberShell>

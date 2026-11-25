@@ -1,6 +1,6 @@
 /* eslint-disable @next/next/no-img-element -- rendered to an image; next/image would not be inlined */
 import type { CSSProperties, ReactNode } from 'react';
-import type { MemberCardStats } from '@/server/services/member-card';
+import type { Mate, MemberCardStats, WorkedNight } from '@/server/services/member-card';
 import { ROLE_NAME } from './roles';
 
 /*
@@ -10,7 +10,7 @@ import { ROLE_NAME } from './roles';
  * properly; a server image renderer does not join Arabic letters.
  */
 
-export const DESIGNS = ['poster', 'upcoming', 'badge', 'passport', 'season', 'sticker', 'crew', 'ticket'] as const;
+export const DESIGNS = ['poster', 'upcoming', 'wasThere', 'milestone', 'commitment', 'month', 'year', 'role', 'team', 'gateTeam', 'chairs', 'anniversary', 'badge', 'passport', 'season', 'sticker', 'crew', 'ticket'] as const;
 export type Design = (typeof DESIGNS)[number];
 export type CardLang = 'ar' | 'en';
 
@@ -30,6 +30,16 @@ const COPY = {
     memberFrom: (y: string) => `عضو من ${y} · بغداد`, eventsFrom: (n: number, y: string) => `${n} فعالية · من ${y}`,
     roleNone: 'فريق تكت زون', promoter: 'بروموتر', logo: 'شعار تكت زون',
     willBe1: 'راح أكون', willBe2: 'هناك', was1: 'كنت', wasOnCrew: 'كنت ويه فريق التنظيم', ago: (n: number) => (n === 1 ? 'البارحة' : n === 2 ? 'قبل يومين' : n <= 10 ? `قبل ${n} أيام` : `قبل ${n} يوم`), tonight: 'الليلة', tomorrow: 'باچر', inDays: (n: number) => (n === 2 ? 'بعد يومين' : n <= 10 ? `بعد ${n} أيام` : `بعد ${n} يوم`), onCrew: 'ويه فريق التنظيم',
+    wasThere: 'كنت هناك', arrived: 'وصلت', left: 'انصرفت', at: 'مكاني',
+    milestone: (n: number) => `${n} فعالية`, milestoneSub: 'ويه تكت زون', milestoneHead: 'وصلت',
+    commitTitle: 'التزامي بتسجيل الدوام', commitFull: 'حضور 100%', commitOf: (c: number, t: number) => `سجّلت بنفسي ${c} من ${t} فعاليات`,
+    rankOf: (r: number, n: number) => (r === 1 ? `الأول بين ${n} بروموتر` : `ترتيبي ${r} من ${n} بروموتر`),
+    chairsTitle: 'بطل الكراسي', chairsSub: 'يوم ترتيب كراسي قبل الحفلات',
+    years: (n: number) => (n === 1 ? 'سنة' : n === 2 ? 'سنتين' : `${n} سنوات`), annivSub: 'ويه فريق تكت زون', firstNight: 'أول فعالية', lastNight: 'آخر فعالية',
+    monthTitle: 'شهري ويه تكت زون', yearTitle: (y: string) => `سنتي ${y}`, yearSlides: ['فعالياتي', 'أماكني', 'أكبر ليلة', 'التزامي وساعاتي'],
+    biggest: 'أكبر ليلة اشتغلتها', crewOf: (n: number) => `${n} بالفريق`, topPost: 'أكثر مكان وقفت بيه', topVenue: 'أكثر مكان اشتغلت بيه',
+    roleTitle: { TEAM_LEADER: 'قائد الفريق', ASSISTANT_TEAM_LEADER: 'مساعد قائد الفريق', GATE_LEADER: 'قائد البوابة', SECTION_SUPERVISOR: 'مسؤول القسم' } as Record<string, string>,
+    teamTitle: 'فريق الليلة', gateTeamTitle: 'فريقنا', lead: 'المسؤول',
   },
   en: {
     events: 'Events', venues: 'Venues', since: 'Since', team1: 'Ticket Zone', team2: 'Team', team: 'Ticket Zone Team',
@@ -42,6 +52,16 @@ const COPY = {
     memberFrom: (y: string) => `Member since ${y} · Baghdad`, eventsFrom: (n: number, y: string) => `${n} ${n === 1 ? 'event' : 'events'} · since ${y}`,
     roleNone: 'Ticket Zone Crew', promoter: 'Promoter', logo: 'Ticket Zone logo',
     willBe1: 'See you', willBe2: 'there', was1: 'I was', wasOnCrew: 'I was on the event crew', ago: (n: number) => (n === 1 ? 'Yesterday' : `${n} days ago`), tonight: 'Tonight', tomorrow: 'Tomorrow', inDays: (n: number) => `In ${n} days`, onCrew: 'On the event crew',
+    wasThere: 'I was there', arrived: 'Arrived', left: 'Left', at: 'My post',
+    milestone: (n: number) => `${n} events`, milestoneSub: 'with Ticket Zone', milestoneHead: 'Just hit',
+    commitTitle: 'My attendance record', commitFull: '100% attendance', commitOf: (c: number, t: number) => `Self-recorded ${c} of ${t} events`,
+    rankOf: (r: number, n: number) => (r === 1 ? `#1 of ${n} promoters` : `#${r} of ${n} promoters`),
+    chairsTitle: 'Chair champion', chairsSub: 'chair setup days before the shows',
+    years: (n: number) => (n === 1 ? '1 year' : `${n} years`), annivSub: 'with the Ticket Zone team', firstNight: 'First event', lastNight: 'Latest event',
+    monthTitle: 'My month with Ticket Zone', yearTitle: (y: string) => `My ${y}`, yearSlides: ['My events', 'My places', 'Biggest night', 'My record'],
+    biggest: 'The biggest night I worked', crewOf: (n: number) => `${n} on the crew`, topPost: 'Where I stood most', topVenue: 'Where I worked most',
+    roleTitle: { TEAM_LEADER: 'Team Leader', ASSISTANT_TEAM_LEADER: 'Assistant Team Leader', GATE_LEADER: 'Gate Leader', SECTION_SUPERVISOR: 'Section Supervisor' } as Record<string, string>,
+    teamTitle: 'Tonight\'s crew', gateTeamTitle: 'Our team', lead: 'Lead',
   },
 } as const;
 
@@ -126,7 +146,84 @@ const BARS = (() => {
   return out;
 })();
 
-export function StoryCard({ design, lang, stats }: { design: Design; lang: CardLang; stats: MemberCardStats }) {
+/** Milestones a member can reach; the card shows the highest one passed. */
+const MILESTONES = [5, 10, 25, 50, 100, 200];
+
+const monthsOf = (stats: MemberCardStats) => [...new Set(stats.worked.map((n) => n.date.slice(0, 7)))];
+const yearOf = (stats: MemberCardStats) => stats.worked[0]?.date.slice(0, 4) ?? null;
+const daysSince = (iso: string) => -daysUntil(iso);
+
+/** The nights a picker card offers, newest first. */
+export function nightsFor(design: Design, stats: MemberCardStats): WorkedNight[] {
+  if (design === 'wasThere') return stats.worked;
+  if (design === 'role') return stats.worked.filter((n) => n.role);
+  if (design === 'team') return stats.worked.filter((n) => n.team.length >= 3);
+  if (design === 'gateTeam') return stats.worked.filter((n) => n.post && n.gateTeam.length >= 2);
+  return [];
+}
+
+/** Whether a design has anything to say for this member. */
+export function designAvailable(design: Design, stats: MemberCardStats): boolean {
+  switch (design) {
+    case 'poster': return Boolean(stats.next?.posterUrl);
+    case 'upcoming': return stats.next !== null;
+    case 'wasThere': case 'role': case 'team': case 'gateTeam': return nightsFor(design, stats).length > 0;
+    case 'milestone': return stats.events >= MILESTONES[0];
+    case 'commitment': return Boolean(stats.score && stats.score.completed > 0);
+    case 'chairs': return stats.chairDays > 0;
+    case 'anniversary': return Boolean(stats.firstDate && daysSince(stats.firstDate) >= 365);
+    case 'month': case 'year': return stats.worked.length > 0;
+    case 'passport': case 'season': case 'sticker': return stats.events > 0;
+    default: return true;
+  }
+}
+
+/** Labels for the picker under the preview, or null when the card has no choice. */
+export function pickLabels(design: Design, stats: MemberCardStats, lang: CardLang): string[] | null {
+  const nights = nightsFor(design, stats);
+  if (nights.length) return nights.map((n) => `${n.name} · ${dmy(n.date, true)}`);
+  if (design === 'month') {
+    const loc = lang === 'ar' ? 'ar-IQ-u-nu-latn' : 'en-GB';
+    return monthsOf(stats).map((m) => new Intl.DateTimeFormat(loc, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${m}-15T12:00:00Z`)));
+  }
+  if (design === 'year') return [...COPY[lang].yearSlides];
+  return null;
+}
+
+function MateGrid({ mates, size, lang }: { mates: Mate[]; size: number; lang: CardLang }) {
+  return (
+    <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 22 }}>
+      {mates.map((m, i) => (
+        <div key={i} style={{ width: size, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+          <div style={{ width: size, height: size, borderRadius: '50%', overflow: 'hidden', border: `6px solid ${m.lead ? RED : m.me ? '#fff' : 'rgba(255,255,255,0.18)'}`, boxSizing: 'border-box' }}>
+            <img src={m.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          </div>
+          <p style={{ margin: 0, maxWidth: size + 10, fontSize: size > 170 ? 26 : 21, fontWeight: m.me ? 800 : 600, textAlign: 'center', lineHeight: 1.15, overflow: 'hidden', whiteSpace: 'nowrap', textOverflow: 'ellipsis', direction: 'ltr' }}>{m.name.split(/\s+/)[0]}</p>
+          {m.lead ? <p style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#fff', background: RED, borderRadius: 20, padding: '2px 12px' }}>{COPY[lang].lead}</p> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** The poster (or the brand cover) across the top of a night's card. */
+function NightCover({ night, height }: { night: { posterUrl: string | null }; height: number }) {
+  return (
+    <div style={{ position: 'relative', height, flex: 'none', overflow: 'hidden' }}>
+      {night.posterUrl ? (
+        <img src={night.posterUrl} alt="" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 22%' }} />
+      ) : (
+        <>
+          <div style={{ position: 'absolute', top: -260, right: -260, width: 900, height: 900, borderRadius: '50%', background: RED }} />
+          <div style={{ position: 'absolute', top: -120, right: -120, width: 620, height: 620, borderRadius: '50%', border: '6px solid #121317' }} />
+        </>
+      )}
+      <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(18,19,23,0) 55%, #121317 100%)' }} />
+    </div>
+  );
+}
+
+export function StoryCard({ design, lang, stats, pick = 0 }: { design: Design; lang: CardLang; stats: MemberCardStats; pick?: number }) {
   const c = COPY[lang];
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
   const start = lang === 'ar' ? 'right' : 'left';
@@ -136,6 +233,258 @@ export function StoryCard({ design, lang, stats }: { design: Design; lang: CardL
   const logo = (size: number, extra: CSSProperties = {}) => (
     <img src={LOGO} alt={c.logo} style={{ width: size, height: size, borderRadius: size * 0.22, flex: 'none', ...extra }} />
   );
+
+  const dark = (extra: CSSProperties = {}) => root({ background: '#121317', color: '#fff', display: 'flex', flexDirection: 'column', ...extra });
+  const dots = <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(rgba(255,255,255,0.05) 2px, transparent 2px)', backgroundSize: '44px 44px' }} />;
+  const brandRow = (
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 20 }}>
+      {logo(90)}
+      {p({ fontSize: 28, fontWeight: 700, letterSpacing: 4, direction: 'ltr' }, 'TICKET ZONE · CREW')}
+    </div>
+  );
+  const me = (sub: string) => (
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 26, background: 'rgba(255,255,255,0.08)', border: '2px solid rgba(255,255,255,0.14)', borderRadius: 40, padding: '26px 32px' }}>
+      <div style={{ width: 120, height: 120, borderRadius: '50%', border: `5px solid ${RED}`, overflow: 'hidden', flex: 'none' }}><Face stats={stats} size={110} font={44} /></div>
+      <div style={{ minWidth: 0, flex: 1 }}>{p({ fontSize: 44, fontWeight: 800 }, stats.name)}{p({ marginTop: 4, fontSize: 28, fontWeight: 500, color: '#bdbdbd' }, sub)}</div>
+      {logo(96)}
+    </div>
+  );
+  const big = (value: ReactNode, size = 420) => p({ fontSize: size, fontWeight: 900, lineHeight: 0.9, color: RED, letterSpacing: -10 }, value);
+  const nights = nightsFor(design, stats);
+  const night = nights[Math.min(pick, Math.max(0, nights.length - 1))];
+
+  if (design === 'wasThere' && night) {
+    const parts = dateParts(night.date, lang);
+    const chip = (label: string, value: string | null) => value ? p({ fontSize: 32, fontWeight: 700, background: 'rgba(255,255,255,0.1)', border: '2px solid rgba(255,255,255,0.16)', borderRadius: 40, padding: '12px 30px' }, `${label} ${clock(value, lang)}`) : null;
+    return (
+      <div dir={dir} style={dark()}>
+        <NightCover night={night} height={1080} />
+        <div style={{ position: 'relative', marginTop: -150, padding: '0 76px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 24 }}>
+            <p style={{ margin: 0, fontSize: 132, fontWeight: 900, lineHeight: 1.05, background: RED, padding: '0 36px 14px', borderRadius: 34 }}>{c.wasThere}</p>
+          </div>
+          <div style={{ marginTop: 'auto', display: 'flex', alignItems: 'stretch', gap: 36 }}>
+            <div style={{ width: 220, flex: 'none', background: '#fff', color: '#121317', borderRadius: 36, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '22px 0' }}>
+              {p({ fontSize: 116, fontWeight: 900, lineHeight: 0.95, color: RED }, parts.day)}
+              {p({ marginTop: 6, fontSize: 28, fontWeight: 800 }, parts.month)}
+            </div>
+            <div style={{ minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 12 }}>
+              {p({ fontSize: night.name.length > 18 ? 58 : 70, fontWeight: 900, lineHeight: 1.1 }, night.name)}
+              {p({ fontSize: 36, fontWeight: 500, color: '#cfcfcf' }, night.venue)}
+              {night.post ? p({ fontSize: 34, fontWeight: 700, color: '#ff9b8f' }, `${c.at}: ${night.post}`) : null}
+            </div>
+          </div>
+          <div style={{ marginTop: 40, display: 'flex', gap: 18, flexWrap: 'wrap' }}>{chip(c.arrived, night.inAt)}{chip(c.left, night.outAt)}</div>
+          <div style={{ marginTop: 'auto', marginBottom: 80 }}>{me(c.wasOnCrew)}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (design === 'role' && night?.role) {
+    const parts = dateParts(night.date, lang);
+    return (
+      <div dir={dir} style={dark()}>
+        <NightCover night={night} height={980} />
+        <div style={{ position: 'relative', marginTop: -120, padding: '0 76px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+          {p({ fontSize: 40, fontWeight: 700, color: '#ff9b8f' }, `${night.name} · ${parts.day} ${parts.month}`)}
+          <p style={{ alignSelf: 'flex-start', margin: '26px 0 0', fontSize: 104, fontWeight: 900, lineHeight: 1.1, background: RED, padding: '6px 40px 18px', borderRadius: 34 }}>{c.roleTitle[night.role] ?? night.role}</p>
+          {night.post ? p({ marginTop: 30, fontSize: 66, fontWeight: 900, lineHeight: 1.1 }, night.post) : null}
+          {p({ marginTop: 16, fontSize: 36, fontWeight: 500, color: '#cfcfcf' }, `${night.venue} · ${c.crewOf(night.crew)}`)}
+          <div style={{ marginTop: 'auto', marginBottom: 80 }}>{me(c.onCrew)}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if ((design === 'team' || design === 'gateTeam') && night) {
+    const mates = design === 'team' ? night.team : night.gateTeam;
+    const size = mates.length <= 6 ? 230 : mates.length <= 12 ? 175 : mates.length <= 20 ? 140 : 112;
+    return (
+      <div dir={dir} style={dark()}>
+        <NightCover night={night} height={720} />
+        <div style={{ position: 'relative', marginTop: -170, padding: '0 64px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+          <p style={{ alignSelf: 'flex-start', margin: 0, fontSize: 92, fontWeight: 900, lineHeight: 1.1, background: RED, padding: '4px 36px 16px', borderRadius: 32 }}>{design === 'team' ? c.teamTitle : c.gateTeamTitle}</p>
+          {p({ marginTop: 22, fontSize: 44, fontWeight: 800 }, design === 'team' ? night.name : `${night.post} · ${night.name}`)}
+          {p({ marginTop: 6, fontSize: 32, fontWeight: 500, color: '#bdbdbd' }, `${dmy(night.date, true)} · ${night.venue}`)}
+          <div style={{ marginTop: 'auto', marginBottom: 'auto', paddingTop: 40 }}><MateGrid mates={mates} size={size} lang={lang} /></div>
+          <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 18, marginBottom: 70 }}>{logo(72)}{p({ fontSize: 32, fontWeight: 700 }, `${c.team} · ${c.city}`)}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (design === 'milestone' && stats.events >= MILESTONES[0]) {
+    const tier = [...MILESTONES].reverse().find((m) => stats.events >= m)!;
+    return (
+      <div dir={dir} style={dark({ padding: '90px 76px' })}>
+        {dots}
+        <div style={{ position: 'absolute', bottom: -380, [end]: -340, width: 1000, height: 1000, borderRadius: '50%', background: RED, opacity: 0.95 }} />
+        <div style={{ position: 'absolute', bottom: -220, [end]: -180, width: 680, height: 680, borderRadius: '50%', border: '6px solid #121317' }} />
+        {brandRow}
+        <div style={{ position: 'relative', marginTop: 200 }}>
+          {p({ fontSize: 70, fontWeight: 800 }, c.milestoneHead)}
+          {big(tier, tier >= 100 ? 360 : 460)}
+          {p({ marginTop: 20, fontSize: 96, fontWeight: 900, lineHeight: 1.05 }, c.milestone(tier).replace(String(tier), '').trim() || c.events)}
+          {p({ marginTop: 12, fontSize: 52, fontWeight: 700, color: '#cfcfcf' }, c.milestoneSub)}
+        </div>
+        <div style={{ position: 'relative', marginTop: 'auto' }}>{me(c.eventsFrom(stats.events, stats.since))}</div>
+      </div>
+    );
+  }
+
+  if (design === 'commitment' && stats.score) {
+    const sc = stats.score;
+    const r = 300;
+    const len = 2 * Math.PI * r;
+    return (
+      <div dir={dir} style={dark({ padding: '90px 76px', alignItems: 'stretch' })}>
+        {dots}
+        {brandRow}
+        {p({ position: 'relative', marginTop: 120, fontSize: 70, fontWeight: 900, lineHeight: 1.15 }, sc.percentage === 100 ? c.commitFull : c.commitTitle)}
+        <div style={{ position: 'relative', alignSelf: 'center', marginTop: 70, width: 700, height: 700 }}>
+          <svg width="700" height="700" viewBox="0 0 700 700" style={{ transform: 'rotate(-90deg)' }}>
+            <circle cx="350" cy="350" r={r} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth="56" />
+            <circle cx="350" cy="350" r={r} fill="none" stroke={RED} strokeWidth="56" strokeLinecap="round" strokeDasharray={len} strokeDashoffset={len * (1 - sc.percentage / 100)} />
+          </svg>
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', direction: 'ltr' }}>{p({ fontSize: 220, fontWeight: 900, letterSpacing: -6 }, `${sc.percentage}%`)}</div>
+        </div>
+        {p({ position: 'relative', marginTop: 60, textAlign: 'center', fontSize: 44, fontWeight: 700 }, c.commitOf(sc.completed, sc.total))}
+        {sc.rank !== null && sc.ranked >= 5 ? <p style={{ position: 'relative', alignSelf: 'center', margin: '28px 0 0', fontSize: 46, fontWeight: 900, background: RED, borderRadius: 50, padding: '14px 44px' }}>{c.rankOf(sc.rank, sc.ranked)}</p> : null}
+        <div style={{ position: 'relative', marginTop: 'auto' }}>{me(c.team)}</div>
+      </div>
+    );
+  }
+
+  if (design === 'chairs' && stats.chairDays > 0) {
+    return (
+      <div dir={dir} style={dark({ padding: '90px 76px' })}>
+        {dots}
+        {brandRow}
+        <div style={{ position: 'relative', marginTop: 160, display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+          <svg width="300" height="300" viewBox="0 0 24 24" fill="none" stroke={RED} strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"><path d="M7 21v-4M17 21v-4M5 13h14v4H5zM7 13V5a2 2 0 0 1 2-2h6a2 2 0 0 1 2 2v8" /></svg>
+          {p({ marginTop: 30, fontSize: 90, fontWeight: 900 }, c.chairsTitle)}
+          {big(stats.chairDays, 400)}
+          {p({ marginTop: 10, fontSize: 48, fontWeight: 700, color: '#cfcfcf' }, c.chairsSub)}
+        </div>
+        <div style={{ position: 'relative', marginTop: 'auto' }}>{me(c.team)}</div>
+      </div>
+    );
+  }
+
+  if (design === 'anniversary' && stats.firstDate) {
+    const yrs = Math.floor(daysSince(stats.firstDate) / 365);
+    return (
+      <div dir={dir} style={root({ background: RED, color: '#fff', padding: '90px 76px', display: 'flex', flexDirection: 'column' })}>
+        <div style={{ position: 'absolute', top: -260, [end]: -260, width: 820, height: 820, borderRadius: '50%', border: '8px solid rgba(255,255,255,0.35)' }} />
+        <div style={{ position: 'absolute', top: -120, [end]: -120, width: 540, height: 540, borderRadius: '50%', border: '8px solid rgba(255,255,255,0.35)' }} />
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 20 }}>{logo(90, { border: '4px solid #fff' })}{p({ fontSize: 28, fontWeight: 700, letterSpacing: 4, direction: 'ltr' }, 'TICKET ZONE · CREW')}</div>
+        <div style={{ position: 'relative', marginTop: 260 }}>
+          {p({ fontSize: 380, fontWeight: 900, lineHeight: 0.9, letterSpacing: -8 }, yrs)}
+          {p({ fontSize: 120, fontWeight: 900 }, c.years(yrs).replace(String(yrs), '').trim() || c.years(yrs))}
+          {p({ marginTop: 10, fontSize: 52, fontWeight: 700 }, c.annivSub)}
+        </div>
+        <div style={{ position: 'relative', marginTop: 'auto', marginBottom: 40, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
+          {[[c.firstNight, stats.stamps[stats.stamps.length - 1]], [c.lastNight, stats.stamps[0]]].map(([l, st], i) => (
+            <div key={i} style={{ background: 'rgba(255,255,255,0.16)', borderRadius: 32, padding: '28px 32px' }}>{p({ fontSize: 28, fontWeight: 600 }, l as string)}{p({ marginTop: 6, fontSize: 38, fontWeight: 800 }, (st as { name: string })?.name ?? '')}{p({ fontSize: 28 }, dmy((st as { date: string })?.date ?? null, true))}</div>
+          ))}
+        </div>
+        <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 24 }}>
+          <div style={{ width: 120, height: 120, borderRadius: '50%', border: '5px solid #fff', overflow: 'hidden' }}><Face stats={stats} size={110} font={44} /></div>
+          {p({ fontSize: 46, fontWeight: 800 }, stats.name)}
+        </div>
+      </div>
+    );
+  }
+
+  if (design === 'month' && stats.worked.length) {
+    const months = monthsOf(stats);
+    const key = months[Math.min(pick, months.length - 1)];
+    const inMonth = stats.worked.filter((n) => n.date.startsWith(key));
+    const loc = lang === 'ar' ? 'ar-IQ-u-nu-latn' : 'en-GB';
+    const label = new Intl.DateTimeFormat(loc, { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${key}-15T12:00:00Z`));
+    const venueTop = (() => { const m = new Map<string, number>(); for (const n of inMonth) m.set(n.venue, (m.get(n.venue) ?? 0) + 1); return [...m].sort((a, b) => b[1] - a[1])[0]?.[0] ?? ''; })();
+    const tiles = inMonth.slice(0, 6);
+    return (
+      <div dir={dir} style={dark({ padding: '90px 70px' })}>
+        {dots}
+        {brandRow}
+        {p({ position: 'relative', marginTop: 70, fontSize: 40, fontWeight: 700, color: '#ff9b8f' }, label)}
+        {p({ position: 'relative', fontSize: 84, fontWeight: 900, lineHeight: 1.1 }, c.monthTitle)}
+        <div style={{ position: 'relative', marginTop: 44, display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 18 }}>
+          {tiles.map((n) => (
+            <div key={n.key} style={{ aspectRatio: '1 / 1', borderRadius: 26, overflow: 'hidden', background: '#24252b', position: 'relative' }}>
+              {n.posterUrl ? <img src={n.posterUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 20%' }} /> : (
+                <div style={{ position: 'absolute', inset: 0, background: RED, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', padding: 20 }}>{p({ fontSize: 26, fontWeight: 800, lineHeight: 1.2 }, n.name)}</div>
+              )}
+              <p style={{ position: 'absolute', top: 12, [start]: 12, margin: 0, fontSize: 24, fontWeight: 800, background: 'rgba(0,0,0,0.6)', borderRadius: 14, padding: '2px 12px' }}>{dmy(n.date)}</p>
+            </div>
+          ))}
+        </div>
+        <div style={{ position: 'relative', marginTop: 50, display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          <div style={{ background: '#fff', color: '#121317', borderRadius: 32, padding: '28px 32px' }}>{p({ fontSize: 110, fontWeight: 900, color: RED, lineHeight: 1 }, inMonth.length)}{p({ fontSize: 32, fontWeight: 700 }, c.events)}</div>
+          <div style={{ background: 'rgba(255,255,255,0.08)', borderRadius: 32, padding: '28px 32px' }}>{p({ fontSize: 28, fontWeight: 600, color: '#bdbdbd' }, c.topVenue)}{p({ marginTop: 8, fontSize: 40, fontWeight: 800, lineHeight: 1.2 }, venueTop)}</div>
+        </div>
+        <div style={{ position: 'relative', marginTop: 'auto' }}>{me(c.team)}</div>
+      </div>
+    );
+  }
+
+  if (design === 'year' && stats.worked.length) {
+    const year = yearOf(stats)!;
+    const inYear = stats.worked.filter((n) => n.date.startsWith(year));
+    const slide = Math.min(pick, 3);
+    const count = (vals: (string | null)[]) => { const m = new Map<string, number>(); for (const v of vals) if (v) m.set(v, (m.get(v) ?? 0) + 1); return [...m].sort((a, b) => b[1] - a[1])[0] ?? null; };
+    const topPost = count(inYear.map((n) => n.post));
+    const topVenue = count(inYear.map((n) => n.venue));
+    const biggest = [...inYear].sort((a, b) => b.crew - a.crew)[0];
+    const dotsRow = (
+      <div style={{ position: 'relative', display: 'flex', gap: 12, marginTop: 40 }}>
+        {[0, 1, 2, 3].map((i) => <div key={i} style={{ flex: 1, height: 10, borderRadius: 6, background: i <= slide ? '#fff' : 'rgba(255,255,255,0.25)' }} />)}
+      </div>
+    );
+    const shell = (body: ReactNode, bg = '#121317') => (
+      <div dir={dir} style={root({ background: bg, color: '#fff', padding: '70px 76px 90px', display: 'flex', flexDirection: 'column' })}>
+        {dotsRow}
+        <div style={{ position: 'relative', marginTop: 50 }}>{brandRow}</div>
+        {p({ position: 'relative', marginTop: 50, fontSize: 52, fontWeight: 800, color: bg === RED ? '#fff' : '#ff9b8f' }, c.yearTitle(year))}
+        {body}
+        <div style={{ position: 'relative', marginTop: 'auto' }}>{me(c.team)}</div>
+      </div>
+    );
+    if (slide === 0) return shell(<div style={{ position: 'relative', marginTop: 120 }}>{p({ fontSize: 460, fontWeight: 900, lineHeight: 0.9, letterSpacing: -10 }, inYear.length)}{p({ fontSize: 100, fontWeight: 900 }, c.worked)}</div>, RED);
+    if (slide === 1) return shell(
+      <div style={{ position: 'relative', marginTop: 120, display: 'flex', flexDirection: 'column', gap: 40 }}>
+        {[[c.topPost, topPost], [c.topVenue, topVenue]].map(([l, v], i) => v ? (
+          <div key={i} style={{ background: i ? 'rgba(255,255,255,0.08)' : '#fff', color: i ? '#fff' : '#121317', borderRadius: 40, padding: '44px 48px' }}>
+            {p({ fontSize: 34, fontWeight: 600, color: i ? '#bdbdbd' : '#6b6862' }, l as string)}
+            {p({ marginTop: 10, fontSize: 80, fontWeight: 900, lineHeight: 1.1, color: i ? '#fff' : RED }, (v as [string, number])[0])}
+            {p({ marginTop: 8, fontSize: 34, fontWeight: 700 }, `× ${(v as [string, number])[1]}`)}
+          </div>
+        ) : null)}
+      </div>,
+    );
+    if (slide === 2 && biggest) return shell(
+      <div style={{ position: 'relative', marginTop: 70 }}>
+        {p({ fontSize: 60, fontWeight: 900 }, c.biggest)}
+        <div style={{ marginTop: 36, borderRadius: 40, overflow: 'hidden', height: 760, position: 'relative', background: RED }}>
+          {biggest.posterUrl ? <img src={biggest.posterUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 22%' }} /> : null}
+          <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0) 45%, rgba(0,0,0,0.85))' }} />
+          <div style={{ position: 'absolute', bottom: 40, left: 44, right: 44 }}>{p({ fontSize: 66, fontWeight: 900, lineHeight: 1.1 }, biggest.name)}{p({ marginTop: 8, fontSize: 36, fontWeight: 700 }, `${c.crewOf(biggest.crew)} · ${dmy(biggest.date, true)}`)}</div>
+        </div>
+      </div>,
+    );
+    const sc = stats.score && stats.score.completed > 0 ? stats.score : null;
+    if (!sc) { const [v, l] = stats.hours > 0 ? [stats.hours, c.hours] : [new Set(inYear.map((n) => n.venue)).size, c.venues]; return shell(<div style={{ position: 'relative', marginTop: 120 }}>{p({ fontSize: 460, fontWeight: 900, lineHeight: 0.9, color: RED, letterSpacing: -10 }, v)}{p({ fontSize: 100, fontWeight: 900 }, l)}</div>); }
+    return shell(
+      <div style={{ position: 'relative', marginTop: 120 }}>
+        {p({ fontSize: 60, fontWeight: 900 }, c.commitTitle)}
+        {p({ marginTop: 30, fontSize: 360, fontWeight: 900, lineHeight: 0.9, color: RED, direction: 'ltr', textAlign: start }, `${sc.percentage}%`)}
+        {p({ marginTop: 24, fontSize: 44, fontWeight: 700 }, c.commitOf(sc.completed, sc.total))}
+        {sc.rank && sc.ranked >= 5 ? <p style={{ display: 'inline-block', margin: '30px 0 0', fontSize: 44, fontWeight: 900, background: RED, borderRadius: 50, padding: '14px 40px' }}>{c.rankOf(sc.rank, sc.ranked)}</p> : null}
+      </div>,
+    );
+  }
 
   if (design === 'poster' && stats.next?.posterUrl) {
     /*

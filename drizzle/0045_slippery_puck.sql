@@ -1,0 +1,1 @@
+ALTER TABLE `team_members` ADD `hide_from_group_cards` integer DEFAULT false NOT NULL;

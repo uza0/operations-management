@@ -117,6 +117,12 @@ export const teamMembers = sqliteTable(
     photoUrl: text('photo_url'),
     /** Member-submitted image waiting for a supervisor to approve it. */
     pendingPhotoUrl: text('pending_photo_url'),
+    /**
+     * He asked to be left out of the group story cards (the night's team, his
+     * gate's team). His own cards are unaffected; it only keeps his face off
+     * pictures other people post.
+     */
+    hideFromGroupCards: integer('hide_from_group_cards', { mode: 'boolean' }).notNull().default(false),
     active: integer('active', { mode: 'boolean' }).notNull().default(true),
     /**
      * On the company's payroll, not on this one.

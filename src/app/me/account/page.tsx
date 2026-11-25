@@ -6,6 +6,10 @@ import { getMemberHome } from '@/server/services/member-home';
 import { memberLedger } from '@/server/services/credit';
 import { getMemberCardStats } from '@/server/services/member-card';
 import { ROLE_NAME } from '@/app/me/card/roles';
+import { setGroupCardsVisibilityAction } from '@/server/actions/member-auth';
+import { db } from '@/db';
+import { teamMembers } from '@/db/schema';
+import { eq } from 'drizzle-orm';
 import { IconStar, IconPin } from '@/components/ui/icons';
 import { getT } from '@/lib/i18n/server';
 import { memberSignOutAction } from '@/server/actions/member-auth';
@@ -28,6 +32,7 @@ export default async function MemberAccountPage() {
     getT(), getMemberHome(session.teamMemberId), memberLedger(session.teamMemberId), currentUser(),
     getMemberCardStats(session.teamMemberId).catch(() => null),
   ]);
+  const hideFromGroups = Boolean((await db.query.teamMembers.findFirst({ where: eq(teamMembers.id, session.teamMemberId), columns: { hideFromGroupCards: true } }))?.hideFromGroupCards);
   if (!home) redirect('/login?as=member');
   await touchMemberSession(session.sessionId);
   const initials = home.person.name.trim().split(/\s+/).slice(0, 2).map((part) => part[0]).join('');
@@ -64,6 +69,18 @@ export default async function MemberAccountPage() {
         <Link href="/me/card" className="btn-primary btn-sm mt-4 inline-flex w-full items-center justify-center gap-2"><IconStar width={15} height={15} />{t.memberAuth.profileSeeCard}</Link>
       </div>
     </section>
+    {/* Group story cards show other people's faces; each person decides about his own. */}
+    <form action={setGroupCardsVisibilityAction} className="flex items-center justify-between gap-3 rounded-card border border-ink-700 bg-ink-850 px-4 py-3.5">
+      <input type="hidden" name="hide" value={hideFromGroups ? '0' : '1'} />
+      <span className="min-w-0">
+        <span className="block text-[14px] font-semibold text-ink-100">{t.memberAuth.groupCardsTitle}</span>
+        <span className="mt-0.5 block text-[12px] leading-5 text-ink-400">{hideFromGroups ? t.memberAuth.groupCardsHidden : t.memberAuth.groupCardsShown}</span>
+      </span>
+      <button type="submit" role="switch" aria-checked={!hideFromGroups} aria-label={t.memberAuth.groupCardsTitle} className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${hideFromGroups ? 'bg-ink-600' : 'bg-brand-500'}`}>
+        <span className={`absolute top-1 h-5 w-5 rounded-full bg-white transition-all ${hideFromGroups ? 'ltr:left-1 rtl:right-1' : 'ltr:left-6 rtl:right-6'}`} />
+      </button>
+    </form>
+
     <MoneyVisibilityProvider>
       {ledger ? <BalanceCard t={t} locale={locale} ledger={ledger} salaried={Boolean(home.person.salaried)} /> : null}
       {ledger && !home.person.salaried ? <OwedLines t={t} locale={locale} ledger={ledger} /> : null}

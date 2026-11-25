@@ -8,23 +8,21 @@ import '@fontsource/alexandria/900.css';
 
 import { useRef, useState } from 'react';
 import type { MemberCardStats } from '@/server/services/member-card';
-import { DESIGNS, StoryCard, type CardLang, type Design } from './StoryCards';
+import { DESIGNS, StoryCard, designAvailable, pickLabels, type CardLang, type Design } from './StoryCards';
 
 type Copy = {
-  share: string; save: string; working: string; failed: string; hint: string;
+  share: string; save: string; working: string; failed: string; hint: string; pick: string;
   arabic: string; english: string; names: Record<Design, string>; stickerNote: string;
 };
 
-/** Cards that need at least one worked night to say anything. */
-const NEEDS_HISTORY: Design[] = ['passport', 'season', 'sticker'];
 const SCALE = 0.3;
 
 export function ShareStudio({ stats, copy, initialLang }: { stats: MemberCardStats; copy: Copy; initialLang: CardLang }) {
-  const designs = DESIGNS.filter(
-    (d) => (d === 'poster' ? Boolean(stats.next?.posterUrl) : d === 'upcoming' ? stats.next !== null : stats.events > 0 || !NEEDS_HISTORY.includes(d)),
-  );
+  const designs = DESIGNS.filter((d) => designAvailable(d, stats));
   const [design, setDesign] = useState<Design>(designs[0]);
   const [lang, setLang] = useState<CardLang>(initialLang);
+  const [pick, setPick] = useState(0);
+  const labels = pickLabels(design, stats, lang);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const card = useRef<HTMLDivElement>(null);
@@ -73,7 +71,7 @@ export function ShareStudio({ stats, copy, initialLang }: { stats: MemberCardSta
     <div className="space-y-4">
       <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label={copy.hint}>
         {designs.map((d) => (
-          <button key={d} type="button" role="tab" aria-selected={d === design} onClick={() => setDesign(d)}
+          <button key={d} type="button" role="tab" aria-selected={d === design} onClick={() => { setDesign(d); setPick(0); }}
             className={`min-h-11 shrink-0 rounded-full border px-4 text-sm font-semibold transition-colors ${d === design ? 'border-brand-400 bg-brand-500 text-white' : 'border-ink-700 bg-ink-850 text-ink-200 hover:border-ink-500'}`}>
             {copy.names[d]}
           </button>
@@ -89,11 +87,20 @@ export function ShareStudio({ stats, copy, initialLang }: { stats: MemberCardSta
         ))}
       </div>
 
+      {labels && labels.length > 1 ? (
+        <label className="block">
+          <span className="sr-only">{copy.pick}</span>
+          <select value={pick} onChange={(e) => setPick(Number(e.target.value))} className="field min-h-11 w-full">
+            {labels.map((label, i) => <option key={i} value={i}>{label}</option>)}
+          </select>
+        </label>
+      ) : null}
+
       <div className="flex justify-center">
         <div dir="ltr" className="overflow-hidden rounded-2xl border border-ink-700 shadow-lg"
           style={{ width: 1080 * SCALE, height: 1920 * SCALE, background: design === 'sticker' ? 'repeating-conic-gradient(#d6d6d6 0 25%, #ececec 0 50%) 0 0 / 24px 24px' : undefined }}>
           <div ref={card} style={{ width: 1080, height: 1920, transform: `scale(${SCALE})`, transformOrigin: 'top left' }}>
-            <StoryCard design={design} lang={lang} stats={stats} />
+            <StoryCard design={design} lang={lang} stats={stats} pick={pick} />
           </div>
         </div>
       </div>
