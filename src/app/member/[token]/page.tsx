@@ -364,8 +364,26 @@ function MatesCard({
   const mates = data.mates;
   if (mates.length === 0) return null;
 
+  /*
+   * Who is in charge of him, first. The gate leader runs the gate; a
+   * section supervisor runs one job inside it, and for the people on that
+   * job he is the person to go to — so he is named as such, not left as one
+   * more line in the list.
+   */
+  const myTask = mates.find((row) => row.id === myId)?.task ?? null;
   const leader = mates.find((row) => row.isGateLeader) ?? null;
-  const others = mates.filter((row) => row.id !== leader?.id);
+  const supervisors = mates
+    .filter((row) => row.eventRole === 'SECTION_SUPERVISOR' && row.id !== leader?.id)
+    .sort((a, b) => Number(b.task === myTask) - Number(a.task === myTask));
+  const heads = [
+    ...(leader ? [{ row: leader, label: t.member.gateLeaderIs }] : []),
+    ...supervisors.map((row) => ({
+      row,
+      label: row.id === myId ? t.member.youAreSectionSupervisor : row.task === myTask ? t.member.yourSectionSupervisor : t.enums.eventRole.SECTION_SUPERVISOR,
+    })),
+  ];
+  const headIds = new Set(heads.map((head) => head.row.id));
+  const others = mates.filter((row) => !headIds.has(row.id));
 
   return (
     <section>
@@ -374,42 +392,32 @@ function MatesCard({
         {data.assignment?.gateId ? t.member.atYourGate : t.member.atYourPoint}
       </h2>
       <ul className="panel divide-y divide-ink-700">
-        {leader ? (
-          <li className="flex items-center justify-between gap-3 px-4 py-3">
+        {heads.map(({ row, label }) => (
+          <li key={row.id} className="flex items-center justify-between gap-3 bg-brand-500/5 px-4 py-3">
             <span className="min-w-0">
-              <span
-                className="block truncate text-[14.5px] font-bold text-ink-100"
-                style={{ unicodeBidi: 'plaintext' }}
-              >
-                {leader.name}
-                {leader.id === myId ? ` (${t.member.you})` : ''}
+              <span className="block truncate text-[14.5px] font-bold text-ink-100" style={{ unicodeBidi: 'plaintext' }}>
+                {row.name}
+                {row.id === myId ? ` (${t.member.you})` : ''}
               </span>
-              <span className="mt-0.5 block text-[12.5px] text-ink-400">
-                {t.enums.task[leader.task as Task]}
-              </span>
+              <span className="mt-0.5 block text-[12.5px] text-ink-400">{t.enums.task[row.task as Task]}</span>
             </span>
-            <Badge tone="brand">{t.member.gateLeaderIs}</Badge>
+            <Badge tone="brand">{label}</Badge>
           </li>
-        ) : null}
+        ))}
 
         {others.map((row) => (
           <li key={row.id} className="flex items-center justify-between gap-3 px-4 py-3">
             <span className="min-w-0">
-              <span
-                className="block truncate text-[14.5px] font-semibold text-ink-100"
-                style={{ unicodeBidi: 'plaintext' }}
-              >
+              <span className="block truncate text-[14.5px] font-semibold text-ink-100" style={{ unicodeBidi: 'plaintext' }}>
                 {row.name}
                 {row.id === myId ? ` (${t.member.you})` : ''}
               </span>
-              <span className="mt-0.5 block text-[12.5px] text-ink-400">
-                {t.enums.task[row.task as Task]}
-              </span>
+              <span className="mt-0.5 block text-[12.5px] text-ink-400">{t.enums.task[row.task as Task]}</span>
             </span>
           </li>
         ))}
       </ul>
-      {!leader ? (
+      {heads.length === 0 ? (
         <p className="mt-1.5 px-1 text-[12.5px] leading-5 text-ink-400">
           {t.member.noGateLeaderHere}
         </p>

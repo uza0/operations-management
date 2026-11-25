@@ -263,6 +263,7 @@ export async function getMemberPortal(token: string) {
             name: teamMembers.fullName,
             task: assignments.task,
             isGateLeader: assignments.isGateLeader,
+            eventRole: eventMembers.eventRole,
           })
           .from(assignments)
           .innerJoin(eventMembers, eq(assignments.eventMemberId, eventMembers.id))

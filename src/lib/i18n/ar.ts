@@ -1669,6 +1669,8 @@ export const ar = {
     panicNote: 'تكدر تكتب سطر وحدة عن السبب (اختياري).',
     atYourGate: 'الي وياك بالبوابة',
     atYourPoint: 'الي وياك بنقطة العمل',
+    yourSectionSupervisor: 'مسؤول قسمك',
+    youAreSectionSupervisor: 'أنت مسؤول القسم',
     gateLeaderIs: 'قائد البوابة',
     noGateLeaderHere: 'ما أكو قائد بوابة هنا — راجع قائد الفريق.',
     duringTitle: 'أثناء الحفل',
