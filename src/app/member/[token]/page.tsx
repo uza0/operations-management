@@ -535,9 +535,19 @@ export default async function MemberPortalPage({
       ? 'CLOSED'
       : data.stage === 'AFTER'
         ? 'AFTER'
-        : data.stage === 'ON_DUTY'
+        : data.stage === 'ON_DUTY' ||
+            /*
+             * He pressed «وصلت» and the event is running: he is standing at
+             * his post, so he gets the page for being there — help button,
+             * announcements, the people around him — while the supervisor's
+             * approval catches up. Only the screen moves ahead; his stage,
+             * his attendance and what he is paid for still wait for that
+             * approval.
+             */
+            (data.stage === 'AWAITING_APPROVAL' && membership.eventStatus === 'LIVE')
           ? 'DURING'
           : 'BEFORE';
+  const awaitingApproval = data.stage === 'AWAITING_APPROVAL';
 
   /*
    * The ordinary announcements, as one list used wherever they belong. An
@@ -882,7 +892,7 @@ export default async function MemberPortalPage({
               <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[12px] font-semibold">
                 {locationName ? <span className="rounded-full bg-white/15 px-2.5 py-0.5 backdrop-blur-md">{locationName}</span> : null}
                 {assignment ? <span className="rounded-full bg-white/15 px-2.5 py-0.5 backdrop-blur-md">{t.enums.task[assignment.task as Task]}</span> : null}
-                {data.attendance ? (
+                {data.attendance && !awaitingApproval ? (
                   <Badge tone={attendanceTone[data.attendance.status as AttendanceStatus]}>
                     {t.enums.attendanceStatus[data.attendance.status as AttendanceStatus]}
                     {data.attendance.checkInTime ? ` · ${formatTime(data.attendance.checkInTime, locale)}` : ''}
@@ -890,6 +900,14 @@ export default async function MemberPortalPage({
                 ) : null}
               </div>
             </PosterBand>
+
+            {awaitingApproval ? (
+              <section className="rounded-card border border-warn/40 bg-warn/10 px-4 py-3 text-center">
+                <p className="text-[13.5px] font-semibold text-ink-100">
+                  {format(t.journey.arrivalWaiting, { time: formatTime(data.attendance?.checkInTime ?? '', locale) })}
+                </p>
+              </section>
+            ) : null}
 
             {/* The call for help, first, and deliberately hard to miss. */}
             <PanicButton t={t} token={token} />
@@ -1032,8 +1050,8 @@ export default async function MemberPortalPage({
               </section>
             ) : null}
 
-            {/* The end of his evening, in his own words. */}
-            <DepartureButton t={t} token={token} />
+            {/* The end of his evening, in his own words — once his arrival is approved. */}
+            {awaitingApproval ? <DepartureButton t={t} token={token} offlineOnly /> : <DepartureButton t={t} token={token} />}
           </>
         ) : null}
 
