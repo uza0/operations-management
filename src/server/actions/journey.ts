@@ -326,7 +326,13 @@ export async function reportDepartureAction(
   const { t, row, att, stage } = loaded;
 
   if (att?.reportedDepartureAt) return ok(t.journey.departureAlready);
-  if (stage !== 'ON_DUTY') return fail(t.journey.notOnDuty);
+  /*
+   * He records his own evening, arrival and departure, as it happens; the
+   * leader approves it afterwards and corrects the times if they are off.
+   * Departure therefore no longer waits for the arrival to be approved —
+   * only for an arrival to exist. Pay still reads the approved status.
+   */
+  if (stage !== 'ON_DUTY' && stage !== 'AWAITING_APPROVAL') return fail(t.journey.notOnDuty);
   if (!att) return fail(t.errors.notFound);
   if ((await payoutLock(row.id, 'MEMBER')).locked) return fail(t.credit.attendanceLocked);
 

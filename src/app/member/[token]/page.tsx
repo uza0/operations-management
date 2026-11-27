@@ -540,9 +540,8 @@ export default async function MemberPortalPage({
              * He pressed «وصلت» and the event is running: he is standing at
              * his post, so he gets the page for being there — help button,
              * announcements, the people around him — while the supervisor's
-             * approval catches up. Only the screen moves ahead; his stage,
-             * his attendance and what he is paid for still wait for that
-             * approval.
+             * approval catches up. He can record his departure too; what he
+             * is paid for still waits for the leader to approve the times.
              */
             (data.stage === 'AWAITING_APPROVAL' && membership.eventStatus === 'LIVE')
           ? 'DURING'
@@ -677,7 +676,7 @@ export default async function MemberPortalPage({
                     })}
                   </p>
                 </section>
-                <DepartureButton t={t} token={token} offlineOnly />
+                <DepartureButton t={t} token={token} />
               </>
             ) : null}
 
@@ -1050,8 +1049,8 @@ export default async function MemberPortalPage({
               </section>
             ) : null}
 
-            {/* The end of his evening, in his own words — once his arrival is approved. */}
-            {awaitingApproval ? <DepartureButton t={t} token={token} offlineOnly /> : <DepartureButton t={t} token={token} />}
+            {/* The end of his evening, in his own words. */}
+            <DepartureButton t={t} token={token} />
           </>
         ) : null}
 
